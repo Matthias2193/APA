@@ -16,7 +16,7 @@ library('philentropy')
 email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
 email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
 email$control <- ifelse(email$segment=='No E-Mail',1,0)
-treatment_list <- c('men_treatment','women_treatment')
+
 
 
 #Set up tests
@@ -48,19 +48,26 @@ set_up_tests <- function(x){
 }
 
 
-select_split <- function(divergence,treatments,control,target,temp_data){
+select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data){
   gain_list <- c()
   name_list <- c()
-  for(t in test_list){
-    gain_list <- c(gain_list,gain())
+  for(t in test_list$categorical){
+    gain_list <- c(gain_list,gain(a,l,g,divergence,t[[1]],
+                                  treatment,control,target,temp_data,'categorical',names(t)))
+    name_list <- c(name_list,t)
+  }
+  for(t in test_list$numerical){
+    gain_list <- c(gain_list,gain(a,l,g,divergence,number_of_treatments,t[[1]],
+                                  treatment,control,target,temp_data,'numerical',names(t)))
     name_list <- c(name_list,t)
   }
   return(name_list[match(max(gain_list),gain_list)])
 }
 
-gain <- function(a,l,g,divergence,number_of_treatments, test_case,treatment,control,target,temp_data){
-  conditional <- conditional_convergance(a,l,g,divergence,test_case,treatments,control,target,temp_data)
-  multiple <- multiple_divergence(a,l,g,divergence,treatments,control,target,temp_data)
+gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,test_type,test_col){
+  conditional <- conditional_divergence(a,l,g,divergence,test_case,treatments,control,target,temp_data,
+                                         test_type,test_col)
+  multiple <- multiple_divergence(a,l,g,divergence,treatments,control,target,temp_data,test_col)
   return(conditional-multiple)
 }
 
@@ -68,16 +75,37 @@ multiple_divergence <- function(a,l,g,divergence,treatments,control,target,temp_
   divergence_function <- match.fun(divergence)
   multiple <- 0
   for(t in length(treatments)){
-    multiple <- multiple + a*l[t]*divergence_function(temp_data[temp_data$treatments[t]==1,]$target,
-                                                      temp_data[temp_data$control==1,]$target)
+    multiple <- multiple + a*l[t]*divergence_function(temp_data[temp_data[treatments[t]]==1,target],
+                                                      temp_data[temp_data[control]==1,target])
     between_treatments <- 0
     for(s in length(treatments)){
       between_treatments <- between_treatments + g[t,s]*divergence_function(
-        temp_data[temp_data$treatments[t]==1,]$target,temp_data[temp_data$treatments[s]==1,]$target)
+        temp_data[temp_data[treatments[t]]==1,target],temp_data[temp_data[treatments[s]]==1,target])
     }
     multiple <- multiple + (1-a)*between_treatments
   }
   return(multiple)
+}
+
+conditional_divergence <- function(a,l,g,divergence,test_case,treatments,control,target,temp_data,test_type,
+                                   test_col){
+  div <- 0
+  if(test_type == 'categorical'){
+    for(t in test_case){
+      div <- div + nrow(temp_data[temp_data[test_col]==t,])/nrow(temp_data)*
+        multiple_divergence(a,l,g,divergence,treatments,control,target,
+                            temp_data[temp_data[test_col]==t,])
+    }
+  }
+  else{
+    div <- div + nrow(temp_data[temp_data[test_col]<t,])/nrow(temp_data)*
+      multiple_divergence(a,l,g,divergence,treatments,control,target,
+                          temp_data[temp_data[test_col]<t,])
+    div <- div + nrow(temp_data[temp_data[test_col]>t,])/nrow(temp_data)*
+      multiple_divergence(a,l,g,divergence,treatments,control,target,
+                          temp_data[temp_data[test_col]>t,])
+  }
+  return(div)
 }
 
 binary_KL_divergence <- function(x,y){
@@ -90,35 +118,23 @@ binary_KL_divergence <- function(x,y){
 
 ####Test Area
 
-multiple_divergence(1,c(0.5,0.5),matrix(0.25,nrow = 2,ncol = 2),'KL.divergence',treatment_list,'control',
-                    'visit',email)
-
-divergence_function <- match.fun('binary_KL_divergence')
+divergence <-'binary_KL_divergence'
 multiple <- 0
 a <- 1
 l<- c(0.5,0.5)
 g<- matrix(0.25,nrow = 2,ncol = 2)
 target <- 'visit'
-temp_data <- email
-for(t in length(treatment_list)){
-  multiple <- multiple + a*l[t]*divergence_function(temp_data[temp_data[,treatment_list[t]]==1,target],
-                                                    temp_data[temp_data[,'control']==1,target])
-  between_treatments <- 0
-  for(s in length(treatments)){
-    between_treatments <- between_treatments + g[t,s]*divergence_function(
-      temp_data[temp_data$treatments[t]==1,]$target,temp_data[temp_data$treatments[s]==1,]$target)
-  }
-  multiple <- multiple + (1-a)*between_treatments
-}
-return(multiple)
+treatment_list <- c('men_treatment','women_treatment')
+test_list <- set_up_tests(email)
+control <- 'control'
+temp_test <- test_list$categorical[1]
+test_col <- names(temp_test)
+
+conditional_divergence(a,l,g,'binary_KL_divergence',temp_test,treatment_list,control,target,email,'categorical',
+                    names(temp_test))
 
 
-email
-X<- rexp(10000, rate=0.2)
-Y<- rexp(10000, rate=0.4)
-KL.divergence(X,Y)
 
-conditional_divergence <- function(a,l,g,divergence,test_case,treatments,control,target,temp_data){
-  divergence_function <- match.fun(divergence)
-}
+
+select_split(a,l,g,'binary_KL_divergence',test_list,treatment_list,'control','visit',email)
 
