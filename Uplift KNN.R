@@ -1,4 +1,4 @@
-# Tetsing of the uKNN implementation in the uplift package for Multiple Treatments
+# Testing of the uKNN implementation in the uplift package for Multiple Treatments
 
 list.of.packages <- c("dplyr", "caret", "uplift")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
