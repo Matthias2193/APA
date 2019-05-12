@@ -13,8 +13,8 @@ data <- read.csv('Email.csv')
 data$visit <- NULL
 data$spend <- NULL
 
-
-###For Debugging
+###########
+#hyperparamters - to be set in main file
 treatment <- "segment"
 response <- "conversion"
 control_level <- "No E-Mail"
@@ -108,6 +108,9 @@ models_logit <- logit_models(train_data, "conversion")
 
 #coef(models_logit[[1]])
 
+########################
+# Predict Test Data
+########################
 
 # Prepare Test Data for predcition
 response <- "conversion"
@@ -119,27 +122,26 @@ y_test <- as.matrix(test_data[, response])
 # Scale the data
 X_test <- scale(X_test)
 
-for (i in c(1 : length(models))) {
+for (i in c(1 : length(models_logit))) {
   if(i == 1){
     predictions <- data.frame(predict(models_logit[[i]], X_test, type="response"))
   } else{
-    predictions[ , paste0(i)] <- predict(models_logit[[i]], X_test, type="response")  
+    predictions[ , paste0(i)] <- as.numeric(predict(models_logit[[i]], X_test, type="response") )
   }
 }
 # Rename columns to treatment names
-colnames(predictions) <- names(models)
-
+colnames(predictions) <- names(models_logit)
 
 k <- ncol(predictions)
 # For each treatment calculate the Uplift as T_i - Control
 for (i in c(1: k - 1)) {
-  predictions[ , paste0("Uplift", names(models)[i])] <- predictions[ , i] - predictions[ , k]
+  predictions[ , paste0("Uplift - ", names(models_logit)[i])] <- predictions[ , i] - predictions[ , k]
 }
 
-
-##TODO
 # choose predicted treatment by the model
-# 
+predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
+predictions$Treatment <- colnames(predictions)[predictions$T_index]
+
 
 
 ##TODO
@@ -157,14 +159,42 @@ calculate_uplift <- function(){
 
 
 
-### Evaluation
+########################
+# Evaluate Model
+########################
 
-# Input: -individual, outcome, assigned treatment
-#        -individial, predicted treatment
+
+eval_data <- data.frame(Prediction = predictions$Treatment, Assignment = test_data$segment, Outcome = test_data$conversion)
+eval_data$Assignment <- if_else(eval_data$Assignment == control_level, "Control", as.character(eval_data$Assignment))
 
 # As described in Zhao et al. 2017
-expected_outcome <- function(){
+expected_outcome <- function(eval_data){
+  # Number of observations
+  N <- nrow(eval_data)
   
+  # Frequencies of treatments z_i
+  t <- table(eval_data$Assignment)
+  p_i <- data.frame(t/ nrow(eval_data))
+  colnames(p_i) <- c("Assignment", "Freq")
+    
+  # only include points where the assigned treatment equals the predicted
+  matching <- eval_data[eval_data$Prediction == eval_data$Assignment , ]
+  matching <- merge(matching, p_i, all.x = T )
   
+  # Expected value of response as AVG sum of outcomes / probability of Assignment
+  res <- (sum(matching$Outcome / matching$Freq) / N)
   
+  return(res)
 }
+
+# Expected value of response from Logit prediction models
+expected_outcome(eval_data)
+# 1.33 % response
+
+# Compare to outcome with random assignment from test set
+mean(eval_data$Outcome)
+# 0.97 % response
+
+## TODO
+# evaluate model for different number of treated individuals 
+
