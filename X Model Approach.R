@@ -1,5 +1,5 @@
 # Implementation of the Seperate Model Approach for Multiple Treatments and different Base Learners
-list.of.packages <- c("dplyr", "caret", "uplift")
+list.of.packages <- c("caret", "glmnet")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages) > 0) install.packages(new.packages)
 
