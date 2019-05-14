@@ -6,24 +6,24 @@ if(length(new.packages) > 0) install.packages(new.packages)
 library(caret)
 library(glmnet)
 
-# Get the data
-data <- read.csv('Email.csv')
-
-# First only look at conversion
-data$visit <- NULL
-data$spend <- NULL
-
-###########
-#hyperparamters - to be set in main file
-treatment <- "segment"
-response <- "conversion"
-control_level <- "No E-Mail"
-############
+# # Get the data
+# data <- read.csv('Email.csv')
+# 
+# # First only look at conversion
+# data$visit <- NULL
+# data$spend <- NULL
+# 
+# ###########
+# #hyperparamters - to be set in main file
+# treatment <- "segment"
+# response <- "conversion"
+# control_level <- "No E-Mail"
+# ############
 
 
 # Splits the input data into train and test for each treatment and control
 # Input: Randomized data; response column as string; treatment column as string; level of control group in treatment column
-multiple_train_test_split <- function(data, response, treatment, control_level){  
+multiple_train_test_split <- function(data, response, treatment, control_level, train_ratio){  
   treatments <- levels(as.factor(data[, treatment]))
   # remove the control level from treatments
   treatments <- treatments[! treatments %in% c(control_level)]
@@ -36,7 +36,7 @@ multiple_train_test_split <- function(data, response, treatment, control_level){
   for(x in treatments){
     t_data <- data[data[, treatment] == x, ]
     
-    idx <- createDataPartition(y = t_data[ , response], p=0.3, list = FALSE)
+    idx <- createDataPartition(y = t_data[ , response], p=(1 - train_ratio), list = FALSE)
   
     # Combine all test splits into one Test Dataset
     test_data <- rbind(test_data, t_data[idx, ] )
@@ -67,14 +67,15 @@ multiple_train_test_split <- function(data, response, treatment, control_level){
   return(list(Train = train_T, Test =test_data))
 }
 
-# Get the training and testing data as list
-res <- multiple_train_test_split(data, "conversion", "segment", "No E-Mail")
-##TODO
-# why is the array of dataframes stored in here ??
-training_list <- res[1]
-train_data <- training_list[[1]]
 
-test_data <- res[[2]]
+
+# # Get the training and testing data as list
+# res <- multiple_train_test_split(data, "conversion", "segment", "No E-Mail")
+# ##TODO
+# # why is the array of dataframes stored in here ??
+# training_list <- res[1]
+# train_data <- training_list[[1]]
+# test_data <- res[[2]]
 
 
 # Returns list of Logit models for training data
@@ -103,58 +104,46 @@ logit_models <- function(train_data, response){
   return(models)
 }
 
-# Create the models for each treatment
-models_logit <- logit_models(train_data, "conversion")
-
-#coef(models_logit[[1]])
+# # Create the models for each treatment
+# models_logit <- logit_models(train_data, "conversion")
+# 
+# #coef(models_logit[[1]])
 
 ########################
 # Predict Test Data
 ########################
 
-# Prepare Test Data for predcition
-response <- "conversion"
-treatment <- "segment"
-
-# do not include the treatment assignment in the Test data
-X_test <- model.matrix(as.formula(paste(response, "~.-1")) , test_data[ , names(test_data) != treatment])
-y_test <- as.matrix(test_data[, response])
-# Scale the data
-X_test <- scale(X_test)
-
-for (i in c(1 : length(models_logit))) {
-  if(i == 1){
-    predictions <- data.frame(predict(models_logit[[i]], X_test, type="response"))
-  } else{
-    predictions[ , paste0(i)] <- as.numeric(predict(models_logit[[i]], X_test, type="response") )
+logit_x_model_predictions <- function(models_logit, test_data, response, treatment){
+  
+  # do not include the treatment assignment in the Test data
+  X_test <- model.matrix(as.formula(paste(response, "~.-1")) , test_data[ , names(test_data) != treatment])
+  y_test <- as.matrix(test_data[, response])
+  # Scale the data
+  X_test <- scale(X_test)
+  
+  for (i in c(1 : length(models_logit))) {
+    if(i == 1){
+      predictions <- data.frame(predict(models_logit[[i]], X_test, type="response"))
+    } else{
+      predictions[ , paste0(i)] <- as.numeric(predict(models_logit[[i]], X_test, type="response") )
+    }
   }
-}
-# Rename columns to treatment names
-colnames(predictions) <- names(models_logit)
-
-k <- ncol(predictions)
-# For each treatment calculate the Uplift as T_i - Control
-for (i in c(1: k - 1)) {
-  predictions[ , paste0("Uplift - ", names(models_logit)[i])] <- predictions[ , i] - predictions[ , k]
-}
-
-# choose predicted treatment by the model
-predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
-predictions$Treatment <- colnames(predictions)[predictions$T_index]
-
-
-
-##TODO
-# either include the treatment assignment or the ID to merge later on
-
-# prediction for each treatment and control
-# 
-calculate_uplift <- function(){
+  # Rename columns to treatment names
+  colnames(predictions) <- names(models_logit)
+  
+  k <- ncol(predictions)
+  # For each treatment calculate the Uplift as T_i - Control
+  for (i in c(1: k - 1)) {
+    predictions[ , paste0("Uplift - ", names(models_logit)[i])] <- predictions[ , i] - predictions[ , k]
+  }
+  
+  # choose predicted treatment by the model
+  predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
+  predictions$Treatment <- colnames(predictions)[predictions$T_index]
   
   
-  # 
-  return()
-  
+    
+  return(predictions)
 }
 
 
@@ -163,9 +152,14 @@ calculate_uplift <- function(){
 # Evaluate Model
 ########################
 
+# Given the test data and the predicted test Data merge into data frame for model evaluation
+merge_prediction_test_data <- function(predictions, test_data, response, treatment, control_level) {
+  eval_data <- data.frame(Prediction = predictions$Treatment, Assignment = test_data[ , treatment], Outcome = test_data[ , response])
+  eval_data$Assignment <- ifelse(eval_data$Assignment == control_level, "Control", as.character(eval_data$Assignment))
+  
+  return(eval_data)
+}
 
-eval_data <- data.frame(Prediction = predictions$Treatment, Assignment = test_data$segment, Outcome = test_data$conversion)
-eval_data$Assignment <- if_else(eval_data$Assignment == control_level, "Control", as.character(eval_data$Assignment))
 
 # As described in Zhao et al. 2017
 expected_outcome <- function(eval_data){
@@ -187,13 +181,15 @@ expected_outcome <- function(eval_data){
   return(res)
 }
 
-# Expected value of response from Logit prediction models
-expected_outcome(eval_data)
-# 1.33 % response
+# # Expected value of response from Logit prediction models
+# expected_outcome(eval_data)
+# # 1.33 % response
+# 
+# # Compare to outcome with random assignment from test set
+# mean(eval_data$Outcome)
+# # 0.97 % response
 
-# Compare to outcome with random assignment from test set
-mean(eval_data$Outcome)
-# 0.97 % response
+
 
 ## TODO
 # evaluate model for different number of treated individuals 
