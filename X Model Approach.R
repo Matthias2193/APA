@@ -1,25 +1,15 @@
 # Implementation of the Seperate Model Approach for Multiple Treatments and different Base Learners
-list.of.packages <- c("caret", "glmnet")
+list.of.packages <- c("caret", "glmnet", "rpart")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages) > 0) install.packages(new.packages)
 
 library(caret)
 library(glmnet)
+library(rpart)
 
-# # Get the data
-# data <- read.csv('Email.csv')
-# 
-# # First only look at conversion
-# data$visit <- NULL
-# data$spend <- NULL
-# 
-# ###########
-# #hyperparamters - to be set in main file
-# treatment <- "segment"
-# response <- "conversion"
-# control_level <- "No E-Mail"
-# ############
-
+####################################
+# X Model Data Training split
+####################################
 
 # Splits the input data into train and test for each treatment and control
 # Input: Randomized data; response column as string; treatment column as string; level of control group in treatment column
@@ -68,15 +58,9 @@ multiple_train_test_split <- function(data, response, treatment, control_level, 
 }
 
 
-
-# # Get the training and testing data as list
-# res <- multiple_train_test_split(data, "conversion", "segment", "No E-Mail")
-# ##TODO
-# # why is the array of dataframes stored in here ??
-# training_list <- res[1]
-# train_data <- training_list[[1]]
-# test_data <- res[[2]]
-
+####################################
+# Binary Logit models Prediction
+####################################
 
 # Returns list of Logit models for training data
 # only applicable for binary response e.g. conversion
@@ -104,21 +88,14 @@ logit_models <- function(train_data, response){
   return(models)
 }
 
-# # Create the models for each treatment
-# models_logit <- logit_models(train_data, "conversion")
-# 
-# #coef(models_logit[[1]])
 
-########################
-# Predict Test Data
-########################
-
-logit_x_model_predictions <- function(models_logit, test_data, response, treatment){
-  
+logit_x_model_predictions <- function(models_logit, test_data, response, treatment, control_level){
   # do not include the treatment assignment in the Test data
-  X_test <- model.matrix(as.formula(paste(response, "~.-1")) , test_data[ , names(test_data) != treatment])
-  y_test <- as.matrix(test_data[, response])
+  assignment <- test_data[ , treatment]
+  outcome <- test_data[, response]
+  
   # Scale the data
+  X_test <- model.matrix(as.formula(paste(response, "~.-1")) , test_data[ , names(test_data) != treatment])
   X_test <- scale(X_test)
   
   for (i in c(1 : length(models_logit))) {
@@ -141,25 +118,97 @@ logit_x_model_predictions <- function(models_logit, test_data, response, treatme
   predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
   predictions$Treatment <- colnames(predictions)[predictions$T_index]
   
+  # Add actual assignment 
+  predictions$Outcome <- outcome
   
+  predictions$Assignment <- assignment
+  predictions$Assignment <- ifelse(predictions$Assignment == control_level, "Control", as.character(predictions$Assignment))
+  
+  
+  return(predictions)
+}
+
+
+####################################
+# Decision Tree model
+####################################
+
+dt_models <- function(train_data, response, prediction_method){  
+  # for each element in train data fir model and return list of models
+  treatments <- names(train_data)
+  
+  models <- list()
+  for(i in c(1: length(treatments))){
+    train <- train_data[[i]]
     
+    # Grow the tree
+    ## TODO how to set / adjust parameters ??
+    dt <- rpart(as.formula(paste(response, "~.")), train, method = prediction_method, control=rpart.control(minsplit=10,  cp=0.001))
+    
+    models <- append(models, list(x= dt))
+  }
+  
+  names(models) <- treatments
+  
+  # Named list with fitted models for each treatment and control
+  return(models)
+}
+
+
+dt_x_model_predictions <- function(models_dt, test_data, response, treatment, control_level, prediction_class){
+  assignment <- test_data[ , treatment]
+  outcome <- test_data[, response]
+  
+  test_data[ , treatment] <- NULL
+  
+  # Check whether regression or class prediction due to different dim of predict() result
+  if(prediction_class == "class"){
+    for (i in c(1 : length(models_dt))) {
+      if(i == 1){
+        predictions <- data.frame(predict(models_dt[[i]], test_data)[ , 2])
+      } else{
+        predictions[ , paste0(i)] <- as.numeric(predict(models_dt[[i]], test_data)[ , 2] )
+      }
+    }  
+  } else if(prediction_class == "anova"){
+    for (i in c(1 : length(models_dt))) {
+      if(i == 1){
+        predictions <- data.frame(predict(models_dt[[i]], test_data))
+      } else{
+        predictions[ , paste0(i)] <- as.numeric(predict(models_dt[[i]], test_data) )
+      }
+    }
+    
+  }
+  
+  
+  # Rename columns to treatment names
+  colnames(predictions) <- names(models_dt)
+  
+  k <- ncol(predictions)
+  # For each treatment calculate the Uplift as T_i - Control
+  for (i in c(1: k - 1)) {
+    predictions[ , paste0("Uplift - ", names(models_dt)[i])] <- predictions[ , i] - predictions[ , k]
+  }
+  
+  # choose predicted treatment by the model
+  predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
+  predictions$Treatment <- colnames(predictions)[predictions$T_index]
+  
+  predictions$Outcome <- outcome
+
+  predictions$Assignment <- assignment
+  predictions$Assignment <- ifelse(predictions$Assignment == control_level, "Control", as.character(predictions$Assignment))
+
+  
   return(predictions)
 }
 
 
 
-########################
-# Evaluate Model
-########################
-
-# Given the test data and the predicted test Data merge into data frame for model evaluation
-merge_prediction_test_data <- function(predictions, test_data, response, treatment, control_level) {
-  eval_data <- data.frame(Prediction = predictions$Treatment, Assignment = test_data[ , treatment], Outcome = test_data[ , response])
-  eval_data$Assignment <- ifelse(eval_data$Assignment == control_level, "Control", as.character(eval_data$Assignment))
-  
-  return(eval_data)
-}
-
+####################################
+# Evaluation metrics
+####################################
 
 # As described in Zhao et al. 2017
 expected_outcome <- function(eval_data){
@@ -172,7 +221,7 @@ expected_outcome <- function(eval_data){
   colnames(p_i) <- c("Assignment", "Freq")
     
   # only include points where the assigned treatment equals the predicted
-  matching <- eval_data[eval_data$Prediction == eval_data$Assignment , ]
+  matching <- eval_data[eval_data$Treatment == eval_data$Assignment , ]
   matching <- merge(matching, p_i, all.x = T )
   
   # Expected value of response as AVG sum of outcomes / probability of Assignment
@@ -181,16 +230,32 @@ expected_outcome <- function(eval_data){
   return(res)
 }
 
-# # Expected value of response from Logit prediction models
-# expected_outcome(eval_data)
-# # 1.33 % response
-# 
-# # Compare to outcome with random assignment from test set
-# mean(eval_data$Outcome)
-# # 0.97 % response
-
-
-
-## TODO
-# evaluate model for different number of treated individuals 
+##TODO 
+# Evaluate approach
+# *Assumption* outcome for each treatment equals prediction of model
+naive_percentile_response <- function(predictions){
+  N <- nrow(predictions)
+  
+  # Choose only the uplift columns
+  predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
+  
+  predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
+  
+  # Sort by max uplift Treatment
+  predictions <- predictions[order(-predictions$max_uplift) , ]
+  
+  # Sum percentiles
+  ret <- data.frame(matrix(ncol = 2, nrow = 0))
+  
+  for(x in seq(0,1, 0.1)){
+    sum_treated <- sum(head(predictions$max_treatment_outcome, N * x) )
+    sum_control <- sum(tail(predictions$Control, N * (1 - x)) )
+    
+    ret <- rbind(ret, c(x, (sum_treated + sum_control) / N))
+  }
+  
+  colnames(ret) <- c("Percentile", "AVG Outcome")
+  
+  return(ret)
+}
 
