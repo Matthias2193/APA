@@ -68,8 +68,13 @@ mean(predictions_dt$Outcome)
 
 # Outcome per share of customers targeted
 perc <- naive_percentile_response(predictions_dt)
-
 plot(perc)
+
+# Expected Response per targeted customers
+perc_eval_zhao <- expected_percentile_response(predictions_dt)
+plot(perc_eval_zhao)
+
+
 
 ####################################################
 # X Model Approach for binary response
@@ -124,9 +129,12 @@ mean(predictions_logit$Outcome)
 # 0.94 % response
 
 # Outcome per share of customers targeted
-perc <- naive_percentile_response(predictions_logit)
+perc_eval_naive <- naive_percentile_response(predictions_logit)
+plot(perc_eval_naive)
 
-plot(perc)
+# Expected Response per targeted customers
+perc_eval_zhao <- expected_percentile_response(predictions_logit)
+plot(perc_eval_zhao)
 
 
 ####################################################
@@ -146,12 +154,12 @@ table(predictions_clas_dt$Treatment)
 # Expected outcome on Predicted Outcomes
 # Formula from Zhao 2017
 expected_outcome(predictions_clas_dt)
-# .98 % response
+# 0.98 % response
 
 # Outcome per share of customers targeted
-perc <- naive_percentile_response(predictions_clas_dt)
+perc_eval_naive <- naive_percentile_response(predictions_clas_dt)
+plot(perc_eval_naive)
 
-plot(perc)
-
-  
-  
+# Expected Response per targeted customers
+perc_eval_zhao <- expected_percentile_response(predictions_logit)
+plot(perc_eval_zhao)
