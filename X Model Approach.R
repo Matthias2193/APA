@@ -14,47 +14,47 @@ library(rpart)
 # Splits the input data into train and test for each treatment and control
 # Input: Randomized data; response column as string; treatment column as string; level of control group in treatment column
 multiple_train_test_split <- function(data, response, treatment, control_level, train_ratio){  
-  treatments <- levels(as.factor(data[, treatment]))
-  # remove the control level from treatments
-  treatments <- treatments[! treatments %in% c(control_level)]
+treatments <- levels(as.factor(data[, treatment]))
+# remove the control level from treatments
+treatments <- treatments[! treatments %in% c(control_level)]
 
-  # Create train data for each model
-  # Partition data by level and split each partition into test train..
-  train_T <- list()
-  test_data <- data.frame()
+# Create train data for each model
+# Partition data by level and split each partition into test train..
+train_T <- list()
+test_data <- data.frame()
+
+for(x in treatments){
+  t_data <- data[data[, treatment] == x, ]
   
-  for(x in treatments){
-    t_data <- data[data[, treatment] == x, ]
-    
-    idx <- createDataPartition(y = t_data[ , response], p=(1 - train_ratio), list = FALSE)
+  idx <- createDataPartition(y = t_data[ , response], p=(1 - train_ratio), list = FALSE)
+
+  # Combine all test splits into one Test Dataset
+  test_data <- rbind(test_data, t_data[idx, ] )
   
-    # Combine all test splits into one Test Dataset
-    test_data <- rbind(test_data, t_data[idx, ] )
-    
-    # Remove the treatment column from training data
-    t_data <- t_data[ , names(t_data) != treatment]
-    
-    # Each Training Set as one element in list
-    train_T <- append(train_T, list(x = t_data[-idx, ]))
-  }
-  # Assign Treatment Names to Train Sets
-  names(train_T) <- treatments
+  # Remove the treatment column from training data
+  t_data <- t_data[ , names(t_data) != treatment]
   
-  # Control Data
-  c_data <- data[data[, treatment] == control_level, ]
-  
-  idx <- createDataPartition(y = c_data[ , response], p=0.3, list = FALSE)
-  
-  # Add the control group to the test
-  test_data <- rbind(test_data, c_data[idx, ])
-  # Remove the treatment from train set
-  c_data <- c_data[ , names(c_data) != treatment]
-  # Add to train data
-  train_T <- append(train_T, list(Control = c_data[-idx, ]))
-  
-  
-  # List of training data for each input and list of test data
-  return(list(Train = train_T, Test =test_data))
+  # Each Training Set as one element in list
+  train_T <- append(train_T, list(x = t_data[-idx, ]))
+}
+# Assign Treatment Names to Train Sets
+names(train_T) <- treatments
+
+# Control Data
+c_data <- data[data[, treatment] == control_level, ]
+
+idx <- createDataPartition(y = c_data[ , response], p=0.3, list = FALSE)
+
+# Add the control group to the test
+test_data <- rbind(test_data, c_data[idx, ])
+# Remove the treatment from train set
+c_data <- c_data[ , names(c_data) != treatment]
+# Add to train data
+train_T <- append(train_T, list(Control = c_data[-idx, ]))
+
+
+# List of training data for each input and list of test data
+return(list(Train = train_T, Test =test_data))
 }
 
 
@@ -65,67 +65,67 @@ multiple_train_test_split <- function(data, response, treatment, control_level, 
 # Returns list of Logit models for training data
 # only applicable for binary response e.g. conversion
 logit_models <- function(train_data, response){  
-  # for each element in train data fir model and return list of models
-  treatments <- names(train_data)
-  
-  models <- list()
-  for(i in c(1: length(treatments))){
-    train <- train_data[[i]]
-    X <- model.matrix(as.formula(paste(response, "~.-1")) , train_data[[i]])
-    y <- as.matrix(train[, response])
-    # Scale the data
-    X <- scale(X)
-    
-    # Fit the Logit model
-    logit <- glmnet(X, as.factor(y), alpha=0, family = 'binomial', lambda = 0)
-    
-    models <- append(models, list(x= logit))
-  }
-  
-  names(models) <- treatments
+# for each element in train data fir model and return list of models
+treatments <- names(train_data)
 
-  # Named list with fitted models for each treatment and control
-  return(models)
+models <- list()
+for(i in c(1: length(treatments))){
+  train <- train_data[[i]]
+  X <- model.matrix(as.formula(paste(response, "~.-1")) , train_data[[i]])
+  y <- as.matrix(train[, response])
+  # Scale the data
+  X <- scale(X)
+  
+  # Fit the Logit model
+  logit <- glmnet(X, as.factor(y), alpha=0, family = 'binomial', lambda = 0)
+  
+  models <- append(models, list(x= logit))
+}
+
+names(models) <- treatments
+
+# Named list with fitted models for each treatment and control
+return(models)
 }
 
 
 logit_x_model_predictions <- function(models_logit, test_data, response, treatment, control_level){
-  # do not include the treatment assignment in the Test data
-  assignment <- test_data[ , treatment]
-  outcome <- test_data[, response]
-  
-  # Scale the data
-  X_test <- model.matrix(as.formula(paste(response, "~.-1")) , test_data[ , names(test_data) != treatment])
-  X_test <- scale(X_test)
-  
-  for (i in c(1 : length(models_logit))) {
-    if(i == 1){
-      predictions <- data.frame(predict(models_logit[[i]], X_test, type="response"))
-    } else{
-      predictions[ , paste0(i)] <- as.numeric(predict(models_logit[[i]], X_test, type="response") )
-    }
+# do not include the treatment assignment in the Test data
+assignment <- test_data[ , treatment]
+outcome <- test_data[, response]
+
+# Scale the data
+X_test <- model.matrix(as.formula(paste(response, "~.-1")) , test_data[ , names(test_data) != treatment])
+X_test <- scale(X_test)
+
+for (i in c(1 : length(models_logit))) {
+  if(i == 1){
+    predictions <- data.frame(predict(models_logit[[i]], X_test, type="response"))
+  } else{
+    predictions[ , paste0(i)] <- as.numeric(predict(models_logit[[i]], X_test, type="response") )
   }
-  # Rename columns to treatment names
-  colnames(predictions) <- names(models_logit)
-  
-  k <- ncol(predictions)
-  # For each treatment calculate the Uplift as T_i - Control
-  for (i in c(1: k - 1)) {
-    predictions[ , paste0("Uplift - ", names(models_logit)[i])] <- predictions[ , i] - predictions[ , k]
-  }
-  
-  # choose predicted treatment by the model
-  predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
-  predictions$Treatment <- colnames(predictions)[predictions$T_index]
-  
-  # Add actual assignment 
-  predictions$Outcome <- outcome
-  
-  predictions$Assignment <- assignment
-  predictions$Assignment <- ifelse(predictions$Assignment == control_level, "Control", as.character(predictions$Assignment))
-  
-  
-  return(predictions)
+}
+# Rename columns to treatment names
+colnames(predictions) <- names(models_logit)
+
+k <- ncol(predictions)
+# For each treatment calculate the Uplift as T_i - Control
+for (i in c(1: k - 1)) {
+  predictions[ , paste0("Uplift - ", names(models_logit)[i])] <- predictions[ , i] - predictions[ , k]
+}
+
+# choose predicted treatment by the model
+predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
+predictions$Treatment <- colnames(predictions)[predictions$T_index]
+
+# Add actual assignment 
+predictions$Outcome <- outcome
+
+predictions$Assignment <- assignment
+predictions$Assignment <- ifelse(predictions$Assignment == control_level, "Control", as.character(predictions$Assignment))
+
+
+return(predictions)
 }
 
 
@@ -196,10 +196,10 @@ dt_x_model_predictions <- function(models_dt, test_data, response, treatment, co
   predictions$Treatment <- colnames(predictions)[predictions$T_index]
   
   predictions$Outcome <- outcome
-
+  
   predictions$Assignment <- assignment
   predictions$Assignment <- ifelse(predictions$Assignment == control_level, "Control", as.character(predictions$Assignment))
-
+  
   
   return(predictions)
 }
@@ -230,8 +230,40 @@ expected_outcome <- function(eval_data){
   return(res)
 }
 
-##TODO 
-# Evaluate approach
+## Modified Uplift Curve by Zhao
+# *Assumption* outcome for each treatment equals prediction of model
+expected_percentile_response <- function(predictions){
+  N <- nrow(predictions)
+  
+  # Choose only the uplift columns
+  predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
+  
+  predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
+  
+  # Sum percentiles
+  ret <- data.frame(matrix(ncol = 2, nrow = 0))
+  
+  for(x in seq(0,1, 0.1)){
+    # for top x set T to max T
+    predictions$T_index <- apply(predictions[, 1:2], 1, which.max)
+    # Assign optimal treatment for all
+    predictions$Treatment <- colnames(predictions)[predictions$T_index]
+    
+    # For all who are not in top x Percentile assign Control Treatment
+    predictions$Treatment[predictions$max_uplift < quantile(predictions$max_uplift,prob=(1-x))] <- "Control"
+    
+    # Calculate the Expected Response Value top Percentile
+    ret <- rbind(ret, c(x, expected_outcome(predictions)) )
+  }
+  
+  colnames(ret) <- c("Percentile", "Expected Outcome")
+  
+  return(ret)
+}
+
+
+
+## Own naive evaluation approach
 # *Assumption* outcome for each treatment equals prediction of model
 naive_percentile_response <- function(predictions){
   N <- nrow(predictions)
@@ -248,14 +280,46 @@ naive_percentile_response <- function(predictions){
   ret <- data.frame(matrix(ncol = 2, nrow = 0))
   
   for(x in seq(0,1, 0.1)){
+    # Top x % as treated outcome rest have control outcome
     sum_treated <- sum(head(predictions$max_treatment_outcome, N * x) )
     sum_control <- sum(tail(predictions$Control, N * (1 - x)) )
     
     ret <- rbind(ret, c(x, (sum_treated + sum_control) / N))
   }
   
-  colnames(ret) <- c("Percentile", "AVG Outcome")
+  colnames(ret) <- c("% of Treated", "AVG Outcome")
   
   return(ret)
 }
 
+
+# ##TODO 
+# # *Assumption* always the higher predicted treatment assigned
+# # Rzepakowski 2012
+# matching_evaluation <- function(predictions){
+#   #N <- nrow(predictions)
+#   
+#   
+#   #choose top predicted treatments for each group
+#   # Choose only the uplift columns
+#   predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
+#   
+#   predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
+#   
+#   # Sort by max uplift Treatment
+#   predictions <- predictions[order(-predictions$max_uplift) , ]
+#   
+#   # Sum percentiles
+#   ret <- data.frame(matrix(ncol = 2, nrow = 0))
+#   
+#   for(x in seq(0,1, 0.1)){
+#     sum_treated <- sum(head(predictions$max_treatment_outcome, N * x) )
+#     sum_control <- sum(tail(predictions$Control, N * (1 - x)) )
+#     
+#     ret <- rbind(ret, c(x, (sum_treated + sum_control) / N))
+#   }
+#   
+#   colnames(ret) <- c("Percentile", "AVG Outcome")
+#   
+#   return(ret)
+# }
