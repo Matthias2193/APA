@@ -134,10 +134,18 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
 
 
 gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,test_type,test_col){
-  if((nrow(temp_data) == 0) || nrow(temp_data[temp_data[test_col]==test_case,]) == 0 ||
-     nrow(temp_data[temp_data[test_col]!=test_case,]) == 0 ){
-    return(-1)
+  if(test_type == 'categorical'){
+    if((nrow(temp_data) == 0) || nrow(temp_data[temp_data[test_col]==test_case,]) == 0 ||
+       nrow(temp_data[temp_data[test_col]!=test_case,]) == 0 ){
+      return(-1)
+    }
+  } else{
+    if((nrow(temp_data) == 0) || nrow(temp_data[temp_data[test_col]<test_case,]) == 0 ||
+       nrow(temp_data[temp_data[test_col]!=test_case,]) >= 0 ){
+      return(-1)
+    }
   }
+  
   conditional <- conditional_divergence(a,l,g,divergence,test_case,treatment,control,target,temp_data,
                                         test_type,test_col)
   multiple <- multiple_divergence(a,l,g,divergence,treatment,control,target,temp_data)
@@ -208,7 +216,7 @@ remove_split <- function(temp_test_list,temp_split){
   return(temp_test_list)
 }
 
-test_list$categorical[['zip_code']][-match('Rural', test_list$categorical[['zip_code']])]
+
 
 build_tree <- function(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),divergence =  'binary_KL_divergence',
                        test_list =   test_list,treatment =  treatment_list,control,target,temp_data){
@@ -251,14 +259,18 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   #test_list <- remove_split(test_list,temp_split)
   node[['split']] <- temp_split
   if(names(temp_split) %in% names(test_list$categorical)){
+    print(paste('left',depth+1,sep = ''))
     node[['left']] <- create_node(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
                                   treatment_list,target,control,test_list)
+    print(paste('right',depth+1,sep = ''))
     node[['right']] <- create_node(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,max_depth,
                                    treatment_list,target,control,test_list)
   }
   else{
+    print(paste('left',depth+1,sep = ''))
     node[['left']] <- create_node(data[data[names(temp_split)] < temp_split[[1]],],depth = depth+1,max_depth,
                                   treatment_list,target,control,test_list)
+    print(paste('right',depth+1,sep = ''))
     node[['right']] <- create_node(data[data[names(temp_split)] >= temp_split[[1]],],depth = depth+1,max_depth,
                                    treatment_list,target, control,test_list)
   }
@@ -307,7 +319,7 @@ test_list$numerical$history <- test_list$numerical$history[1:100]
 
 
 
-test_tree <- create_node(email,0,2,treatment_list,'visit','control',test_list)
+test_tree <- create_node(email,0,10,treatment_list,'visit','control',test_list)
  
 
 data = email
@@ -315,10 +327,10 @@ data = email
 split1 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),divergence = 'binary_KL_divergence',
                            test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
                            temp_data = data)
-test_list <- remove_split(test_list,split1)
+
 
 if(names(split1) %in% names(test_list$categorical)){
-  data = data[data[names(split1)]==split1[[1]],]
+  data = data[data[names(split1)]!=split1[[1]],]
 }  else{
   data = data[data[names(split1)]<split1[[1]],]
 }
@@ -329,12 +341,12 @@ split2 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),d
                            test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
                            temp_data = data)
 
-test_list <- remove_split(test_list,split2)
+
 
 if(names(split2) %in% names(test_list$categorical)){
   data = data[data[names(split2)]==split2[[1]],]
 }  else{
-  data = data[data[names(split2)]<split2[[1]],]
+  data = data[data[names(split2)]>=split2[[1]],]
 }
 
 #3
@@ -342,10 +354,10 @@ split3 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),d
                            test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
                            temp_data = data)
 
-test_list <- remove_split(test_list,split3)
 
-if(names(split2) %in% names(test_list$categorical)){
-  data = data[data[names(split3)]==split3[[1]],]
+
+if(names(split3) %in% names(test_list$categorical)){
+  data = data[data[names(split3)]!=split3[[1]],]
 }  else{
   data = data[data[names(split3)]<split3[[1]],]
 }
@@ -355,10 +367,9 @@ split4 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),d
                            test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
                            temp_data = data)
 
-test_list <- remove_split(test_list,split4)
 
 if(names(split4) %in% names(test_list$categorical)){
-  data = data[data[names(split4)]!=split4[[1]],]
+  data = data[data[names(split4)]==split4[[1]],]
 }  else{
   data = data[data[names(split4)]<split4[[1]],]
 }
@@ -371,7 +382,6 @@ split5 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),d
                            test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
                            temp_data = data)
 
-test_list <- remove_split(test_list,split5)
 
 dif(names(split5) %in% names(test_list$categorical)){
   data = data[data[names(split5)]==split5[[1]],]
