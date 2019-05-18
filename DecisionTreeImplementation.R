@@ -248,7 +248,7 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
   }
-  test_list <- remove_split(test_list,temp_split)
+  #test_list <- remove_split(test_list,temp_split)
   node[['split']] <- temp_split
   if(names(temp_split) %in% names(test_list$categorical)){
     node[['left']] <- create_node(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
@@ -307,7 +307,7 @@ test_list$numerical$history <- test_list$numerical$history[1:100]
 
 
 
-# test_tree <- create_node(email,0,2,treatment_list,'visit','control',test_list)
+test_tree <- create_node(email,0,2,treatment_list,'visit','control',test_list)
  
 
 data = email
