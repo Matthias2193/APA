@@ -2,14 +2,6 @@
 #with single and multiple treatments'
 
 #Importing libraries
-list.of.packages <- c("FNN",'LaplacesDemon','philentropy')
-new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-if(length(new.packages) > 0) install.packages(new.packages)
-
-library('FNN')
-library('LaplacesDemon')
-library('philentropy')
-
 
 
 #Set up tests
@@ -44,47 +36,6 @@ set_up_tests <- function(x,reduce_cases){
   return(output)
 }
 
-
-# select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data){
-#   gain_list <- c()
-#   name_list <- c()
-#   for(x in 1:length(test_list$categorical)){
-#     t <- test_list$categorical[x]
-#     print(names(t))
-#     gain_list <- c(gain_list,gain(a,l,g,divergence,t[[1]],
-#                                   treatment,control,target,temp_data,'categorical',names(t)))
-#     name_list <- c(name_list,names(t))
-#   }
-#   for(x in 1:length(test_list$numerical)){
-#     temp_name <- names(test_list$numerical[x])
-#     for(y in 1:length(test_list$numerical[[x]])){
-#       t <- test_list$numerical[[x]][y]
-#       new_name <- paste(temp_name, as.character(t), sep = '_')
-#       print(new_name)
-#       gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-#                                     treatment,control,target,temp_data,'numerical',temp_name))
-#       name_list <- c(name_list,new_name)
-#     }
-#   }
-#   if(max(gain_list) > 0){
-#     temp_string <- name_list[match(max(gain_list),gain_list)]
-#     if(grepl(temp_string, '_')){
-#       temp_result <- strsplit(temp_string,split='_', fixed=TRUE)
-#       result <- c(as.numeric(temp_result[[1]][2]))
-#       names(result) <- temp_result[[1]][1]
-#       return(result)
-#     }
-#     else{
-#       result <- c(0)
-#       names(result) <- temp_string
-#       return(result)
-#     }
-#     
-#   }
-#   else{
-#     return(0)
-#   }
-# }
 
 
 
@@ -124,7 +75,6 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
       names(result) <- temp_result[[1]][1]
       return(result)
     }
-    
   }
   else{
     return(-1)
@@ -218,23 +168,10 @@ remove_split <- function(temp_test_list,temp_split){
 
 
 
-build_tree <- function(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),divergence =  'binary_KL_divergence',
-                       test_list =   test_list,treatment =  treatment_list,control,target,temp_data){
-  test_list <- set_up_tests(temp_data,TRUE)
-  root <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),
-                       divergence =  'binary_KL_divergence',test_list =   test_list,
-                       treatment =treatment_list,control,target,temp_data)
-  test_list <- remove_split(test_list,first_slpit)
-  splits <-list(first_slpit)
-  for(x in 1:length(splits)){
-    for(y in 1:length(splits[[x]])){
-      
-    }
-  }
-  
-}
 
-create_node <- function(data,depth,max_depth,treatment_list,target,control,test_list){
+create_node <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 1,
+                        l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
+                        divergence = 'binary_KL_divergence'){
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
   }
@@ -250,27 +187,22 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   if(depth == 0){
     node[['type']] <- 'root'
   }
-  temp_split <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),
-                             divergence =  'binary_KL_divergence',test_list = test_list,
+  temp_split <- select_split(alpha,l,g , divergence,test_list = test_list,
                              treatment = treatment_list,control,target,data)
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
   }
-  #test_list <- remove_split(test_list,temp_split)
+  node[['type']] = 'node'
   node[['split']] <- temp_split
   if(names(temp_split) %in% names(test_list$categorical)){
-    print(paste('left',depth+1,sep = ''))
     node[['left']] <- create_node(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
                                   treatment_list,target,control,test_list)
-    print(paste('right',depth+1,sep = ''))
     node[['right']] <- create_node(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,max_depth,
                                    treatment_list,target,control,test_list)
   }
   else{
-    print(paste('left',depth+1,sep = ''))
     node[['left']] <- create_node(data[data[names(temp_split)] < temp_split[[1]],],depth = depth+1,max_depth,
                                   treatment_list,target,control,test_list)
-    print(paste('right',depth+1,sep = ''))
     node[['right']] <- create_node(data[data[names(temp_split)] >= temp_split[[1]],],depth = depth+1,max_depth,
                                    treatment_list,target, control,test_list)
   }
@@ -293,103 +225,51 @@ final_node <- function(data,treatment_list,target,control){
   return(node)
 }
 
+predict.dt <- function(tree,new_data){
+  type_list <- sapply(new_data, class)
+  names(type_list) = colnames(email)
+  type = 'root'
+  node = tree
+  results = list()
+  for(x in 1:nrow(new_data)){
+    d = new_data[x,]
+    while(type != 'leaf'){
+      split = node[['split']]
+      if(type_list[[names(split)]] == 'factor'){
+        if(d[names(split)] == split[[1]]){
+          node = node[['left']]
+          type = node[['type']]
+        } else{
+          node = node[['right']]
+          type = node[['type']]
+        }
+      } else{
+        if(d[names(split)] <= split[[1]]){
+          node = node[['left']]
+          type = node[['type']]
+        } else{
+          node = node[['right']]
+          type = node[['type']]
+        }
+      }
+    }
+    results[[x]] <- node[['results']]
+  }
+  return(results)
+}
+
+
 
 ####Test Area
 
-divergence <-'binary_KL_divergence'
-multiple <- 0
-a <- 1
-l<- c(0.5,0.5)
-g<- matrix(0.25,nrow = 2,ncol = 2)
-target <- 'visit'
-control <- 'control'
-# temp_data <- email
 
 treatment_list <- c('men_treatment','women_treatment')
 test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
                                    "newbie","channel")],TRUE)
 test_list$numerical$history <- test_list$numerical$history[1:100]
 
-# control <- 'control'
-# test_case <- test_list$numerical[1]
-# test_col <- names(temp_test)
-# test_type <- 'numerical'
 
-
-
-
-
-test_tree <- create_node(email,0,10,treatment_list,'visit','control',test_list)
+test_tree <- create_node(email[1:50000,],0,100,treatment_list,'visit','control',test_list)
  
 
-data = email
-#1
-split1 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),divergence = 'binary_KL_divergence',
-                           test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
-                           temp_data = data)
-
-
-if(names(split1) %in% names(test_list$categorical)){
-  data = data[data[names(split1)]!=split1[[1]],]
-}  else{
-  data = data[data[names(split1)]<split1[[1]],]
-}
-
-
-#2
-split2 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),divergence = 'binary_KL_divergence',
-                           test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
-                           temp_data = data)
-
-
-
-if(names(split2) %in% names(test_list$categorical)){
-  data = data[data[names(split2)]==split2[[1]],]
-}  else{
-  data = data[data[names(split2)]>=split2[[1]],]
-}
-
-#3
-split3 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),divergence = 'binary_KL_divergence',
-                           test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
-                           temp_data = data)
-
-
-
-if(names(split3) %in% names(test_list$categorical)){
-  data = data[data[names(split3)]!=split3[[1]],]
-}  else{
-  data = data[data[names(split3)]<split3[[1]],]
-}
-
-#4
-split4 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),divergence = 'binary_KL_divergence',
-                           test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
-                           temp_data = data)
-
-
-if(names(split4) %in% names(test_list$categorical)){
-  data = data[data[names(split4)]==split4[[1]],]
-}  else{
-  data = data[data[names(split4)]<split4[[1]],]
-}
-
-
-
-
-#5
-split5 <- select_split(a = 1,l = c(0.5,0.5),g = matrix(0.25,nrow = 2,ncol = 2),divergence = 'binary_KL_divergence',
-                           test_list =  test_list,treatment =  treatment_list,control = 'control',target = 'visit',
-                           temp_data = data)
-
-
-dif(names(split5) %in% names(test_list$categorical)){
-  data = data[data[names(split5)]==split5[[1]],]
-}  else{
-  data = data[data[names(split5)]<split5[[1]],]
-}
-
-
-
-
-temp_data = email[email[names(temp_split)]==temp_split[[1]],]
+temp_predictions = predict.dt(test_tree,email[50001:64000,])
