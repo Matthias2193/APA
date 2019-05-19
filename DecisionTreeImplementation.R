@@ -228,11 +228,11 @@ final_node <- function(data,treatment_list,target,control){
 predict.dt <- function(tree,new_data){
   type_list <- sapply(new_data, class)
   names(type_list) = colnames(email)
-  type = 'root'
-  node = tree
   results = list()
   for(x in 1:nrow(new_data)){
     d = new_data[x,]
+    type = 'root'
+    node = tree
     while(type != 'leaf'){
       split = node[['split']]
       if(type_list[[names(split)]] == 'factor'){
@@ -244,7 +244,7 @@ predict.dt <- function(tree,new_data){
           type = node[['type']]
         }
       } else{
-        if(d[names(split)] <= split[[1]]){
+        if(d[names(split)] < split[[1]]){
           node = node[['left']]
           type = node[['type']]
         } else{
@@ -258,7 +258,9 @@ predict.dt <- function(tree,new_data){
   return(results)
 }
 
-
+prune_tree <- function(tree, val_data){
+  
+}
 
 ####Test Area
 
