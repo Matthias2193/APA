@@ -285,7 +285,7 @@ type_subtrees <- function(tree){
 
 prune_tree <- function(tree, val_data, train_data, target){
   val_pred <- predict.dt(tree, val_data)
-  train_pred <- predict.de(tree, train_data)
+  train_pred <- predict.dt(tree, train_data)
   pruned_tree <- check_pruning(tree,train_pred,val_pred,val_data,target)
   return(pruned_tree)
 }
@@ -386,6 +386,6 @@ val_predictions = predict.dt(test_tree,email[50001:64000,])
 
 sub_tree  <- type_subtrees(test_tree)
 
-new_tree <- check_pruning(test_tree,train_predictions,val_predictions,email[50001:64000,],target = 'conversion')
+pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'conversion')
 
 
