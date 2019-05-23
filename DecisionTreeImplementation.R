@@ -283,10 +283,35 @@ type_subtrees <- function(tree){
   return(tree)
 }
 
+check_tree_changes <- function(tree){
+  result <- FALSE
+  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf' && tree[['type']] != 'sub'){
+    return(TRUE)
+  } else{
+    if(tree[['left']][['type']] != 'leaf'){
+      if(check_tree_changes(tree[['left']]) == TRUE){
+        return(TRUE)
+      }
+    }
+    if(tree[['right']][['type']] != 'leaf'){
+      if(check_tree_changes(tree[['right']]) == TRUE){
+        return(TRUE)
+      }
+    }
+  }
+  return(result)
+}
+
 prune_tree <- function(tree, val_data, train_data, target){
   val_pred <- predict.dt(tree, val_data)
   train_pred <- predict.dt(tree, train_data)
   pruned_tree <- check_pruning(tree,train_pred,val_pred,val_data,target)
+  while(check_tree_changes(pruned_tree)){
+    pruned_tree <- type_subtrees(pruned_tree)
+    val_pred <- predict.dt(pruned_tree, val_data)
+    train_pred <- predict.dt(pruned_tree, train_data)
+    pruned_tree <- check_pruning(pruned_tree,train_pred,val_pred,val_data,target)
+  }
   return(pruned_tree)
 }
 
@@ -379,12 +404,7 @@ test_list <- set_up_tests(email[,c("recency","history_segment","history","mens",
 test_tree <- create_node(email[1:50000,],0,100,treatment_list,'conversion','control',test_list)
  
 
-train_predictions = predict.dt(test_tree,email[1:50000,])
-val_predictions = predict.dt(test_tree,email[50001:64000,])
-
 #treatment_predictions = predictions_to_treatment(temp_predictions)
-
-sub_tree  <- type_subtrees(test_tree)
 
 pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'conversion')
 
