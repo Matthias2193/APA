@@ -42,6 +42,8 @@ set_up_tests <- function(x,reduce_cases,max_cases = 100){
 
 
 
+#Functions to build the tree
+
 select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data){
   gain_list <- c()
   name_list <- c()
@@ -102,7 +104,8 @@ gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,
   conditional <- conditional_divergence(a,l,g,divergence,test_case,treatment,control,target,temp_data,
                                         test_type,test_col)
   multiple <- multiple_divergence(a,l,g,divergence,treatment,control,target,temp_data)
-  return(conditional-multiple)
+  normalizer <- KL_Normalization(a,temp_data,control,treatment,target)
+  return((conditional-multiple)/normalizer)
 }
 
 multiple_divergence <- function(a,l,g,divergence,treatments,control,target,temp_data){
@@ -155,19 +158,17 @@ binary_KL_divergence <- function(x,y){
   }
 }
 
-remove_split <- function(temp_test_list,temp_split){
-  if(names(temp_split) %in% names(temp_test_list$categorical)){
-    temp_test_list$categorical[[names(temp_split)]] <- 
-      temp_test_list$categorical[[names(temp_split)]][-match(temp_split[[1]],
-                                                           temp_test_list$categorical[[names(temp_split)]])]
-  }
-  else{
-    temp_test_list$numerical[[names(temp_split)]] <- 
-      temp_test_list$numerical[[names(temp_split)]][-match(temp_split[[1]],
-                                                           temp_test_list$numerical[[names(temp_split)]])]
-  }
-  return(temp_test_list)
+
+EucDistance <- function(x,y){
+  return(sqrt(sum((x - y) ^ 2)))
 }
+
+
+
+
+
+
+
 
 
 
@@ -401,11 +402,76 @@ treatment_list <- c('men_treatment','women_treatment')
 test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
                                    "newbie","channel")],TRUE)
 
-test_tree <- create_node(email[1:50000,],0,100,treatment_list,'conversion','control',test_list)
+test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,divergence = 'EucDistance')
  
+
+
+
+
+KL_Normalization <- function(a,temp_data,control,treatments,target){
+  nt <- nrow(temp_data[temp_data[,control] != 1,])/nrow(temp_data)
+  nc <- nrow(temp_data[temp_data[,control] == 1,])/nrow(temp_data)
+  norm_factor <- a*(nt*nc)*binary_KL_divergence(temp_data[temp_data[,control] != 1,target],
+                                                temp_data[temp_data[,control] == 1,target])
+  for(t in treatments){
+    nti <-nrow(temp_data[temp_data[,t] == 1,])
+    nc <- nrow(temp_data[temp_data[,control] == 1,])
+    norm_factor <- norm_factor + (1-a) * (nti*nc) * 
+      binary_KL_divergence(temp_data[temp_data[,t] == 1,target],
+                           temp_data[temp_data[,control] == 1,target])
+    pti <- mean(temp_data[temp_data[,t] == 1,target])
+    if(pti != 0){
+      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
+    }
+  }
+  pc <- mean(temp_data[temp_data[,control] == 1,target])
+  if(pc != 0){
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc) + 0.5
+  }
+  print(norm_factor)
+  if(norm_factor == 0 || is.na(norm_factor)){
+    return(1)
+  }
+  return(norm_factor)
+}
+
+
+Euc_Normalization <- function(a,temp_data,control,treatments,target){
+  nt <- nrow(temp_data[temp_data[,control] != 1,])/nrow(temp_data)
+  nc <- nrow(temp_data[temp_data[,control] == 1,])/nrow(temp_data)
+  norm_factor <- a*(nt*nc)*EucDistance(temp_data[temp_data[,control] != 1,target],
+                                                temp_data[temp_data[,control] == 1,target])
+  for(t in treatments){
+    nti <-nrow(temp_data[temp_data[,t] == 1,])
+    nc <- nrow(temp_data[temp_data[,control] == 1,])
+    norm_factor <- norm_factor + (1-a) * (nti*nc) * 
+      EucDistance(temp_data[temp_data[,t] == 1,target],
+                           temp_data[temp_data[,control] == 1,target])
+    pti <- mean(temp_data[temp_data[,t] == 1,target])
+    if(pti != 0){
+      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
+    }
+  }
+  pc <- mean(temp_data[temp_data[,control] == 1,target])
+  if(pc != 0){
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc) + 0.5
+  }
+  print(norm_factor)
+  if(norm_factor == 0 || is.na(norm_factor)){
+    return(1)
+  }
+  return(norm_factor)
+}
+
 
 #treatment_predictions = predictions_to_treatment(temp_predictions)
 
 pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'conversion')
 
+library('LaplacesDemon')
+KLD(approxfun(density(email$spend)),approxfun(density(email$spend)))
 
+library('FNN')
+KL.divergence(density(email$spend),density(email$spend))
+
+temp_fct <- approxfun(density(email$spend))
