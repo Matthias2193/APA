@@ -1,10 +1,10 @@
-#This script contains the implementation of the decision tree following the paper 'Decision trees for uplift modeling
-#with single and multiple treatments'
+#This script contains the implementation of the decision tree following the paper 
+#'Decision trees for uplift modeling with single and multiple treatments'
 
 #Importing libraries
 
 
-#Set up tests
+#Set up tests ----
 set_up_tests <- function(x,reduce_cases,max_cases = 100){
   type_list <- sapply(x, class)
   categorical_splits = list()
@@ -42,7 +42,8 @@ set_up_tests <- function(x,reduce_cases,max_cases = 100){
 
 
 
-#Functions to build the tree
+
+#Split selection ----
 
 select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data){
   gain_list <- c()
@@ -104,8 +105,13 @@ gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,
   conditional <- conditional_divergence(a,l,g,divergence,test_case,treatment,control,target,temp_data,
                                         test_type,test_col)
   multiple <- multiple_divergence(a,l,g,divergence,treatment,control,target,temp_data)
-  normalizer <- KL_Normalization(a,temp_data,control,treatment,target)
-  return((conditional-multiple)/normalizer)
+  # if(divergence == 'binary_KL_divergence'){
+  #   normalizer <- KL_Normalization(a,temp_data,control,treatment,target)
+  # }
+  # else{
+  #   normalizer <- Euc_Normalization(a,temp_data,control,treatment,target)
+  #   }
+  return((conditional-multiple))
 }
 
 multiple_divergence <- function(a,l,g,divergence,treatments,control,target,temp_data){
@@ -146,6 +152,10 @@ conditional_divergence <- function(a,l,g,divergence,test_case,treatments,control
   return(div)
 }
 
+
+
+#Divergence Measures
+
 binary_KL_divergence <- function(x,y){
   p <- sum(x)/length(x)
   q <- sum(y)/length(y)
@@ -160,7 +170,63 @@ binary_KL_divergence <- function(x,y){
 
 
 EucDistance <- function(x,y){
-  return(sqrt(sum((x - y) ^ 2)))
+  return(sqrt((mean(x) - mean(y)) ^ 2))
+}
+
+
+
+#Normalization ----
+KL_Normalization <- function(a,temp_data,control,treatments,target){
+  nt <- nrow(temp_data[temp_data[,control] != 1,])/nrow(temp_data)
+  nc <- nrow(temp_data[temp_data[,control] == 1,])/nrow(temp_data)
+  norm_factor <- a*(nt*nc)*binary_KL_divergence(temp_data[temp_data[,control] != 1,target],
+                                                temp_data[temp_data[,control] == 1,target])
+  for(t in treatments){
+    nti <-nrow(temp_data[temp_data[,t] == 1,])
+    nc <- nrow(temp_data[temp_data[,control] == 1,])
+    norm_factor <- norm_factor + (1-a) * (nti*nc) * 
+      binary_KL_divergence(temp_data[temp_data[,t] == 1,target],
+                           temp_data[temp_data[,control] == 1,target])
+    pti <- mean(temp_data[temp_data[,t] == 1,target])
+    if(pti != 0){
+      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
+    }
+  }
+  pc <- mean(temp_data[temp_data[,control] == 1,target])
+  if(pc != 0){
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc) + 0.5
+  }
+  if(norm_factor == 0 || is.na(norm_factor)){
+    return(1)
+  }
+  return(norm_factor)
+}
+
+
+Euc_Normalization <- function(a,temp_data,control,treatments,target){
+  nt <- nrow(temp_data[temp_data[,control] != 1,])/nrow(temp_data)
+  nc <- nrow(temp_data[temp_data[,control] == 1,])/nrow(temp_data)
+  norm_factor <- a*(nt*nc)*EucDistance(temp_data[temp_data[,control] != 1,target],
+                                       temp_data[temp_data[,control] == 1,target])
+  for(t in treatments){
+    nti <-nrow(temp_data[temp_data[,t] == 1,])
+    nc <- nrow(temp_data[temp_data[,control] == 1,])
+    norm_factor <- norm_factor + (1-a) * (nti*nc) * 
+      EucDistance(temp_data[temp_data[,t] == 1,target],
+                  temp_data[temp_data[,control] == 1,target])
+    pti <- mean(temp_data[temp_data[,t] == 1,target])
+    if(pti != 0){
+      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
+    }
+  }
+  pc <- mean(temp_data[temp_data[,control] == 1,target])
+  if(pc != 0){
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc) + 0.5
+  }
+  if(norm_factor == 0 || is.na(norm_factor)){
+    return(1)
+  }
+  return(norm_factor)
 }
 
 
@@ -169,11 +235,12 @@ EucDistance <- function(x,y){
 
 
 
+#Functions to build the tree ----
 
 
-
-
-create_node <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 1,
+#For a continuous target variable use divergence = 'EucDistance'. 
+#For a binary categorical use 'binary_KL_divergence'
+create_node <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
                         l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
                         divergence = 'binary_KL_divergence'){
   if(depth == max_depth){
@@ -229,6 +296,10 @@ final_node <- function(data,treatment_list,target,control){
   return(node)
 }
 
+
+
+#The prediction function
+
 predict.dt <- function(tree,new_data){
   type_list <- sapply(new_data, class)
   names(type_list) = colnames(email)
@@ -262,6 +333,9 @@ predict.dt <- function(tree,new_data){
   return(results)
 }
 
+
+#Takes predictions as input and returns just the name of the best treatment for each prediction
+
 predictions_to_treatment <- function(pred){
   lapply(pred, predictions_to_treatment_helper)
 }
@@ -270,38 +344,12 @@ predictions_to_treatment_helper <- function(x){
   names(x[match(max(x),x)])
 }
 
-type_subtrees <- function(tree){
-  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf'){
-    tree[['type']] <- 'sub'
-  } else{
-    if(tree[['left']][['type']] != 'leaf'){
-      tree[['left']] <- type_subtrees(tree[['left']])
-    }
-    if(tree[['right']][['type']] != 'leaf'){
-      tree[['right']] <- type_subtrees(tree[['right']])
-    }
-  }
-  return(tree)
-}
 
-check_tree_changes <- function(tree){
-  result <- FALSE
-  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf' && tree[['type']] != 'sub'){
-    return(TRUE)
-  } else{
-    if(tree[['left']][['type']] != 'leaf'){
-      if(check_tree_changes(tree[['left']]) == TRUE){
-        return(TRUE)
-      }
-    }
-    if(tree[['right']][['type']] != 'leaf'){
-      if(check_tree_changes(tree[['right']]) == TRUE){
-        return(TRUE)
-      }
-    }
-  }
-  return(result)
-}
+
+
+#Pruning ----
+#Takes a tree and prunes it with the help of a validation set.
+#Returns a pruned tree.
 
 prune_tree <- function(tree, val_data, train_data, target){
   val_pred <- predict.dt(tree, val_data)
@@ -395,83 +443,61 @@ check_pruning <- function(node,predictions,predictions_val,val_data,target){
   
 }
 
-####Test Area
+
+#Function that goes to the tree to identify subtrees. Used for pruning
+
+type_subtrees <- function(tree){
+  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf'){
+    tree[['type']] <- 'sub'
+  } else{
+    if(tree[['left']][['type']] != 'leaf'){
+      tree[['left']] <- type_subtrees(tree[['left']])
+    }
+    if(tree[['right']][['type']] != 'leaf'){
+      tree[['right']] <- type_subtrees(tree[['right']])
+    }
+  }
+  return(tree)
+}
+
+#Helper function for pruning
+
+check_tree_changes <- function(tree){
+  result <- FALSE
+  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf' && tree[['type']] != 'sub'){
+    return(TRUE)
+  } else{
+    if(tree[['left']][['type']] != 'leaf'){
+      if(check_tree_changes(tree[['left']]) == TRUE){
+        return(TRUE)
+      }
+    }
+    if(tree[['right']][['type']] != 'leaf'){
+      if(check_tree_changes(tree[['right']]) == TRUE){
+        return(TRUE)
+      }
+    }
+  }
+  return(result)
+}
+
+
+####Test Area ----
 
 
 treatment_list <- c('men_treatment','women_treatment')
 test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
                                    "newbie","channel")],TRUE)
 
-test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,divergence = 'EucDistance')
+test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
+                         divergence = 'EucDistance')
  
 
 
 
 
-KL_Normalization <- function(a,temp_data,control,treatments,target){
-  nt <- nrow(temp_data[temp_data[,control] != 1,])/nrow(temp_data)
-  nc <- nrow(temp_data[temp_data[,control] == 1,])/nrow(temp_data)
-  norm_factor <- a*(nt*nc)*binary_KL_divergence(temp_data[temp_data[,control] != 1,target],
-                                                temp_data[temp_data[,control] == 1,target])
-  for(t in treatments){
-    nti <-nrow(temp_data[temp_data[,t] == 1,])
-    nc <- nrow(temp_data[temp_data[,control] == 1,])
-    norm_factor <- norm_factor + (1-a) * (nti*nc) * 
-      binary_KL_divergence(temp_data[temp_data[,t] == 1,target],
-                           temp_data[temp_data[,control] == 1,target])
-    pti <- mean(temp_data[temp_data[,t] == 1,target])
-    if(pti != 0){
-      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
-    }
-  }
-  pc <- mean(temp_data[temp_data[,control] == 1,target])
-  if(pc != 0){
-    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc) + 0.5
-  }
-  print(norm_factor)
-  if(norm_factor == 0 || is.na(norm_factor)){
-    return(1)
-  }
-  return(norm_factor)
-}
-
-
-Euc_Normalization <- function(a,temp_data,control,treatments,target){
-  nt <- nrow(temp_data[temp_data[,control] != 1,])/nrow(temp_data)
-  nc <- nrow(temp_data[temp_data[,control] == 1,])/nrow(temp_data)
-  norm_factor <- a*(nt*nc)*EucDistance(temp_data[temp_data[,control] != 1,target],
-                                                temp_data[temp_data[,control] == 1,target])
-  for(t in treatments){
-    nti <-nrow(temp_data[temp_data[,t] == 1,])
-    nc <- nrow(temp_data[temp_data[,control] == 1,])
-    norm_factor <- norm_factor + (1-a) * (nti*nc) * 
-      EucDistance(temp_data[temp_data[,t] == 1,target],
-                           temp_data[temp_data[,control] == 1,target])
-    pti <- mean(temp_data[temp_data[,t] == 1,target])
-    if(pti != 0){
-      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
-    }
-  }
-  pc <- mean(temp_data[temp_data[,control] == 1,target])
-  if(pc != 0){
-    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc) + 0.5
-  }
-  print(norm_factor)
-  if(norm_factor == 0 || is.na(norm_factor)){
-    return(1)
-  }
-  return(norm_factor)
-}
-
 
 #treatment_predictions = predictions_to_treatment(temp_predictions)
 
-pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'conversion')
+pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
 
-library('LaplacesDemon')
-KLD(approxfun(density(email$spend)),approxfun(density(email$spend)))
-
-library('FNN')
-KL.divergence(density(email$spend),density(email$spend))
-
-temp_fct <- approxfun(density(email$spend))
