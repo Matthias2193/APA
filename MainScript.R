@@ -10,7 +10,60 @@ email$segment <- NULL
 email$mens <- as.factor(email$mens)
 email$womens <- as.factor(email$womens)
 email$newbie <- as.factor(email$newbie)
-insurance <- read.csv('Insurance.csv')
+#insurance <- read.csv('Insurance.csv')
+
+
+####################################################
+# Uplift DT Rzepakowski et. al 2012
+####################################################
+
+source('DecisionTreeImplementation.R')
+
+library(caret)
+
+response <- 'conversion'
+
+# Split into test and train data
+idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
+
+train <- email[-idx, ]
+test <- email[idx, ]
+
+treatment_list <- c('men_treatment','women_treatment')
+test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
+                                   "newbie","channel")],TRUE)
+
+raw_tree <- create_node(train,0,100,treatment_list,'conversion','control',test_list)
+
+# Partition training data for pruning
+idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
+# takes a lot of time..
+pruned_tree <- prune_tree(raw_tree,train[idx,],email[-idx,],target = 'conversion')
+
+# add to the result df the outcome, assignment and calculate uplift for each T
+pred <- predict.dt.as.df(pruned_tree, test)
+
+# Calculate Uplift for each T
+pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
+pred[ , "Uplift - Womens E-Mail"] <- pred[ , 1] - pred[ , 3]
+
+pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+
+pred[ , "Outcome"] <- test[, response]
+# get the actual assignment from test data
+pred[ , "Assignment"] <- colnames(test)[apply(test[, 12:14], 1, which.max) + 11]
+
+# How often is each Treatment assigned by model
+table(pred$Treatment)
+
+# Expected outcome
+# Formula from Zhao 2017
+expected_outcome(pred)
+
+# Expected Response per targeted customers
+perc_eval_zhao <- expected_percentile_response(pred)
+plot(perc_eval_zhao)
+
 
 ####################################################
 # X Model Approach for continuous response
@@ -135,6 +188,12 @@ plot(perc_eval_naive)
 # Expected Response per targeted customers
 perc_eval_zhao <- expected_percentile_response(predictions_logit)
 plot(perc_eval_zhao)
+
+# Matching Evaluation
+perc_matching <- matching_evaluation(predictions_logit)
+
+# Weird shape because for 0.4 Control group has outcome > 0...
+matplot(x =perc_matching$Percentile, y = perc_matching[, c(2:3)], col = c(2:3), pch=1)
 
 
 ####################################################

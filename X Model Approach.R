@@ -26,6 +26,7 @@ test_data <- data.frame()
 for(x in treatments){
   t_data <- data[data[, treatment] == x, ]
   
+  
   idx <- createDataPartition(y = t_data[ , response], p=(1 - train_ratio), list = FALSE)
 
   # Combine all test splits into one Test Dataset
@@ -56,6 +57,9 @@ train_T <- append(train_T, list(Control = c_data[-idx, ]))
 # List of training data for each input and list of test data
 return(list(Train = train_T, Test =test_data))
 }
+
+##TODO
+# also include transformed single T case, --S treated or not treated
 
 
 ####################################
@@ -115,7 +119,7 @@ for (i in c(1: k - 1)) {
 }
 
 # choose predicted treatment by the model
-predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
+predictions$T_index <- apply(predictions[, 1:k], 1, which.max)
 predictions$Treatment <- colnames(predictions)[predictions$T_index]
 
 # Add actual assignment 
@@ -293,33 +297,50 @@ naive_percentile_response <- function(predictions){
 }
 
 
-# ##TODO 
-# # *Assumption* always the higher predicted treatment assigned
-# # Rzepakowski 2012
-# matching_evaluation <- function(predictions){
-#   #N <- nrow(predictions)
-#   
-#   
-#   #choose top predicted treatments for each group
-#   # Choose only the uplift columns
-#   predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
-#   
-#   predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
-#   
-#   # Sort by max uplift Treatment
-#   predictions <- predictions[order(-predictions$max_uplift) , ]
-#   
-#   # Sum percentiles
-#   ret <- data.frame(matrix(ncol = 2, nrow = 0))
-#   
-#   for(x in seq(0,1, 0.1)){
-#     sum_treated <- sum(head(predictions$max_treatment_outcome, N * x) )
-#     sum_control <- sum(tail(predictions$Control, N * (1 - x)) )
-#     
-#     ret <- rbind(ret, c(x, (sum_treated + sum_control) / N))
-#   }
-#   
-#   colnames(ret) <- c("Percentile", "AVG Outcome")
-#   
-#   return(ret)
-# }
+##TODO
+# select the max treatment from top percentiles...
+
+# *Assumption* always the higher predicted treatment assigned
+# Rzepakowski 2012
+matching_evaluation <- function(predictions){
+  # Choose only the uplift columns
+  predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
+  predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
+  
+  # All treatments and control levels
+  treatments <- levels(as.factor(predictions$Treatment))
+  
+  ret <- data.frame(Percentile=  seq(0,1, 0.1))
+  
+  # Iterate through treatements
+  for(t in treatments){
+    group <- predictions[predictions$Treatment == t , ]
+    
+    N <- nrow(group)
+    
+    # Sort by max uplift Treatment
+    group <- group[order(-group$max_uplift) , ]
+
+    outcomes <- c()
+    # For each percentile
+    for(x in seq(0,1, 0.1)){
+      # AVG outcome of top percentile
+      outcomes <- c(outcomes, mean(head(group$Outcome, x * N)))
+    }     
+    ret[ , t] <- outcomes
+  }
+  
+  ret[is.na(ret)] <- 0
+  # For each treatment uplift and dynamic curve as max
+  curves <- data.frame(Percentile = ret$Percentile)
+  
+  treatments <- treatments[ !treatments %in% "Control"]
+  
+  for(x in treatments){
+    curves[ , x] <- ret[ , x] - ret[ , "Control"]
+  }
+  
+  curves[ , "max T"] <- apply(curves[ , c(2 : ncol(curves))], 1, max)
+  
+  return(curves)
+}
