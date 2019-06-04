@@ -73,6 +73,14 @@ plot(perc_eval_zhao)
 
 
 ####################################################
+# Causal Tree
+####################################################
+
+source('CausalTree.R')
+causal_pred <- causalTreePredicitons(train, test, treatment_list)
+
+
+####################################################
 # X Model Approach for continuous response
 ####################################################
 set.seed(123)
