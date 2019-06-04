@@ -6,6 +6,7 @@ if(length(new.packages) > 0) install.packages(new.packages)
 library(caret)
 library(glmnet)
 library(rpart)
+library(randomForest)
 
 ####################################
 # X Model Data Training split
@@ -25,6 +26,7 @@ test_data <- data.frame()
 
 for(x in treatments){
   t_data <- data[data[, treatment] == x, ]
+  
   
   idx <- createDataPartition(y = t_data[ , response], p=(1 - train_ratio), list = FALSE)
 
@@ -56,6 +58,9 @@ train_T <- append(train_T, list(Control = c_data[-idx, ]))
 # List of training data for each input and list of test data
 return(list(Train = train_T, Test =test_data))
 }
+
+##TODO
+# also include transformed single T case, --S treated or not treated
 
 
 ####################################
@@ -115,7 +120,7 @@ for (i in c(1: k - 1)) {
 }
 
 # choose predicted treatment by the model
-predictions$T_index <- apply(predictions[, 1:3], 1, which.max)
+predictions$T_index <- apply(predictions[, 1:k], 1, which.max)
 predictions$Treatment <- colnames(predictions)[predictions$T_index]
 
 # Add actual assignment 
@@ -165,9 +170,9 @@ dt_x_model_predictions <- function(models_dt, test_data, response, treatment, co
   if(prediction_class == "class"){
     for (i in c(1 : length(models_dt))) {
       if(i == 1){
-        predictions <- data.frame(predict(models_dt[[i]], test_data)[ , 2])
+        predictions <- data.frame(predict(models_dt[[i]], test_data, type = "prob")[ , 2])
       } else{
-        predictions[ , paste0(i)] <- as.numeric(predict(models_dt[[i]], test_data)[ , 2] )
+        predictions[ , paste0(i)] <- as.numeric(predict(models_dt[[i]], test_data, type = "prob")[ , 2] )
       }
     }  
   } else if(prediction_class == "anova"){
@@ -205,121 +210,32 @@ dt_x_model_predictions <- function(models_dt, test_data, response, treatment, co
 }
 
 
+#######################
+# RF
 
-####################################
-# Evaluation metrics
-####################################
-
-# As described in Zhao et al. 2017
-expected_outcome <- function(eval_data){
-  # Number of observations
-  N <- nrow(eval_data)
+rf_models <- function(train_data, response, prediction_method){  
+  # for each element in train data fir model and return list of models
   
-  # Frequencies of treatments z_i
-  t <- table(eval_data$Assignment)
-  p_i <- data.frame(t/ nrow(eval_data))
-  colnames(p_i) <- c("Assignment", "Freq")
-    
-  # only include points where the assigned treatment equals the predicted
-  matching <- eval_data[eval_data$Treatment == eval_data$Assignment , ]
-  matching <- merge(matching, p_i, all.x = T )
-  
-  # Expected value of response as AVG sum of outcomes / probability of Assignment
-  res <- (sum(matching$Outcome / matching$Freq) / N)
-  
-  return(res)
-}
-
-## Modified Uplift Curve by Zhao
-# *Assumption* outcome for each treatment equals prediction of model
-expected_percentile_response <- function(predictions){
-  N <- nrow(predictions)
-  
-  # Choose only the uplift columns
-  predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
-  
-  predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
-  
-  # Sum percentiles
-  ret <- data.frame(matrix(ncol = 2, nrow = 0))
-  
-  for(x in seq(0,1, 0.1)){
-    # for top x set T to max T
-    predictions$T_index <- apply(predictions[, 1:2], 1, which.max)
-    # Assign optimal treatment for all
-    predictions$Treatment <- colnames(predictions)[predictions$T_index]
-    
-    # For all who are not in top x Percentile assign Control Treatment
-    predictions$Treatment[predictions$max_uplift < quantile(predictions$max_uplift,prob=(1-x))] <- "Control"
-    
-    # Calculate the Expected Response Value top Percentile
-    ret <- rbind(ret, c(x, expected_outcome(predictions)) )
+  if(prediction_method == "class"){
+    treatments <- names(train_data)
   }
   
-  colnames(ret) <- c("Percentile", "Expected Outcome")
-  
-  return(ret)
-}
-
-
-
-## Own naive evaluation approach
-# *Assumption* outcome for each treatment equals prediction of model
-naive_percentile_response <- function(predictions){
-  N <- nrow(predictions)
-  
-  # Choose only the uplift columns
-  predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
-  
-  predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
-  
-  # Sort by max uplift Treatment
-  predictions <- predictions[order(-predictions$max_uplift) , ]
-  
-  # Sum percentiles
-  ret <- data.frame(matrix(ncol = 2, nrow = 0))
-  
-  for(x in seq(0,1, 0.1)){
-    # Top x % as treated outcome rest have control outcome
-    sum_treated <- sum(head(predictions$max_treatment_outcome, N * x) )
-    sum_control <- sum(tail(predictions$Control, N * (1 - x)) )
+  models <- list()
+  for(i in c(1: length(treatments))){
+    train <- train_data[[i]]
     
-    ret <- rbind(ret, c(x, (sum_treated + sum_control) / N))
+    train[, response] <- as.factor(train[, response])
+    
+    ## TODO how to set / adjust parameters ??
+    rf <- randomForest(as.formula(paste(response, "~.")), data = train, mtry=3, ntree = 350)
+    
+    models <- append(models, list(x= rf))
   }
   
-  colnames(ret) <- c("% of Treated", "AVG Outcome")
+  names(models) <- treatments
   
-  return(ret)
+  # Named list with fitted models for each treatment and control
+  return(models)
 }
 
 
-# ##TODO 
-# # *Assumption* always the higher predicted treatment assigned
-# # Rzepakowski 2012
-# matching_evaluation <- function(predictions){
-#   #N <- nrow(predictions)
-#   
-#   
-#   #choose top predicted treatments for each group
-#   # Choose only the uplift columns
-#   predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
-#   
-#   predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
-#   
-#   # Sort by max uplift Treatment
-#   predictions <- predictions[order(-predictions$max_uplift) , ]
-#   
-#   # Sum percentiles
-#   ret <- data.frame(matrix(ncol = 2, nrow = 0))
-#   
-#   for(x in seq(0,1, 0.1)){
-#     sum_treated <- sum(head(predictions$max_treatment_outcome, N * x) )
-#     sum_control <- sum(tail(predictions$Control, N * (1 - x)) )
-#     
-#     ret <- rbind(ret, c(x, (sum_treated + sum_control) / N))
-#   }
-#   
-#   colnames(ret) <- c("Percentile", "AVG Outcome")
-#   
-#   return(ret)
-# }

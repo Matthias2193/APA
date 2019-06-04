@@ -302,7 +302,7 @@ final_node <- function(data,treatment_list,target,control){
 
 predict.dt <- function(tree,new_data){
   type_list <- sapply(new_data, class)
-  names(type_list) = colnames(email)
+  names(type_list) = colnames(new_data)
   results = list()
   for(x in 1:nrow(new_data)){
     d = new_data[x,]
@@ -344,7 +344,19 @@ predictions_to_treatment_helper <- function(x){
   names(x[match(max(x),x)])
 }
 
-
+type_subtrees <- function(tree){
+  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf'){
+    tree[['type']] <- 'sub'
+  } else{
+    if(tree[['left']][['type']] != 'leaf'){
+      tree[['left']] <- type_subtrees(tree[['left']])
+    }
+    if(tree[['right']][['type']] != 'leaf'){
+      tree[['right']] <- type_subtrees(tree[['right']])
+    }
+  }
+  return(tree)
+}
 
 
 #Pruning ----
@@ -443,7 +455,6 @@ check_pruning <- function(node,predictions,predictions_val,val_data,target){
   
 }
 
-
 #Function that goes to the tree to identify subtrees. Used for pruning
 
 type_subtrees <- function(tree){
@@ -482,19 +493,56 @@ check_tree_changes <- function(tree){
 }
 
 
-####Test Area ----
-
+####Test Area 
 
 treatment_list <- c('men_treatment','women_treatment')
 test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
                                    "newbie","channel")],TRUE)
 
+
 test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
                          divergence = 'EucDistance')
- 
 
 
-
+predict.dt.as.df <- function(tree, new_data){
+  type_list <- sapply(new_data, class)
+  names(type_list) = colnames(new_data)
+  results = data.frame()
+  for(x in 1:nrow(new_data)){
+    d = new_data[x,]
+    type = 'root'
+    node = tree
+    while(type != 'leaf'){
+      split = node[['split']]
+      if(type_list[[names(split)]] == 'factor'){
+        if(d[names(split)] == split[[1]]){
+          node = node[['left']]
+          type = node[['type']]
+        } else{
+          node = node[['right']]
+          type = node[['type']]
+        }
+      } else{
+        if(d[names(split)] < split[[1]]){
+          node = node[['left']]
+          type = node[['type']]
+        } else{
+          node = node[['right']]
+          type = node[['type']]
+        }
+      }
+    }
+    results <- rbind(results , node[['results']])
+    
+    # in first round colnames need to be set T names
+    if(x == 1){
+      colnames(results) <- names(node[['results']])
+    }
+    
+  }
+  
+  return(results)
+}
 
 
 #treatment_predictions = predictions_to_treatment(temp_predictions)

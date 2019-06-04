@@ -10,7 +10,67 @@ email$segment <- NULL
 email$mens <- as.factor(email$mens)
 email$womens <- as.factor(email$womens)
 email$newbie <- as.factor(email$newbie)
-insurance <- read.csv('Insurance.csv')
+#insurance <- read.csv('Insurance.csv')
+
+
+source('Evaluation Methods.R')
+
+library(ggplot2)
+
+####################################################
+# Uplift DT Rzepakowski et. al 2012
+####################################################
+
+source('DecisionTreeImplementation.R')
+
+library(caret)
+
+response <- 'conversion'
+
+# Split into test and train data
+idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
+
+train <- email[-idx, ]
+test <- email[idx, ]
+
+treatment_list <- c('men_treatment','women_treatment')
+test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
+                                   "newbie","channel")],TRUE)
+
+raw_tree <- create_node(train,0,100,treatment_list,'conversion','control',test_list)
+
+# Partition training data for pruning
+idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
+# takes a lot of time..
+pruned_tree <- prune_tree(raw_tree,train[idx,],email[-idx,],target = 'conversion')
+
+# add to the result df the outcome, assignment and calculate uplift for each T
+pred <- predict.dt.as.df(pruned_tree, test)
+
+
+### Results Preparation to bring into equal format
+
+# Calculate Uplift for each T
+pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
+pred[ , "Uplift - Womens E-Mail"] <- pred[ , 1] - pred[ , 3]
+
+pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+
+pred[ , "Outcome"] <- test[, response]
+# get the actual assignment from test data
+pred[ , "Assignment"] <- colnames(test)[apply(test[, 12:14], 1, which.max) + 11]
+
+# How often is each Treatment assigned by model
+table(pred$Treatment)
+
+# Expected outcome
+# Formula from Zhao 2017
+expected_outcome(pred)
+
+# Expected Response per targeted customers
+perc_eval_zhao <- expected_percentile_response(pred)
+plot(perc_eval_zhao)
+
 
 ####################################################
 # X Model Approach for continuous response
@@ -66,14 +126,31 @@ expected_outcome(predictions_dt)
 mean(predictions_dt$Outcome)
 # 0.99 AVG Spend
 
-# Outcome per share of customers targeted
-perc <- naive_percentile_response(predictions_dt)
-plot(perc)
-
 # Expected Response per targeted customers
 perc_eval_zhao <- expected_percentile_response(predictions_dt)
 plot(perc_eval_zhao)
 
+
+# Rzepakowski 2012
+# for each T uplift curve and one dynamic curve for combined treatments
+curves <- matching_evaluation(predictions_dt)
+
+library(reshape2)
+
+melt(curves, id="Percentile") %>% ggplot(aes(x = Percentile, y = value, color = variable)) +
+  geom_line() + 
+  labs(
+    y = "Uplift"
+  ) +
+  theme_light()
+  
+curves %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes_string(y = curves[, colnames(curves)[4]]) ) + 
+  labs(
+    title = "Dynamic Treatment Curve - SMA DT",
+    y = "Uplift"
+  ) +
+  theme_light()
 
 
 ####################################################
@@ -128,13 +205,41 @@ expected_outcome(predictions_logit)
 mean(predictions_logit$Outcome)
 # 0.94 % response
 
-# Outcome per share of customers targeted
-perc_eval_naive <- naive_percentile_response(predictions_logit)
-plot(perc_eval_naive)
 
-# Expected Response per targeted customers
-perc_eval_zhao <- expected_percentile_response(predictions_logit)
-plot(perc_eval_zhao)
+# Rzepakowski
+perc_matching <- matching_evaluation(predictions_logit)
+
+log_perc_rzpk <- matching_evaluation(predictions_logit)
+
+# For each treatment
+melt(log_perc_rzpk, id="Percentile") %>% ggplot(aes(x = Percentile, y = value, color = variable)) +
+  geom_line() + 
+  labs(
+    y = "Uplift"
+  ) +
+  theme_light()
+
+# Only for
+log_perc_rzpk %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes_string(y = log_perc_rzpk[, colnames(log_perc_rzpk)[4]]) ) + 
+  labs(
+    title = "Dynamic Treatment Curve - SMA Logit",
+    y = "Uplift"
+  ) +
+  theme_light()
+
+
+# Zhao 
+logit_perc_eval_zhao <- expected_percentile_response(predictions_logit)
+
+logit_perc_eval_zhao %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes_string(y = logit_perc_eval_zhao[, colnames(logit_perc_eval_zhao)[2]]) ) + 
+  labs(
+    title = "Expected Outcome - SMA Logit",
+    y = "Expected Response",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
 
 
 ####################################################
@@ -151,15 +256,54 @@ predictions_clas_dt <- dt_x_model_predictions(models_clas_dt, test_data, respons
 # How often is each Treatment assigned by model
 table(predictions_clas_dt$Treatment)
 
-# Expected outcome on Predicted Outcomes
-# Formula from Zhao 2017
+# Rzepakowski 2012
+dt_perc_rzpk <- matching_evaluation(predictions_clas_dt)
+
+dt_perc_rzpk %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes_string(y = dt_perc_rzpk[, colnames(dt_perc_rzpk)[4]]) ) + 
+  labs(
+    title = "Dynamic Treatment Curve - SMA Logit",
+    y = "Uplift"
+  ) +
+  theme_light()
+
+
+
+# Zhao 2017
 expected_outcome(predictions_clas_dt)
 # 0.98 % response
 
-# Outcome per share of customers targeted
-perc_eval_naive <- naive_percentile_response(predictions_clas_dt)
-plot(perc_eval_naive)
+# Expected Response per targeted customers
+perc_eval_zhao <- expected_percentile_response(predictions_clas_dt)
+
+perc_eval_zhao %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes_string(y = perc_eval_zhao[, colnames(perc_eval_zhao)[2]]) ) + 
+  labs(
+    title = "Expected Outcome - SMA DT",
+    y = "Expected Response",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
+
+
+####################################################
+# Decision Tree - X Model
+####################################################
+
+rf_models <- rf_models(train_data, response, "class")
+
+rf_pred_class <- dt_x_model_predictions(rf_models, test_data, response, treatment, control_level, "class")
 
 # Expected Response per targeted customers
-perc_eval_zhao <- expected_percentile_response(predictions_logit)
-plot(perc_eval_zhao)
+rf_perc_eval_zhao <- expected_percentile_response(rf_pred_class)
+
+rf_perc_eval_zhao %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes_string(y = rf_perc_eval_zhao[, colnames(rf_perc_eval_zhao)[2]]) ) + 
+  labs(
+    title = "Expected Outcome - SMA RF",
+    y = "Expected Response",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
+
+
