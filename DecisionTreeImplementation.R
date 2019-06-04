@@ -500,8 +500,8 @@ test_list <- set_up_tests(email[,c("recency","history_segment","history","mens",
                                    "newbie","channel")],TRUE)
 
 
-test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
-                         divergence = 'EucDistance')
+# test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
+#                         divergence = 'EucDistance')
 
 
 predict.dt.as.df <- function(tree, new_data){
@@ -547,5 +547,5 @@ predict.dt.as.df <- function(tree, new_data){
 
 #treatment_predictions = predictions_to_treatment(temp_predictions)
 
-pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
+#pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
 
