@@ -60,7 +60,7 @@ expected_percentile_response <- function(predictions){
 
 # *Assumption* always the higher predicted treatment assigned
 # Rzepakowski 2012
-matching_evaluation <- function(predictions){
+matching_evaluation <- function(predictions, control_level){
   # Choose only the uplift columns
   predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
   predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
@@ -92,18 +92,16 @@ matching_evaluation <- function(predictions){
   # For each treatment uplift and dynamic curve as max
   curves <- data.frame(Percentile = ret$Percentile)
   
-  treatments <- treatments[ !treatments %in% "Control"]
+  treatments <- treatments[ !treatments %in% control_level]
   
   for(x in treatments){
-    curves[ , x] <- ret[ , x] - ret[ , "Control"]
+    curves[ , x] <- ret[ , x] - ret[ , control_level]
   }
   
   curves[ , "max T"] <- apply(curves[ , c(2 : ncol(curves))], 1, max)
   
   return(curves)
 }
-
-
 
 
 ## Own naive evaluation approach

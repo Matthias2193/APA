@@ -1,0 +1,304 @@
+---
+title: "Uplift Models Evaluation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+## Conversion Prediction
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+library(ggplot2)
+library(caret)
+library(dplyr)
+library(reshape2)
+####################################################
+# Uplift DT Rzepakowski et. al 2012
+####################################################
+
+source('DecisionTreeImplementation.R')
+source('Evaluation Methods.R')
+source('X Model Approach.R')
+
+
+
+#Data import
+email <- read.csv('Email.csv')
+email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
+email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
+email$control <- ifelse(email$segment=='No E-Mail',1,0)
+email$segment <- NULL
+email$mens <- as.factor(email$mens)
+email$womens <- as.factor(email$womens)
+email$newbie <- as.factor(email$newbie)
+```
+
+### Rzepakowski 2012 Tree
+
+```{r}
+response <- 'conversion'
+
+# Split into test and train data
+idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
+
+train <- email[-idx, ]
+test <- email[idx, ]
+
+treatment_list <- c('men_treatment','women_treatment')
+test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
+                                   "newbie","channel")],TRUE)
+
+raw_tree <- create_node(train,0,100,treatment_list,'conversion','control',test_list)
+
+# Partition training data for pruning
+idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
+# takes a lot of time..
+pruned_tree <- prune_tree(raw_tree,train[idx,],email[-idx,],target = 'conversion')
+
+# add to the result df the outcome, assignment and calculate uplift for each T
+pred <- predict.dt.as.df(pruned_tree, test)
+
+
+### Results Preparation to bring into equal format
+
+# Calculate Uplift for each T
+pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
+pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
+
+pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+
+pred[ , "Outcome"] <- test[, response]
+# get the actual assignment from test data
+pred[ , "Assignment"] <- colnames(test)[apply(test[, 12:14], 1, which.max) + 11]
+
+# Expected Response per targeted customers
+rzp_tree_exp_conv <- expected_percentile_response(pred)
+
+melt(rzp_tree_exp_conv, id="Percentile") %>% ggplot(aes(x = Percentile, y = value, color = variable)) +
+  geom_line() + 
+  labs(
+    title = "Expected Response - Rzpk Tree",
+    y = "Uplift",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
+
+```
+
+```{r}
+
+rzp_tree_mat_conv <- matching_evaluation(pred, "control")
+
+rzp_tree_mat_conv %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes_string(y = rzp_tree_mat_conv[, colnames(rzp_tree_mat_conv)[4]]) ) + 
+  labs(
+    title = "Dynamic Treatment Curve - Rzpk Tree",
+    y = "Uplift",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
+```
+
+
+### Causal Tree
+
+```{r, eval=FALSE}
+## TODO
+source('CausalTree.R')
+causal_pred <- causalTreePredicitons(train, test, treatment_list)
+
+## Error cannot open connection
+
+```
+
+
+### Separate Model Approach
+
+
+```{r}
+# Import data and creat Train / Test splits
+data <-  read.csv('Email.csv')
+
+
+## Prepare data to only include independent variables, treatment assignment and dependent variable
+# Possible for conversion or visit
+
+data$visit <- NULL      
+data$spend <- NULL
+
+## Set these values depending on the dataset 
+# Treatment column in data
+treatment <- "segment"
+# Response column
+response <-  "conversion"
+# String Level of the control Level in Treatment column
+control_level <- "No E-Mail"
+
+# Get the training and testing data as list
+# creates k + 1 train test sets (for each T and control model)
+train_test_list <- multiple_train_test_split(data, response, treatment, control_level, 0.7)
+train_data <- train_test_list[1][[1]]
+test_data <- train_test_list[[2]]
+
+#################
+## Decision Tree
+
+models_clas_dt <- dt_models(train_data, response, "class")
+
+## TODO
+
+# Calculated Upflift for each individual and Treatment and chosen Treatment
+pred_sma_con_dt <- dt_x_model_predictions(models_clas_dt, test_data, response, treatment, control_level, "class")
+
+# Expected Response per targeted customers
+sma_dt_conv_exp <- expected_percentile_response(pred_sma_con_dt)
+
+sma_dt_conv_mat <- matching_evaluation(pred_sma_con_dt, "Control")
+
+#################
+## Logit
+
+# Creates k + 1 Logit models for binary response
+models_logit <- logit_models(train_data, response)
+
+## Evaluate Models on Test data
+# Calculated Upflift for each individual and Treatment and chosen Treatment
+predictions_logit <- logit_x_model_predictions(models_logit, test_data, response, treatment, control_level)
+
+# Zhao 
+sma_logit_conv_exp <- expected_percentile_response(predictions_logit)
+
+sma_logit_conv_mat <- matching_evaluation(predictions_logit, "Control")
+
+#################
+## Random Forest
+rf_models <- rf_models(train_data, response, "class")
+
+rf_pred_class <- dt_x_model_predictions(rf_models, test_data, response, treatment, control_level, "class")
+
+# Expected Response per targeted customers
+sma_rf_conv_exp <- expected_percentile_response(rf_pred_class)
+sma_rf_conv_mat <- matching_evaluation(rf_pred_class, "Control")
+
+
+sma_rf_conv_exp$Model <- sma_rf_conv_mat$Model <- "RF"
+sma_dt_conv_exp$Model <- sma_dt_conv_mat$Model <- "DT"
+sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "Logit"
+
+
+melt(rbind(sma_logit_conv_mat[, c("Percentile","Model","max T")], sma_dt_conv_mat[, c("Percentile","Model","max T")], sma_rf_conv_mat[, c("Percentile","Model","max T")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes(y = value, group= Model, color= Model) ) +
+  #scale_color_manual(values = c("red", "blue", "green")) +
+  labs(
+    color="Base Learner",
+    title = "SMA - Dynamic Treatment Curve",
+    y = "Conversion Increase",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
+  
+```
+
+
+```{r}
+melt(rbind(sma_logit_conv_exp[, c("Percentile","Model","Expected Outcome")], sma_dt_conv_exp[, c("Percentile","Model","Expected Outcome")], sma_rf_conv_exp[, c("Percentile","Model","Expected Outcome")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes(y = value, group= Model, color= Model) ) +
+  labs(
+    color="Base Learner",
+    title = "SMA - Expected Outcome (Zhao)",
+    y = "Expected Outcome",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
+
+```
+
+
+### Model Comaprison
+
+```{r}
+sma_rf_conv_exp$Model <- sma_rf_conv_mat$Model <- "SMA-RF"
+sma_dt_conv_exp$Model <- sma_dt_conv_mat$Model <- "SMA-DT"
+sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "SMA-Logit"
+
+rzp_tree_exp_conv$Model<- rzp_tree_mat_conv$Model <- "Rzp Tree"
+
+melt(rbind(sma_logit_conv_mat[, c("Percentile","Model","max T")], sma_dt_conv_mat[, c("Percentile","Model","max T")], sma_rf_conv_mat[, c("Percentile","Model","max T")], rzp_tree_mat_conv[, c("Percentile","Model","max T")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes(y = value, group= Model, color= Model) ) +
+  labs(
+    color="Base Learner",
+    title = "All Models - Dynamic Treatment Curve",
+    y = "Conversion Increase",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
+
+
+```
+
+
+```{r}
+
+# Expected Outcome
+melt(rbind(sma_logit_conv_exp[, c("Percentile","Model","Expected Outcome")], sma_dt_conv_exp[, c("Percentile","Model","Expected Outcome")], sma_rf_conv_exp[, c("Percentile","Model","Expected Outcome")], rzp_tree_exp_conv[, c("Percentile","Model","Expected Outcome")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes(y = value, group= Model, color= Model) ) +
+  labs(
+    color="Model",
+    title = "Expected Outcome",
+    y = "Expected Outcome",
+    x ="Amount of Treated"
+  ) +
+  theme_light()
+
+```
+
+
+
+## Spent Prediction
+
+### Separate Model Approach
+
+```{r, eval=FALSE}
+
+
+data <-  read.csv('Email.csv')
+
+## Prepare data to only include independent variables, treatment assignment and dependent variable
+# Possible for conversion or visit
+
+data$visit <- NULL      
+data$conversion <- NULL
+
+## Set these values depending on the dataset 
+# Treatment column in data
+treatment <- "segment"
+# Response column
+response <-  "spend" 
+# String Level of the control Level in Treatment column
+control_level <- "No E-Mail"
+
+# Get the training and testing data as list
+# creates k + 1 train test sets (for each T and control model)
+
+train_test_list <- multiple_train_test_split(data, response, treatment, control_level, 0.7)
+train_data <- train_test_list[1][[1]]
+test_data <- train_test_list[[2]]
+
+## Decision Tree
+models_dt <- dt_models(train_data, response, "anova")
+
+# Calculated Upflift for each individual and Treatment and chosen Treatment
+pred_sma_con_dt <- dt_x_model_predictions(models_dt, test_data, response, treatment, control_level, "anova")
+
+# Expected Response per targeted customers
+sma_dt_conv_exp <- expected_percentile_response(pred_sma_con_dt)
+
+sma_dt_conv_mat <- matching_evaluation(predictions_dt, "Control")
+
+
+```
+
+

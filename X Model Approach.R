@@ -148,7 +148,7 @@ dt_models <- function(train_data, response, prediction_method){
     
     # Grow the tree
     ## TODO how to set / adjust parameters ??
-    dt <- rpart(as.formula(paste(response, "~.")), train, method = prediction_method, control=rpart.control(minsplit=10,  cp=0.001))
+    dt <- rpart(as.formula(paste(response, "~.")), train, method = prediction_method, control=rpart.control(minsplit=5,  cp=0.0001))
     
     models <- append(models, list(x= dt))
   }

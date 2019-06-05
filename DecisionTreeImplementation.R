@@ -495,9 +495,9 @@ check_tree_changes <- function(tree){
 
 ####Test Area 
 
-treatment_list <- c('men_treatment','women_treatment')
-test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
-                                   "newbie","channel")],TRUE)
+# treatment_list <- c('men_treatment','women_treatment')
+# test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
+#                                    "newbie","channel")],TRUE)
 
 
 # test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
