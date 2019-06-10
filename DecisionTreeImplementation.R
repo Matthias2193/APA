@@ -440,6 +440,9 @@ check_pruning <- function(node,predictions,predictions_val,val_data,target){
     
     d2 <- root_sign*(prob_treatment_root-prob_control_root)
     
+    if(is.nan(d1) || is.nan(d2)){
+      return(node)
+    }
     if(d1 <= d2){
       result_node <- list()
       result_node[['type']] <- 'leaf'
@@ -513,11 +516,11 @@ treatment_list <- c('men_treatment','women_treatment')
 test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
                                    "newbie","channel")],TRUE)
 
-
-test_tree <- create_node(email[1:50000,],0,100,treatment_list,'conversion','control',test_list,
-                        divergence = 'binary_KL_divergence',normalize = FALSE)
-
-pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'conversion')
+# 
+# test_tree <- create_node(email[1:50000,],0,100,treatment_list,'conversion','control',test_list,
+#                         divergence = 'binary_KL_divergence',normalize = FALSE)
+# 
+# pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'conversion')
 
 
 predict.dt.as.df <- function(tree, new_data){
