@@ -45,7 +45,7 @@ set_up_tests <- function(x,reduce_cases,max_cases = 100){
 
 #Split selection ----
 
-select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data){
+select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data,normalize){
   gain_list <- c()
   name_list <- c()
   for(x in 1:length(test_list$categorical)){
@@ -54,7 +54,7 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
       t <- test_list$categorical[[x]][y]
       new_name <- paste(temp_name, as.character(t), sep = '@@')
       gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-                                    treatment,control,target,temp_data,'categorical',temp_name))
+                                    treatment,control,target,temp_data,'categorical',temp_name,normalize))
       name_list <- c(name_list,new_name)
     }
   }
@@ -64,7 +64,7 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
       t <- test_list$numerical[[x]][y]
       new_name <- paste(temp_name, as.character(t), sep = '@@')
       gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-                                    treatment,control,target,temp_data,'numerical',temp_name))
+                                    treatment,control,target,temp_data,'numerical',temp_name,normalize))
       name_list <- c(name_list,new_name)
     }
   }
@@ -89,7 +89,7 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
 
 
 
-gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,test_type,test_col){
+gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,test_type,test_col,normalize){
   if(test_type == 'categorical'){
     if((nrow(temp_data) == 0) || nrow(temp_data[temp_data[test_col]==test_case,]) == 0 ||
        nrow(temp_data[temp_data[test_col]!=test_case,]) == 0 ){
@@ -105,13 +105,18 @@ gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,
   conditional <- conditional_divergence(a,l,g,divergence,test_case,treatment,control,target,temp_data,
                                         test_type,test_col)
   multiple <- multiple_divergence(a,l,g,divergence,treatment,control,target,temp_data)
-  # if(divergence == 'binary_KL_divergence'){
-  #   normalizer <- KL_Normalization(a,temp_data,control,treatment,target)
-  # }
-  # else{
-  #   normalizer <- Euc_Normalization(a,temp_data,control,treatment,target)
-  #   }
-  return((conditional-multiple))
+  if(normalize){
+    if(divergence == 'binary_KL_divergence'){
+      normalizer <- KL_Normalization(a,temp_data,control,treatment,target)
+    }
+    else{
+      normalizer <- Euc_Normalization(a,temp_data,control,treatment,target)
+    }
+    return((conditional-multiple)/normalizer)
+  }
+  else{
+    return((conditional-multiple))
+  }
 }
 
 multiple_divergence <- function(a,l,g,divergence,treatments,control,target,temp_data){
@@ -242,7 +247,7 @@ Euc_Normalization <- function(a,temp_data,control,treatments,target){
 #For a binary categorical use 'binary_KL_divergence'
 create_node <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
                         l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
-                        divergence = 'binary_KL_divergence'){
+                        divergence = 'binary_KL_divergence',normalize = FALSE){
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
   }
@@ -256,7 +261,7 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   }
   node <- list()
   temp_split <- select_split(alpha,l,g , divergence,test_list = test_list,
-                             treatment = treatment_list,control,target,data)
+                             treatment = treatment_list,control,target,data,normalize)
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
   }
@@ -267,9 +272,9 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   node[['split']] <- temp_split
   if(names(temp_split) %in% names(test_list$categorical)){
     node[['left']] <- create_node(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
-                                  treatment_list,target,control,test_list)
+                                  treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
     node[['right']] <- create_node(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,max_depth,
-                                   treatment_list,target,control,test_list)
+                                   treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
   }
   else{
     node[['left']] <- create_node(data[data[names(temp_split)] < temp_split[[1]],],depth = depth+1,max_depth,
@@ -494,14 +499,25 @@ check_tree_changes <- function(tree){
 
 
 ####Test Area 
+email <- read.csv('Email.csv')
+email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
+email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
+email$control <- ifelse(email$segment=='No E-Mail',1,0)
+email$segment <- NULL
+email$mens <- as.factor(email$mens)
+email$womens <- as.factor(email$womens)
+email$newbie <- as.factor(email$newbie)
+
 
 treatment_list <- c('men_treatment','women_treatment')
 test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
                                    "newbie","channel")],TRUE)
 
 
-# test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
-#                         divergence = 'EucDistance')
+test_tree <- create_node(email[1:50000,],0,100,treatment_list,'conversion','control',test_list,
+                        divergence = 'binary_KL_divergence',normalize = FALSE)
+
+pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'conversion')
 
 
 predict.dt.as.df <- function(tree, new_data){
@@ -547,5 +563,5 @@ predict.dt.as.df <- function(tree, new_data){
 
 #treatment_predictions = predictions_to_treatment(temp_predictions)
 
-#pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
+
 
