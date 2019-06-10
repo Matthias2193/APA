@@ -189,7 +189,7 @@ KL_Normalization <- function(a,temp_data,control,treatments,target){
   for(t in treatments){
     nti <-nrow(temp_data[temp_data[,t] == 1,])
     nc <- nrow(temp_data[temp_data[,control] == 1,])
-    norm_factor <- norm_factor + (1-a) * (nti*nc) * 
+    norm_factor <- norm_factor + (1-a) * (nti/(nti+nc)*nc/(nti+nc)) * 
       binary_KL_divergence(temp_data[temp_data[,t] == 1,target],
                            temp_data[temp_data[,control] == 1,target])
     pti <- mean(temp_data[temp_data[,t] == 1,target])
@@ -199,8 +199,9 @@ KL_Normalization <- function(a,temp_data,control,treatments,target){
   }
   pc <- mean(temp_data[temp_data[,control] == 1,target])
   if(pc != 0){
-    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc) + 0.5
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc)
   }
+  norm_factor <- norm_factor  + 0.5
   if(norm_factor == 0 || is.na(norm_factor)){
     return(1)
   }
@@ -216,7 +217,7 @@ Euc_Normalization <- function(a,temp_data,control,treatments,target){
   for(t in treatments){
     nti <-nrow(temp_data[temp_data[,t] == 1,])
     nc <- nrow(temp_data[temp_data[,control] == 1,])
-    norm_factor <- norm_factor + (1-a) * (nti*nc) * 
+    norm_factor <- norm_factor + (1-a) * (nti/(nti+nc)*nc/(nti+nc)) * 
       EucDistance(temp_data[temp_data[,t] == 1,target],
                   temp_data[temp_data[,control] == 1,target])
     pti <- mean(temp_data[temp_data[,t] == 1,target])
@@ -226,8 +227,9 @@ Euc_Normalization <- function(a,temp_data,control,treatments,target){
   }
   pc <- mean(temp_data[temp_data[,control] == 1,target])
   if(pc != 0){
-    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc) + 0.5
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc)
   }
+  norm_factor <- norm_factor  + 0.5
   if(norm_factor == 0 || is.na(norm_factor)){
     return(1)
   }
@@ -382,8 +384,11 @@ prune_tree <- function(tree, val_data, train_data, target){
 }
 
 check_pruning <- function(node,predictions,predictions_val,val_data,target){
-  if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
+    if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
     #Left
+    if(node[['type']] == 'root'){
+      return(node)
+    }
     temp_pred_left <- node[['left']][['results']]
     temp_left <- plyr::compact(lapply(predictions, function(x) if(sum(x == temp_pred_left) == 3){x}))
     best_treatment_left <- names(temp_pred_left[match(max(temp_pred_left[1:2]),temp_pred_left)])
@@ -467,7 +472,9 @@ check_pruning <- function(node,predictions,predictions_val,val_data,target){
 
 type_subtrees <- function(tree){
   if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf'){
-    tree[['type']] <- 'sub'
+    if(tree[['type']] != 'root'){
+      tree[['type']] <- 'sub'
+    }
   } else{
     if(tree[['left']][['type']] != 'leaf'){
       tree[['left']] <- type_subtrees(tree[['left']])
@@ -483,7 +490,8 @@ type_subtrees <- function(tree){
 
 check_tree_changes <- function(tree){
   result <- FALSE
-  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf' && tree[['type']] != 'sub'){
+  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf' && tree[['type']] != 'sub'&& 
+     tree[['type']] != 'root'){
     return(TRUE)
   } else{
     if(tree[['left']][['type']] != 'leaf'){
