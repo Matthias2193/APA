@@ -48,13 +48,32 @@ set_up_tests <- function(x,reduce_cases,max_cases = 100){
 select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data,normalize){
   gain_list <- c()
   name_list <- c()
+  # for(x in 1:length(test_list$categorical)){
+  #   temp_name <- names(test_list$categorical[x])
+  #   for(y in 1:length(test_list$categorical[[x]])){
+  #     t <- test_list$categorical[[x]][y]
+  #     new_name <- paste(temp_name, as.character(t), sep = '@@')
+  #     gain_list <- c(gain_list,gain(a,l,g,divergence,t,
+  #                                   treatment,control,target,temp_data,'categorical',temp_name,normalize))
+  #     name_list <- c(name_list,new_name)
+  #   }
+  # }
+  # for(x in 1:length(test_list$numerical)){
+  #   temp_name <- names(test_list$numerical[x])
+  #   for(y in 1:length(test_list$numerical[[x]])){
+  #     t <- test_list$numerical[[x]][y]
+  #     new_name <- paste(temp_name, as.character(t), sep = '@@')
+  #     gain_list <- c(gain_list,gain(a,l,g,divergence,t,
+  #                                   treatment,control,target,temp_data,'numerical',temp_name,normalize))
+  #     name_list <- c(name_list,new_name)
+  #   }
+  # }
   for(x in 1:length(test_list$categorical)){
     temp_name <- names(test_list$categorical[x])
     for(y in 1:length(test_list$categorical[[x]])){
       t <- test_list$categorical[[x]][y]
       new_name <- paste(temp_name, as.character(t), sep = '@@')
-      gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-                                    treatment,control,target,temp_data,'categorical',temp_name,normalize))
+      gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'categorical',temp_name))
       name_list <- c(name_list,new_name)
     }
   }
@@ -63,11 +82,11 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
     for(y in 1:length(test_list$numerical[[x]])){
       t <- test_list$numerical[[x]][y]
       new_name <- paste(temp_name, as.character(t), sep = '@@')
-      gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-                                    treatment,control,target,temp_data,'numerical',temp_name,normalize))
+      gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'numerical',temp_name))
       name_list <- c(name_list,new_name)
     }
   }
+  
   if(max(gain_list) > 0){
     temp_string <- name_list[match(max(gain_list),gain_list)]
     temp_result <- strsplit(temp_string,split='@@', fixed=TRUE)
@@ -87,7 +106,47 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
   }
 }
 
-
+simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+  treatments <- c(treatment, control)
+  gain <- 0
+  if(test_type == 'categorical'){
+    if((nrow(data) == 0) || nrow(data[data[test_col]==test_case,]) == 0 ||
+       nrow(data[data[test_col]!=test_case,]) == 0 ){
+      return(-1)
+    }
+  } else{
+    if((nrow(data) == 0) || nrow(data[data[test_col]<test_case,]) == 0 ||
+       nrow(data[data[test_col]!=test_case,]) >= 0 ){
+      return(-1)
+    }
+  }
+  if(test_type == 'categorical'){
+    data1 <- data[data[,test_col] == test_case,]
+    for(t in treatments){
+      for(s in treatments){
+        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
+        for(r in treatments){
+          temp_gain <- temp_gain * (nrow(data1[data1[,r]==1,]))/nrow(data1)
+        }
+        gain <- gain + temp_gain
+      }
+    }
+  }
+  if(test_type == 'numerical'){
+    data1 <- data[data[,test_col] < test_case,]
+    for(t in treatments){
+      for(s in treatments){
+        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
+        for(r in treatments){
+          temp_gain <- temp_gain * (nrow(data1[data1[,r]==1,]))/nrow(data1)
+        }
+        gain <- gain + temp_gain
+      }
+    }
+  }
+  print(gain)
+  return(gain)
+}
 
 gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,test_type,test_col,normalize){
   if(test_type == 'categorical'){
@@ -534,6 +593,9 @@ test_list <- set_up_tests(email[,c("recency","history_segment","history","mens",
 
 test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
                         divergence = 'EucDistance',normalize = FALSE)
+
+pred <- predict.dt(test_tree,email[50001:64000,])
+pred_treatment <- predictions_to_treatment(pred)
 
 pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
 
