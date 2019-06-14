@@ -45,48 +45,52 @@ set_up_tests <- function(x,reduce_cases,max_cases = 100){
 
 #Split selection ----
 
-select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data,normalize){
+select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data,normalize,criterion = 1){
   gain_list <- c()
   name_list <- c()
-  # for(x in 1:length(test_list$categorical)){
-  #   temp_name <- names(test_list$categorical[x])
-  #   for(y in 1:length(test_list$categorical[[x]])){
-  #     t <- test_list$categorical[[x]][y]
-  #     new_name <- paste(temp_name, as.character(t), sep = '@@')
-  #     gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-  #                                   treatment,control,target,temp_data,'categorical',temp_name,normalize))
-  #     name_list <- c(name_list,new_name)
-  #   }
-  # }
-  # for(x in 1:length(test_list$numerical)){
-  #   temp_name <- names(test_list$numerical[x])
-  #   for(y in 1:length(test_list$numerical[[x]])){
-  #     t <- test_list$numerical[[x]][y]
-  #     new_name <- paste(temp_name, as.character(t), sep = '@@')
-  #     gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-  #                                   treatment,control,target,temp_data,'numerical',temp_name,normalize))
-  #     name_list <- c(name_list,new_name)
-  #   }
-  # }
-  for(x in 1:length(test_list$categorical)){
-    temp_name <- names(test_list$categorical[x])
-    for(y in 1:length(test_list$categorical[[x]])){
-      t <- test_list$categorical[[x]][y]
-      new_name <- paste(temp_name, as.character(t), sep = '@@')
-      gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'categorical',temp_name))
-      name_list <- c(name_list,new_name)
+  if(criterion == 1){
+    for(x in 1:length(test_list$categorical)){
+      temp_name <- names(test_list$categorical[x])
+      for(y in 1:length(test_list$categorical[[x]])){
+        t <- test_list$categorical[[x]][y]
+        new_name <- paste(temp_name, as.character(t), sep = '@@')
+        gain_list <- c(gain_list,gain(a,l,g,divergence,t,
+                                      treatment,control,target,temp_data,'categorical',temp_name,normalize))
+        name_list <- c(name_list,new_name)
+      }
+    }
+    for(x in 1:length(test_list$numerical)){
+      temp_name <- names(test_list$numerical[x])
+      for(y in 1:length(test_list$numerical[[x]])){
+        t <- test_list$numerical[[x]][y]
+        new_name <- paste(temp_name, as.character(t), sep = '@@')
+        gain_list <- c(gain_list,gain(a,l,g,divergence,t,
+                                      treatment,control,target,temp_data,'numerical',temp_name,normalize))
+        name_list <- c(name_list,new_name)
+      }
     }
   }
-  for(x in 1:length(test_list$numerical)){
-    temp_name <- names(test_list$numerical[x])
-    for(y in 1:length(test_list$numerical[[x]])){
-      t <- test_list$numerical[[x]][y]
-      new_name <- paste(temp_name, as.character(t), sep = '@@')
-      gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'numerical',temp_name))
-      name_list <- c(name_list,new_name)
+  if(criterion == 2){
+    for(x in 1:length(test_list$categorical)){
+      temp_name <- names(test_list$categorical[x])
+      for(y in 1:length(test_list$categorical[[x]])){
+        t <- test_list$categorical[[x]][y]
+        new_name <- paste(temp_name, as.character(t), sep = '@@')
+        gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'categorical',temp_name))
+        name_list <- c(name_list,new_name)
+      }
     }
+    for(x in 1:length(test_list$numerical)){
+      temp_name <- names(test_list$numerical[x])
+      for(y in 1:length(test_list$numerical[[x]])){
+        t <- test_list$numerical[[x]][y]
+        new_name <- paste(temp_name, as.character(t), sep = '@@')
+        gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'numerical',temp_name))
+        name_list <- c(name_list,new_name)
+      }
+    }
+    
   }
-  
   if(max(gain_list) > 0){
     temp_string <- name_list[match(max(gain_list),gain_list)]
     temp_result <- strsplit(temp_string,split='@@', fixed=TRUE)
@@ -315,7 +319,7 @@ Euc_Normalization <- function(a,temp_data,control,treatments,target,test_col,tes
 #For a binary categorical use 'binary_KL_divergence'
 create_node <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
                         l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
-                        divergence = 'binary_KL_divergence',normalize = FALSE){
+                        divergence = 'binary_KL_divergence',normalize = FALSE, criterion = 1){
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
   }
@@ -329,7 +333,7 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   }
   node <- list()
   temp_split <- select_split(alpha,l,g , divergence,test_list = test_list,
-                             treatment = treatment_list,control,target,data,normalize)
+                             treatment = treatment_list,control,target,data,normalize,criterion)
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
   }
