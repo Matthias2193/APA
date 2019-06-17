@@ -148,7 +148,10 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
       }
     }
   }
-  print(gain)
+  if(is.na(gain)){
+    gain = -1
+  }
+  #print(gain)
   return(gain)
 }
 
@@ -344,9 +347,11 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   node[['split']] <- temp_split
   if(names(temp_split) %in% names(test_list$categorical)){
     node[['left']] <- create_node(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
-                                  treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
+                                  treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
+                                  criterion = criterion)
     node[['right']] <- create_node(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,max_depth,
-                                   treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
+                                   treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
+                                   criterion = criterion)
   }
   else{
     node[['left']] <- create_node(data[data[names(temp_split)] < temp_split[[1]],],depth = depth+1,max_depth,
@@ -580,34 +585,34 @@ check_tree_changes <- function(tree){
 
 
 ####Test Area 
-email <- read.csv('Email.csv')
-email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
-email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
-email$control <- ifelse(email$segment=='No E-Mail',1,0)
-email$segment <- NULL
-email$mens <- as.factor(email$mens)
-email$womens <- as.factor(email$womens)
-email$newbie <- as.factor(email$newbie)
-
-
-treatment_list <- c('men_treatment','women_treatment')
-test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
-                                   "newbie","channel")],TRUE)
-
-
-test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
-                        divergence = 'EucDistance',normalize = FALSE)
-
-pred <- predict.dt(test_tree,email[50001:64000,])
-pred_treatment <- predictions_to_treatment(pred)
-
-pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
-
-
-test_tree_norm <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
-                         divergence = 'EucDistance', normalize = TRUE)
-
-pruned_tree_norm <- prune_tree(test_tree_norm,email[50001:64000,],email[1:50000,],target = 'conversion')
+# email <- read.csv('Email.csv')
+# email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
+# email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
+# email$control <- ifelse(email$segment=='No E-Mail',1,0)
+# email$segment <- NULL
+# email$mens <- as.factor(email$mens)
+# email$womens <- as.factor(email$womens)
+# email$newbie <- as.factor(email$newbie)
+# 
+# 
+# treatment_list <- c('men_treatment','women_treatment')
+# test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
+#                                    "newbie","channel")],TRUE)
+# 
+# 
+# test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
+#                         divergence = 'EucDistance',normalize = FALSE)
+# 
+# pred <- predict.dt(test_tree,email[50001:64000,])
+# pred_treatment <- predictions_to_treatment(pred)
+# 
+# pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
+# 
+# 
+# test_tree_norm <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
+#                          divergence = 'EucDistance', normalize = TRUE)
+# 
+# pruned_tree_norm <- prune_tree(test_tree_norm,email[50001:64000,],email[1:50000,],target = 'conversion')
 
 
 predict.dt.as.df <- function(tree, new_data){
