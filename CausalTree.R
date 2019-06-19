@@ -1,7 +1,7 @@
-#install.packages("devtools")
-#library(devtools) 
-#install_github("susanathey/causalTree")
-library(causalTree)
+# install.packages("devtools")
+# library(devtools) 
+# install_github("susanathey/causalTree")
+ library(causalTree)
 # 
 # email <- read.csv('Email.csv')
 # email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
@@ -58,7 +58,7 @@ causalTreePredicitons <- function(train, test,treatment_list){
   
   pred[ , "Outcome"] <- test[, response]
   
-  pred[ , "Assignment"] <- colnames(test)[apply(test[, 12:14], 1, which.max) + 11]
+  pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
   
   return(pred)
 }

@@ -516,34 +516,34 @@ check_tree_changes <- function(tree){
 }
 
 
-####Test Area 
-email <- read.csv('Email.csv')
-email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
-email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
-email$control <- ifelse(email$segment=='No E-Mail',1,0)
-email$segment <- NULL
-email$mens <- as.factor(email$mens)
-email$womens <- as.factor(email$womens)
-email$newbie <- as.factor(email$newbie)
-
-
-# treatment_list <- c('men_treatment','women_treatment')
-# test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
-#                                    "newbie","channel")],TRUE)
-
-
-test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
-                        divergence = 'EucDistance',normalize = FALSE)
-
-pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
-
-
-test_tree_norm <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
-                         divergence = 'EucDistance', normalize = TRUE)
-
-pruned_tree_norm <- prune_tree(test_tree_norm,email[50001:64000,],email[1:50000,],target = 'conversion')
-
-
+# ####Test Area 
+# email <- read.csv('Email.csv')
+# email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
+# email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
+# email$control <- ifelse(email$segment=='No E-Mail',1,0)
+# email$segment <- NULL
+# email$mens <- as.factor(email$mens)
+# email$womens <- as.factor(email$womens)
+# email$newbie <- as.factor(email$newbie)
+# 
+# 
+# # treatment_list <- c('men_treatment','women_treatment')
+# # test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
+# #                                    "newbie","channel")],TRUE)
+# 
+# 
+# test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
+#                         divergence = 'EucDistance',normalize = FALSE)
+# 
+# pruned_tree <- prune_tree(test_tree,email[50001:64000,],email[1:50000,],target = 'spend')
+# 
+# 
+# test_tree_norm <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
+#                          divergence = 'EucDistance', normalize = TRUE)
+# 
+# pruned_tree_norm <- prune_tree(test_tree_norm,email[50001:64000,],email[1:50000,],target = 'conversion')
+# 
+# 
 predict.dt.as.df <- function(tree, new_data){
   type_list <- sapply(new_data, class)
   names(type_list) = colnames(new_data)
@@ -573,19 +573,19 @@ predict.dt.as.df <- function(tree, new_data){
       }
     }
     results <- rbind(results , node[['results']])
-    
+
     # in first round colnames need to be set T names
     if(x == 1){
       colnames(results) <- names(node[['results']])
     }
-    
+
   }
-  
+
   return(results)
 }
-
-
-#treatment_predictions = predictions_to_treatment(temp_predictions)
-
-
-
+# 
+# 
+# #treatment_predictions = predictions_to_treatment(temp_predictions)
+# 
+# 
+# 
