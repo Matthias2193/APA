@@ -154,26 +154,23 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
     for(t in treatments){
       for(s in treatments){
         temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
-        for(r in treatments){
-          temp_gain <- temp_gain * (nrow(data1[data1[,r]==1,]))/nrow(data1)
-          temp_gain <- temp_gain * (nrow(data2[data2[,r]==1,]))/nrow(data2)
-        }
         gain <- gain + temp_gain
       }
+      gain <- gain * (nrow(data1[data1[,t]==1,]))/nrow(data1)
+      gain <- gain * (nrow(data2[data2[,t]==1,]))/nrow(data2)
     }
   }
   if(test_type == 'numerical'){
     data1 <- data[data[,test_col] < test_case,]
     data2 <- data[data[,test_col] >= test_case,]
+    temp_gain <- 0
     for(t in treatments){
       for(s in treatments){
         temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
-        for(r in treatments){
-          temp_gain <- temp_gain * (nrow(data1[data1[,r]==1,]))/nrow(data1)
-          temp_gain <- temp_gain * (nrow(data2[data2[,r]==1,]))/nrow(data2)
-        }
         gain <- gain + temp_gain
       }
+      gain <- gain * (nrow(data1[data1[,t]==1,]))/nrow(data1)
+      gain <- gain * (nrow(data2[data2[,t]==1,]))/nrow(data2)
     }
   }
   if(is.na(gain)){
