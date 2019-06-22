@@ -244,10 +244,10 @@ gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,
   multiple <- multiple_divergence(a,l,g,divergence,treatment,control,target,temp_data)
   if(normalize){
     if(divergence == 'binary_KL_divergence'){
-      normalizer <- KL_Normalization(a,temp_data,control,treatment,target,test_col,test_case)
+      normalizer <- KL_Normalization(a,temp_data,control,treatment,target,test_col,test_case,test_type)
     }
     else{
-      normalizer <- KL_Normalization(a,temp_data,control,treatment,target,test_col,test_case)
+      normalizer <- KL_Normalization(a,temp_data,control,treatment,target,test_col,test_case,test_type)
     }
     return((conditional-multiple)/normalizer)
   }
@@ -299,8 +299,8 @@ conditional_divergence <- function(a,l,g,divergence,test_case,treatments,control
 #Divergence Measures
 
 binary_KL_divergence <- function(x,y){
-  p <- sum(x)/length(x)
-  q <- sum(y)/length(y)
+  p <- mean(x)
+  q <- mean(y)
   temp_result <- (p*log(p/q))+((1-p)*log((1-p)/1-q))
   if(is.nan(temp_result)||is.infinite(temp_result)){
     return(0)
@@ -318,7 +318,7 @@ EucDistance <- function(x,y){
 
 
 #Normalization ----
-KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test_case){
+KL_Normalization2 <- function(a,temp_data,control,treatments,target,test_col,test_case,test_type){
   n <- nrow(temp_data)
   nt <- nrow(temp_data[temp_data[,control] != 1,])/n
   nc <- nrow(temp_data[temp_data[,control] == 1,])/n
@@ -334,14 +334,88 @@ KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test
                                             (temp_data[,test_col] == test_case),])/n,
                            nrow(temp_data[(temp_data[,control] == 1) &
                                             (temp_data[,test_col] == test_case),])/n)
-    pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] == test_case),])/n
-    if(pti != 0){
+    if(test_type == 'categorical'){
+      pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] == test_case),])/n
+      pti2 <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] != test_case),])/n
+    } else{
+      pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] < test_case),])/n
+      pti2 <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] >= test_case),])/n
+    }
+    if(pti != 0 && pti2 != 0){
       norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
+      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti2 * log(pti2)
     }
   }
-  pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] == test_case),])/n
-  if(pc != 0){
+  if(test_type == 'categorical'){
+    pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] == test_case),])/n
+    pc2 <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] != test_case),])/n
+  } else{
+    pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/n
+    pc2 <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] >= test_case),])/n
+  }
+  if(pc != 0 && pc2 !=0){
     norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc)
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc2 * log(pc2)
+  }
+  norm_factor <- norm_factor  + 0.5
+  if(norm_factor == 0 || is.na(norm_factor)){
+    return(1)
+  }
+  return(norm_factor)
+}
+
+KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test_case,test_type){
+  n <- nrow(temp_data)
+  nt <- nrow(temp_data[temp_data[,control] != 1,])/n
+  nc <- nrow(temp_data[temp_data[,control] == 1,])/n
+  norm_factor <- a*-((nt*log(nc))+(1-nt)*log(1-nc))*binary_KL_divergence(nrow(temp_data[(temp_data[,control] != 1) & 
+                                                                 (temp_data[,test_col] == test_case),])/
+                                                  nrow(temp_data[(temp_data[,control] != 1),]),
+                                                nrow(temp_data[(temp_data[,control] == 1) & 
+                                                                 (temp_data[,test_col] == test_case),])/
+                                                  nrow(temp_data[(temp_data[,control] == 1),]))
+  for(t in treatments){
+    nti <-nrow(temp_data[temp_data[,t] == 1,])
+    nc <- nrow(temp_data[temp_data[,control] == 1,])
+    pti <- nti/(nti+nc)
+    pc <- nc/(nti+nc)
+    norm_factor <- norm_factor + (1-a) * -((pi*log(pc))+(1-pi)*log(1-pc)) * 
+      binary_KL_divergence(nrow(temp_data[(temp_data[,t] == 1) & 
+                                            (temp_data[,test_col] == test_case),])/
+                             nrow(temp_data[(temp_data[,t] == 1),]),
+                           nrow(temp_data[(temp_data[,control] == 1) &
+                                            (temp_data[,test_col] == test_case),])/
+                             nrow(temp_data[(temp_data[,control] == 1),]))
+    if(test_type == 'categorical'){
+      pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] == test_case),])/
+        nrow(temp_data[(temp_data[,t] == 1),])
+      pti2 <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] != test_case),])/
+        nrow(temp_data[(temp_data[,t] == 1),])
+    } else{
+      pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] < test_case),])/
+        nrow(temp_data[(temp_data[,t] == 1),])
+      pti2 <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] >= test_case),])/
+        nrow(temp_data[(temp_data[,t] == 1),])
+    }
+    if(pti != 0 && pti2 != 0){
+      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
+      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti2 * log(pti2)
+    }
+  }
+  if(test_type == 'categorical'){
+    pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] == test_case),])/
+      nrow(temp_data[(temp_data[,control] == 1),])
+    pc2 <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] != test_case),])/
+      nrow(temp_data[(temp_data[,control] == 1),])
+  } else{
+    pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/
+      nrow(temp_data[(temp_data[,control] == 1),])
+    pc2 <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] >= test_case),])/
+      nrow(temp_data[(temp_data[,control] == 1),])
+  }
+  if(pc != 0 && pc2 !=0){
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc)
+    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc2 * log(pc2)
   }
   norm_factor <- norm_factor  + 0.5
   if(norm_factor == 0 || is.na(norm_factor)){
@@ -759,14 +833,14 @@ check_tree_changes <- function(tree){
 
 
 ####Test Area 
-email <- read.csv('Email.csv')
-email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
-email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
-email$control <- ifelse(email$segment=='No E-Mail',1,0)
-email$segment <- NULL
-email$mens <- as.factor(email$mens)
-email$womens <- as.factor(email$womens)
-email$newbie <- as.factor(email$newbie)
+# email <- read.csv('Email.csv')
+# email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
+# email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
+# email$control <- ifelse(email$segment=='No E-Mail',1,0)
+# email$segment <- NULL
+# email$mens <- as.factor(email$mens)
+# email$womens <- as.factor(email$womens)
+# email$newbie <- as.factor(email$newbie)
 
 
 # treatment_list <- c('men_treatment','women_treatment')
@@ -774,9 +848,13 @@ email$newbie <- as.factor(email$newbie)
 #                                    "newbie","channel")],TRUE)
 # 
 # 
-# test_tree <- create_node(email[1:50000,],0,100,treatment_list,'spend','control',test_list,
+# alpha = 0.5
+# l = c(0.5,0.5)
+# g = matrix(0.25,nrow = 2, ncol = 2)
+# 
+# test_tree <- create_node(train,0,100,treatment_list,'spend','control',test_list,
 #                          divergence = 'EucDistance',normalize = TRUE)
-# # 
+# 
 # pred <- predict.dt(test_tree,email[50001:64000,])
 # pred_treatment <- predictions_to_treatment(pred)
 # 
@@ -787,6 +865,9 @@ email$newbie <- as.factor(email$newbie)
 #                          divergence = 'EucDistance', normalize = TRUE)
 # 
 # pruned_tree_norm <- prune_tree(test_tree_norm,email[50001:64000,],email[1:50000,],target = 'conversion')
+
+
+
 
 
 predict.dt.as.df <- function(tree, new_data){
