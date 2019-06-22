@@ -92,7 +92,6 @@ expected_percentile_response <- function(predictions){
 }
 
 
-
 # *Assumption* always the higher predicted treatment assigned
 # Rzepakowski 2012
 matching_evaluation <- function(predictions, control_level){
