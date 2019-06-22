@@ -1,7 +1,7 @@
-#install.packages("devtools")
-#library(devtools) 
-#install_github("susanathey/causalTree")
-library(causalTree)
+# install.packages("devtools")
+# library(devtools) 
+# install_github("susanathey/causalTree")
+ library(causalTree)
 # 
 # email <- read.csv('Email.csv')
 # email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
@@ -20,12 +20,12 @@ library(causalTree)
 # train <- email[train_ind, ]
 # test <- email[-train_ind, ]
 
-causalTreePredicitons <- function(train, test,treatment_list){
+causalTreePredicitons <- function(train, test,treatment_list, response){
   for(t in treatment_list){
     train_data <- train
     train_data <- train_data[train_data[,setdiff(treatment_list,t)] == 0,]
     train_data_new <- train_data[,1:8]
-    train_data_new$spend <- train_data$spend
+    train_data_new[, response] <- train_data[, response]
     train_data <- train_data_new
     
     test_data <- test[,1:8]
@@ -35,11 +35,12 @@ causalTreePredicitons <- function(train, test,treatment_list){
       load(paste(paste('models/tree',t,sep = '_'),'rda',sep='.'))
     }
     else{
-      tree <- causalTree(spend~., data = train_data, treatment = train[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
+      tree <- causalTree(as.formula(paste(response, "~.")), data = train_data, treatment = train[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
                          cv.Honest = T, split.Bucket = F, xval = 5, cp = 0, minsize = 20, propensity = 0.5)
       save(tree, file = paste(paste('models/tree',t,sep = '_'),'rda',sep='.'))
     }
     
+    ## TODO - include this ??
     
     #opcp <- tree$cptable[,1][which.min(tree$cptable[,3])]
     
@@ -58,7 +59,7 @@ causalTreePredicitons <- function(train, test,treatment_list){
   
   pred[ , "Outcome"] <- test[, response]
   
-  pred[ , "Assignment"] <- colnames(test)[apply(test[, 12:14], 1, which.max) + 11]
+  pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
   
   return(pred)
 }

@@ -52,7 +52,7 @@ pred <- predict.dt.as.df(pruned_tree, test)
 
 # Calculate Uplift for each T
 pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
-pred[ , "Uplift - Womens E-Mail"] <- pred[ , 1] - pred[ , 3]
+pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
 
 pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
 
@@ -71,6 +71,25 @@ expected_outcome(pred)
 perc_eval_zhao <- expected_percentile_response(pred)
 plot(perc_eval_zhao)
 
+curves <- matching_evaluation(predictions_dt)
+
+library(reshape2)
+
+melt(curves, id="Percentile") %>% ggplot(aes(x = Percentile, y = value, color = variable)) +
+  geom_line() + 
+  labs(
+    y = "Uplift"
+  ) +
+  theme_light()
+
+curves %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes_string(y = curves[, colnames(curves)[4]]) ) + 
+  labs(
+    title = "Dynamic Treatment Curve - SMA DT",
+    y = "Uplift"
+  ) +
+  theme_light()
+
 
 ####################################################
 # Causal Tree
@@ -78,6 +97,9 @@ plot(perc_eval_zhao)
 
 source('CausalTree.R')
 causal_pred <- causalTreePredicitons(train, test, treatment_list)
+
+
+
 
 
 ####################################################
@@ -295,7 +317,7 @@ perc_eval_zhao %>% ggplot(aes(x = Percentile)) +
 
 
 ####################################################
-# Decision Tree - X Model
+# Random Forest - X Model
 ####################################################
 
 rf_models <- rf_models(train_data, response, "class")
