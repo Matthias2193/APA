@@ -43,6 +43,7 @@ email$visit <- email$spend <- email$segment <- NULL
 ```{r data_prep, eval=TRUE}
 response <- 'conversion'
 
+set.seed(1234)
 # Split into test and train data
 idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
 
@@ -224,6 +225,7 @@ sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "Logit"
 ### Model Comparison
 
 ```{r}
+# Separate Male and Women Treatment
 
 sma_rf_conv_exp$Model <- sma_rf_conv_mat$Model <- "SMA-RF"
 sma_dt_conv_exp$Model <- sma_dt_conv_mat$Model <- "SMA-DT"
@@ -237,12 +239,19 @@ c_tree_exp_conv$Model<- c_tree_mat_conv$Model <- "Causal-Tree"
 men_total_increase <- mean(test[test$men_treatment == 1, response]) - mean(test[ test$control == 1, response])
 women_total_increase <- mean(test[test$women_treatment == 1, response]) - mean(test[ test$control == 1, response])
 
-random_conv_mat <- data.frame(Percentile = sma_rf_conv_mat$Percentile, mens = cumsum(rep(men_total_increase / nrow(sma_rf_conv_mat), nrow(sma_rf_conv_mat))) , womens = cumsum(rep(women_total_increase / nrow(sma_rf_conv_mat), nrow(sma_rf_conv_mat))) ,  Model='Random')
+dynamic_total_increase <- mean(test[test$control == 0, response]) - mean(test[ test$control == 1, response])
+
+
+random_conv_mat <- data.frame(Percentile = sma_rf_conv_mat$Percentile
+                              , mens = cumsum(rep(men_total_increase / nrow(sma_rf_conv_mat), nrow(sma_rf_conv_mat))) 
+                              , womens = cumsum(rep(women_total_increase / nrow(sma_rf_conv_mat), nrow(sma_rf_conv_mat))) 
+                              , max_t = cumsum(rep(dynamic_total_increase / nrow(sma_rf_conv_mat), nrow(sma_rf_conv_mat))) 
+                              ,  Model='Random')
 
 
 colnames(random_conv_mat)[2] <- colnames(rzp_tree_mat_conv)[2] <- colnames(c_tree_mat_conv)[2] <- "Mens E-Mail"
 colnames(random_conv_mat)[3] <-colnames(rzp_tree_mat_conv)[3] <- colnames(c_tree_mat_conv)[3] <- "Womens E-Mail"
-
+colnames(random_conv_mat)[4] <- "max T"
 
 ## Display of results only for SMA models
 melt(rbind(
@@ -271,7 +280,7 @@ melt(rbind(
           c_tree_mat_conv[, c("Percentile","Model","Womens E-Mail")],
           random_conv_mat[, c("Percentile","Model","Womens E-Mail")])
      , id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
-  geom_line(aes(y = value, group= Model, color= Model),size=1 ) +
+  geom_line(aes(y = value, group= Model, color= Model), size=1 ) +
   labs(
     color="Base Learner",
     title = "All Models - Women's Treatment Curve",
@@ -284,7 +293,9 @@ melt(rbind(
 ```
 
 
-```{r, eval=FALSE}
+```{r, eval=T}
+# Dynamic Curve
+
 sma_rf_conv_exp$Model <- sma_rf_conv_mat$Model <- "SMA-RF"
 sma_dt_conv_exp$Model <- sma_dt_conv_mat$Model <- "SMA-DT"
 sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "SMA-Logit"
@@ -292,8 +303,15 @@ sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "SMA-Logit"
 rzp_tree_exp_conv$Model<- rzp_tree_mat_conv$Model <- "Rzp Tree"
 
 
-melt(rbind(sma_logit_conv_mat[, c("Percentile","Model","max T")], sma_dt_conv_mat[, c("Percentile","Model","max T")], sma_rf_conv_mat[, c("Percentile","Model","max T")], rzp_tree_mat_conv[, c("Percentile","Model","max T")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
-  geom_line(aes(y = value, group= Model, color= Model) ) +
+melt(rbind(
+          sma_logit_conv_mat[, c("Percentile","Model","max T")], 
+          sma_dt_conv_mat[, c("Percentile","Model","max T")], 
+          sma_rf_conv_mat[, c("Percentile","Model","max T")], 
+          rzp_tree_mat_conv[, c("Percentile","Model","max T")],
+          c_tree_mat_conv[, c("Percentile","Model","max T")],
+          random_conv_mat[, c("Percentile","Model","max T")]
+          ), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes(y = value, group= Model, color= Model), size=1  ) +
   
   labs(
     color="Base Learner",
@@ -301,43 +319,8 @@ melt(rbind(sma_logit_conv_mat[, c("Percentile","Model","max T")], sma_dt_conv_ma
     y = "Conversion Increase",
     x ="Amount of Treated"
   ) +
+  scale_colour_brewer(palette = "Dark2") +
   theme_light()
-
-
-melt(rbind(sma_logit_conv_mat[, c("Percentile","Model","max T")], sma_dt_conv_mat[, c("Percentile","Model","max T")], sma_rf_conv_mat[, c("Percentile","Model","max T")], rzp_tree_mat_conv[, c("Percentile","Model","max T")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
-  geom_line(aes(y = value, group= Model, color= Model) ) +
-  labs(
-    color="Base Learner",
-    title = "All Models - Dynamic Treatment Curve",
-    y = "Conversion Increase",
-    x ="Amount of Treated"
-  ) +
-  theme_light()
-
-```
-
-
-```{r, eval=F}
-melt(rbind(sma_logit_conv_mat[, c("Percentile","Model","max T")], sma_dt_conv_mat[, c("Percentile","Model","max T")], sma_rf_conv_mat[, c("Percentile","Model","max T")], c_tree_mat_conv[, c("Percentile","Model","max T")], rzp_tree_mat_conv[, c("Percentile","Model","max T")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
-  geom_line(aes(y = value, group= Model, color= Model) ) +
-  #scale_color_manual(values = c("red", "blue", "green")) +
-  labs(
-    color="Base Learner",
-    title = "All Models - Dynamic Treatment Curve",
-    y = "Conversion Increase",
-    x ="Amount of Treated"
-  ) +
-  theme_light()
-# 
-# melt(rbind(sma_logit_conv_exp[, c("Percentile","Model","Expected Outcome")], sma_dt_conv_exp[, c("Percentile","Model","Expected Outcome")], sma_rf_conv_exp[, c("Percentile","Model","Expected Outcome")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
-#   geom_line(aes(y = value, group= Model, color= Model) ) +
-#   labs(
-#     color="Base Learner",
-#     title = "SMA - Expected Outcome (Zhao)",
-#     y = "Expected Outcome",
-#     x ="Amount of Treated"
-#   ) +
-#   theme_light()
 
 ```
 
@@ -359,9 +342,7 @@ melt(rbind(sma_logit_conv_exp[, c("Percentile","Model","Expected Outcome")], sma
 ```
 
 
-
 ## Spent Prediction
-
 
 ```{r rzp_tree_spent}
 email <- read.csv('Email.csv')
@@ -402,6 +383,7 @@ causal_pred <- causalTreePredicitons(train, test, treatment_list)
 write.csv(causal_pred, "causal tree spend pred.csv", row.names = FALSE)
 
 ```
+
 ```{r}
 causal_pred <- read.csv('causal tree spend pred.csv')
 
@@ -508,6 +490,12 @@ sma_dt_mat_spend <- matching_evaluation(pred_sma_spend_dt, "Control")
 ## Random Forest
 rf_pred_spend <- read.csv("rf spend pred.csv")
 
+colnames(rf_pred_spend)[1] <- "Mens E-Mail"
+colnames(rf_pred_spend)[2] <- "Womens E-Mail"
+
+colnames(rf_pred_spend)[4] <- "Uplift - Mens E-Mail"
+colnames(rf_pred_spend)[5] <- "Uplift - Womens E-Mail"
+
 # Expected Response per targeted customers
 sma_rf_exp_spend <- expected_percentile_response(rf_pred_spend)
 
@@ -586,13 +574,6 @@ melt(rbind(sma_dt_mat_spend[, c("Percentile","Model","Womens E-Mail")],
 
 
 ```{r}
-##TODO
-#what has happened with RF ??
-# expected spend -> 0 == when optimal T no one buys... / no one matched...
-# check how many matches happen per percentile...
-
-
-
 # Expected Outcome
 melt(rbind(sma_dt_exp_spend[, c("Percentile","Model","Expected Outcome")], sma_rf_exp_spend[, c("Percentile","Model","Expected Outcome")], rzp_tree_exp_spend[, c("Percentile","Model","Expected Outcome")], c_tree_exp_spend[, c("Percentile","Model","Expected Outcome")]), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
   

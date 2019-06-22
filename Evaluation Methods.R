@@ -33,40 +33,35 @@ expected_outcome <- function(eval_data){
   return(res)
 }
 
-# own zhao
 
-scaled_expected_outcome <- function(eval_data){
-  # Number of observations
-  N <- nrow(eval_data)
-  
-  # Frequencies of treatments z_i
-  t <- table(eval_data$Assignment)
-  p_i <- data.frame(t/ nrow(eval_data))
-  colnames(p_i) <- c("Assignment", "Freq")
-  
-  # only include points where the assigned treatment equals the predicted
-  matching <- eval_data[eval_data$Treatment == eval_data$Assignment , ]
-  
-  # also count how many have been matched...
-  # number matched for each T / this T in eval_data
-  aggregate(Outcome~Treatment, eval_data, length)
-  
-  
-  matching <- merge(matching, p_i, all.x = T )
-  
-  # Expected value of response as AVG sum of outcomes / probability of Assignment
-  res <- (sum(matching$Outcome / matching$Freq) / N)
-  
-  return(res)
-}
-
-
+# scaled_expected_outcome <- function(eval_data){
+#   # Number of observations
+#   N <- nrow(eval_data)
+#   
+#   # Frequencies of treatments z_i
+#   t <- table(eval_data$Assignment)
+#   p_i <- data.frame(t/ nrow(eval_data))
+#   colnames(p_i) <- c("Assignment", "Freq")
+#   
+#   # only include points where the assigned treatment equals the predicted
+#   matching <- eval_data[eval_data$Treatment == eval_data$Assignment , ]
+#   
+#   # also count how many have been matched...
+#   # number matched for each T / this T in eval_data
+#   aggregate(Outcome~Treatment, eval_data, length)
+#   
+#   
+#   matching <- merge(matching, p_i, all.x = T )
+#   
+#   # Expected value of response as AVG sum of outcomes / probability of Assignment
+#   res <- (sum(matching$Outcome / matching$Freq) / N)
+#   
+#   return(res)
+# }
 
 ## Modified Uplift Curve by Zhao
 # *Assumption* outcome for each treatment equals prediction of model
 expected_percentile_response <- function(predictions){
-  #N <- nrow(predictions)
-  
   # Choose only the uplift columns
   predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
   

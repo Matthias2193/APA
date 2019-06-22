@@ -40,6 +40,7 @@ causalTreePredicitons <- function(train, test,treatment_list, response){
       save(tree, file = paste(paste('models/tree',t,sep = '_'),'rda',sep='.'))
     }
     
+    ## TODO - include this ??
     
     #opcp <- tree$cptable[,1][which.min(tree$cptable[,3])]
     
