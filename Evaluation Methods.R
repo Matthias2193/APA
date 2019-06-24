@@ -128,11 +128,20 @@ matching_evaluation <- function(predictions, control_level){
   
   treatments <- treatments[ !treatments %in% control_level]
   
+  # in case never control assigned
+  if(!control_level %in% colnames(ret)){
+    ret[, control_level] <- 0
+  }
+  
   for(x in treatments){
     curves[ , x] <- ret[ , x] - ret[ , control_level]
   }
   
-  curves[ , "max T"] <- apply(curves[ , c(2 : ncol(curves))], 1, max)
+  if(ncol(curves) == 2){
+    curves[ , "max T"] <- curves[ , 2 ]
+  } else {
+    curves[ , "max T"] <- apply(curves[ , c(2 : ncol(curves))], 1, max)
+  }
   
   return(curves)
 }

@@ -42,11 +42,10 @@ causalTreePredicitons <- function(train, test,treatment_list, response){
     
     ## TODO - include this ??
     
-    #opcp <- tree$cptable[,1][which.min(tree$cptable[,3])]
+    opcp <- tree$cptable[,1][which.min(tree$cptable[,3])]
+    pruned_tree <- rpart::prune(tree, opcp)
     
-    #pruned_tree <- prune(tree, opcp)
-    
-    assign(paste('predictions',t,sep = '_'),predict(tree,newdata = test_data))
+    assign(paste('predictions',t,sep = '_'),predict(pruned_tree,newdata = test_data))
   }
   
   pred <- data.frame(cbind(predictions_men_treatment,predictions_women_treatment))
