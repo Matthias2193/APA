@@ -11,13 +11,13 @@ causalForestPredicitons <- function(train, test,treatment_list, response){
     test_data <- test[,1:8]
     test_data[,t] <- test[,t]
     
-    if(file.exists(paste(paste('models/forest',t,sep = '_'),'rda',sep='.'))){
-      load(paste(paste('models/forest',t,sep = '_'),'rda',sep='.'))
+    if(file.exists(paste(paste('models/forest',response,t,sep = '_'),'rda',sep='.'))){
+      load(paste(paste('models/forest',response,t,sep = '_'),'rda',sep='.'))
     }
     else{
       forest <- causalForest(as.formula(paste(response, "~ recency+history_segment+history+mens+womens+zip_code+newbie+channel")), data = train_data_new, treatment = train_data[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
                          cv.Honest = T, split.Bucket = F, minsize = 20, propensity = 0.5, mtry = 2, num.trees = 200, ncov_sample = 3, ncolx = ncol(train_data_new)-1)
-      save(forest, file = paste(paste('models/forest',t,sep = '_'),'rda',sep='.'))
+      save(forest, file = paste(paste('models/forest',response,t,sep = '_'),'rda',sep='.'))
     }
     
     assign(paste('predictions',t,sep = '_'), predict(forest, newdata = test_data))
