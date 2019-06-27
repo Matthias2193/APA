@@ -1,3 +1,11 @@
+## TODO use CV for results...
+
+# split data into k folds -- fold e (1,.., k) 
+# iterate though folds and always use another for as testing
+# average all predictions...
+
+# all for one seed...
+
 set.seed(21)
 
 source('DecisionTreeImplementation.R')
