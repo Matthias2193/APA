@@ -156,6 +156,8 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
         temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
         gain <- gain + temp_gain
       }
+    }
+    for(t in treatments){
       gain <- gain * (nrow(data1[data1[,t]==1,]))/nrow(data1)
       gain <- gain * (nrow(data2[data2[,t]==1,]))/nrow(data2)
     }
@@ -169,6 +171,8 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
         temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
         gain <- gain + temp_gain
       }
+    }
+    for(t in treatments){
       gain <- gain * (nrow(data1[data1[,t]==1,]))/nrow(data1)
       gain <- gain * (nrow(data2[data2[,t]==1,]))/nrow(data2)
     }
