@@ -72,7 +72,7 @@ expected_percentile_response <- function(predictions){
   
   control_level <- if (nrow(predictions[predictions$Assignment == 'control' , ]) == 0) "Control" else "control"
   
-  for(x in seq(0,1, 0.1)){
+  for(x in seq(0,1, 0.05)){
     # for top x set T to max T
     predictions$T_index <- apply(predictions[, 1:2], 1, which.max)
     # Assign optimal treatment for all
@@ -102,7 +102,7 @@ matching_evaluation <- function(predictions, control_level){
   # All treatments and control levels
   treatments <- levels(as.factor(predictions$Treatment))
   
-  ret <- data.frame(Percentile=  seq(0,1, 0.1))
+  ret <- data.frame(Percentile=  seq(0,1, 0.05))
   
   # Iterate through treatements
   for(t in treatments){
@@ -115,7 +115,7 @@ matching_evaluation <- function(predictions, control_level){
     
     outcomes <- c()
     # For each percentile
-    for(x in seq(0,1, 0.1)){
+    for(x in seq(0,1, 0.05)){
       # AVG outcome of top percentile
       outcomes <- c(outcomes, mean(head(group$Outcome, x * N)))
     }     
@@ -138,6 +138,7 @@ matching_evaluation <- function(predictions, control_level){
   }
   
   if(ncol(curves) == 2){
+    curves[ , "women_treatment"] <- 0
     curves[ , "max T"] <- curves[ , 2 ]
   } else {
     curves[ , "max T"] <- apply(curves[ , c(2 : ncol(curves))], 1, max)

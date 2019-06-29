@@ -3,6 +3,7 @@ title: "Uplift Models Evaluation"
 output: html_document
 ---
 
+
 ```{r setup, include=T}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 knitr::opts_chunk$set(cache.extra = set.seed(123))
@@ -21,77 +22,42 @@ source('Evaluation Methods.R')
 
 
 ```{r}
-pred <- read.csv('rzp tree pred.csv')
-
 # Expected Response per targeted customers
-rzp_tree_exp_conv <- expected_percentile_response(pred)
+rzp_tree_exp_conv <- read.csv('CSV/rzp_tree_exp_conv.csv')
+rzp_tree_mat_conv <- read.csv('CSV/rzp_tree_mat_conv.csv')
 
-rzp_tree_mat_conv <- matching_evaluation(pred, "control")
-```
+rzp_tree_exp_conv_simple <- read.csv('CSV/rzp_tree_exp_conv_simple.csv')
+rzp_tree_mat_conv_simple <- read.csv('CSV/rzp_tree_mat_conv_simple.csv')
 
+c_forest_exp_conv <- read.csv('CSV/c_forest_exp_conv.csv')
+c_forest_mat_conv <- read.csv('CSV/c_forest_mat_conv.csv')
 
-```{r}
-pred <- read.csv('rzp tree simple pred.csv')
-
-nrow(pred[is.na(pred), ])
-
-# Expected Response per targeted customers
-rzp_tree_exp_conv_simple <- expected_percentile_response(pred)
-
-rzp_tree_mat_conv_simple <- matching_evaluation(pred, "control")
-```
+sma_rf_conv_exp <- read.csv('CSV/sma_rf_conv_exp.csv')
+sma_rf_conv_mat <- read.csv('CSV/sma_rf_conv_mat.csv')
 
 
-```{r}
-# Evaluate pre saved Causal Tree results
-causal_forest_pred <- read.csv("causal forest conv pred.csv")
-
-c_forest_exp_conv <- expected_percentile_response(causal_forest_pred)
-
-c_forest_mat_conv <- matching_evaluation(causal_forest_pred, "control")
-
-```
-
-```{r}
-
-rf_pred_class <- read.csv("rf conv pred.csv")
-
-
-colnames(rf_pred_class)[1] <- "Mens E-Mail"
-colnames(rf_pred_class)[2] <- "Womens E-Mail"
-
-colnames(rf_pred_class)[4] <- "Uplift - Mens E-Mail"
-colnames(rf_pred_class)[5] <- "Uplift - Womens E-Mail"
-
-
-
-# Expected Response per targeted customers
-sma_rf_conv_exp <- expected_percentile_response(rf_pred_class)
-sma_rf_conv_mat <- matching_evaluation(rf_pred_class, "Control")
-
-```
-
-
-```{r}
-# Separate Male and Women Treatment
 
 sma_rf_conv_exp$Model <- sma_rf_conv_mat$Model <- "SMA-RF"
 rzp_tree_exp_conv$Model<- rzp_tree_mat_conv$Model <- "Rzp-Tree"
-
 rzp_tree_exp_conv_simple$Model<- rzp_tree_mat_conv_simple$Model <- "Rzp-Tree Simple"
-
 c_forest_exp_conv$Model<- c_forest_mat_conv$Model <- "Causal-Forest"
 
-test <- read.csv('test_conv.csv')
 
+
+
+dat <- read.csv('Email.csv')
 response <- "conversion"
 
+dat$men_treatment <- ifelse(dat$segment=='Mens E-Mail',1,0)
+dat$women_treatment <- ifelse(dat$segment=='Womens E-Mail',1,0)
+dat$control <- ifelse(dat$segment=='No E-Mail',1,0)
+
+
 # Random line
-men_total_increase <- mean(test[test$men_treatment == 1, response]) - mean(test[ test$control == 1, response])
-women_total_increase <- mean(test[test$women_treatment == 1, response]) - mean(test[ test$control == 1, response])
+men_total_increase <- mean(dat[dat$men_treatment == 1, response]) - mean(dat[ dat$control == 1, response])
+women_total_increase <- mean(dat[dat$women_treatment == 1, response]) - mean(dat[ dat$control == 1, response])
 
-dynamic_total_increase <- mean(test[test$control == 0, response]) - mean(test[ test$control == 1, response])
-
+dynamic_total_increase <- mean(dat[dat$control == 0, response]) - mean(dat[ dat$control == 1, response])
 
 random_conv_mat <- data.frame(Percentile = sma_rf_conv_mat$Percentile
                               , mens = cumsum(rep(men_total_increase / nrow(sma_rf_conv_mat), nrow(sma_rf_conv_mat))) 
@@ -100,9 +66,11 @@ random_conv_mat <- data.frame(Percentile = sma_rf_conv_mat$Percentile
                               ,  Model='Random')
 
 
-colnames(random_conv_mat)[2] <- colnames(rzp_tree_mat_conv)[2] <- colnames(c_forest_mat_conv)[2]<- colnames(rzp_tree_mat_conv_simple)[2] <- "Mens E-Mail"
-colnames(random_conv_mat)[3] <-colnames(rzp_tree_mat_conv)[3] <- colnames(c_forest_mat_conv)[3]<- colnames(rzp_tree_mat_conv_simple)[3] <- "Womens E-Mail"
+colnames(random_conv_mat)[2] <- colnames(rzp_tree_mat_conv)[2] <- colnames(c_forest_mat_conv)[2]<- colnames(rzp_tree_mat_conv_simple)[2] <- colnames(sma_rf_conv_mat)[2] <- "Mens E-Mail"
+colnames(random_conv_mat)[3] <-colnames(rzp_tree_mat_conv)[3] <- colnames(c_forest_mat_conv)[3]<- colnames(rzp_tree_mat_conv_simple)[3] <- colnames(sma_rf_conv_mat)[3] <- "Womens E-Mail"
 colnames(random_conv_mat)[4] <- "max T"
+
+
 
 ## Display of results only for SMA models
 melt(rbind(
@@ -142,47 +110,13 @@ melt(rbind(
 ```
 
 
-```{r, eval=F}
-# Dynamic Curve
-
-sma_rf_conv_exp$Model <- sma_rf_conv_mat$Model <- "SMA-RF"
-sma_dt_conv_exp$Model <- sma_dt_conv_mat$Model <- "SMA-DT"
-sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "SMA-Logit"
-
-rzp_tree_exp_conv$Model<- rzp_tree_mat_conv$Model <- "Rzp Tree"
-rzp_tree_exp_conv_simple$Model<- rzp_tree_mat_conv_simple$Model <- "Rzp Tree Simple"
-
-
-melt(rbind(
-          sma_logit_conv_mat[, c("Percentile","Model","max T")], 
-          sma_dt_conv_mat[, c("Percentile","Model","max T")], 
-          sma_rf_conv_mat[, c("Percentile","Model","max T")], 
-          rzp_tree_mat_conv[, c("Percentile","Model","max T")],
-          rzp_tree_mat_conv_simple[, c("Percentile","Model","max T")],
-          c_tree_mat_conv[, c("Percentile","Model","max T")],
-          random_conv_mat[, c("Percentile","Model","max T")]
-          ), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
-  geom_line(aes(y = value, group= Model, color= Model), size=1  ) +
-  
-  labs(
-    color="Base Learner",
-    title = "All Models - Dynamic Treatment Curve",
-    y = "Conversion Increase",
-    x ="Amount of Treated"
-  ) +
-  scale_colour_brewer(palette = "Dark2") +
-  theme_light()
-
-```
-
-
 ```{r}
 # Expected Outcome
 melt(rbind(
-  sma_rf_conv_exp[, c("Percentile","Model","Expected Outcome")], 
-  rzp_tree_exp_conv[, c("Percentile","Model","Expected Outcome")], 
-  rzp_tree_exp_conv_simple[, c("Percentile","Model","Expected Outcome")], 
-  c_forest_exp_conv[, c("Percentile","Model","Expected Outcome")]
+  sma_rf_conv_exp[, c("Percentile","Model","Expected.Outcome")], 
+  rzp_tree_exp_conv[, c("Percentile","Model","Expected.Outcome")], 
+  rzp_tree_exp_conv_simple[, c("Percentile","Model","Expected.Outcome")], 
+  c_forest_exp_conv[, c("Percentile","Model","Expected.Outcome")]
   ), 
   id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
   geom_line(aes(y = value, group= Model, color= Model), size=1  ) +
@@ -200,86 +134,62 @@ melt(rbind(
 
 ## Spend Prediction
 
-```{r}
-causal_f_pred <- read.csv('causal forest spend pred.csv')
+```{r, eval=T}
 
-c_forest_exp_spend <- expected_percentile_response(causal_f_pred)
+rzp_tree_exp_spend <- read.csv('CSV/rzp_tree_exp_spend.csv')
+rzp_tree_mat_spend <- read.csv('CSV/rzp_tree_mat_spend.csv')
 
-c_forest_mat_spend <- matching_evaluation(causal_f_pred, "control")
+rzp_tree_exp_spend_simple <- read.csv('CSV/rzp_tree_exp_spend_simple.csv')
+rzp_tree_mat_spend_simple <- read.csv('CSV/rzp_tree_mat_spend_simple.csv')
 
-```
+c_forest_exp_spend <- read.csv('CSV/c_forest_exp_spend.csv')
+c_forest_mat_spend <- read.csv('CSV/c_forest_mat_spend.csv')
 
+sma_rf_spend_exp <- read.csv('CSV/sma_rf_spend_exp.csv')
+sma_rf_spend_mat <- read.csv('CSV/sma_rf_spend_mat.csv')
 
+###
 
-```{r}
-pred_spend_rzp <- read.csv('rzp tree spend pred.csv')
-
-# Expected Response per targeted customers
-rzp_tree_exp_spend <- expected_percentile_response(pred_spend_rzp)
-
-rzp_tree_mat_spend <- matching_evaluation(pred_spend_rzp, "control")
-```
-
-
-```{r}
-pred <- read.csv('rzp tree simple spend pred.csv')
-
-# Expected Response per targeted customers
-rzp_tree_exp_spend_simple <- expected_percentile_response(pred)
-
-rzp_tree_mat_spend_simple <- matching_evaluation(pred, "control")
-```
-
-
-```{r}
-#################
-## Random Forest
-rf_pred_spend <- read.csv("rf spend pred.csv")
-
-colnames(rf_pred_spend)[1] <- "Mens E-Mail"
-colnames(rf_pred_spend)[2] <- "Womens E-Mail"
-
-colnames(rf_pred_spend)[4] <- "Uplift - Mens E-Mail"
-colnames(rf_pred_spend)[5] <- "Uplift - Womens E-Mail"
-
-# Expected Response per targeted customers
-sma_rf_exp_spend <- expected_percentile_response(rf_pred_spend)
-
-sma_rf_mat_spend <- matching_evaluation(rf_pred_spend, "Control")
-
-```
-
-
-
-```{r output_spend_comparison, eval = T}
-
-sma_rf_exp_spend$Model <- sma_rf_mat_spend$Model <- "SMA-RF"
+sma_rf_spend_exp$Model <- sma_rf_spend_mat$Model <- "SMA-RF"
 c_forest_exp_spend$Model<- c_forest_mat_spend$Model <- "Causal Forest"
 rzp_tree_exp_spend$Model<- rzp_tree_mat_spend$Model <- "Rzp-Tree"
 rzp_tree_exp_spend_simple$Model<- rzp_tree_mat_spend_simple$Model <- "Rzp-Tree Simple"
 
-test <- read.csv('test_spend.csv')
+dat <- read.csv('Email.csv')
 response <- "spend"
 
 # Random line
-men_total_increase <- mean(test[test$men_treatment == 1, response]) - mean(test[ test$control == 1, response])
-women_total_increase <- mean(test[test$women_treatment == 1, response]) - mean(test[ test$control == 1, response])
+# men_total_increase <- mean(test[test$men_treatment == 1, response]) - mean(test[ test$control == 1, response])
+# women_total_increase <- mean(test[test$women_treatment == 1, response]) - mean(test[ test$control == 1, response])
+# 
+# random_spend_mat <- data.frame(Percentile = sma_rf_spend_mat$Percentile, mens = cumsum(rep(men_total_increase / nrow(sma_rf_spend_mat), nrow(sma_rf_spend_mat))) , womens = cumsum(rep(women_total_increase / nrow(sma_rf_spend_mat), nrow(sma_rf_spend_mat))) ,  Model='Random')
 
-random_spend_mat <- data.frame(Percentile = sma_rf_mat_spend$Percentile, mens = cumsum(rep(men_total_increase / nrow(sma_rf_mat_spend), nrow(sma_rf_mat_spend))) , womens = cumsum(rep(women_total_increase / nrow(sma_rf_mat_spend), nrow(sma_rf_mat_spend))) ,  Model='Random')
+
+men_total_increase <- mean(dat[dat$men_treatment == 1, response]) - mean(dat[ dat$control == 1, response])
+women_total_increase <- mean(dat[dat$women_treatment == 1, response]) - mean(dat[ dat$control == 1, response])
+
+dynamic_total_increase <- mean(dat[dat$control == 0, response]) - mean(dat[ dat$control == 1, response])
 
 
 
-colnames(random_spend_mat)[2] <- colnames(rzp_tree_mat_spend_simple)[2] <- colnames(rzp_tree_mat_spend)[2] <- colnames(c_forest_mat_spend)[2] <- "Mens E-Mail"
-colnames(random_spend_mat)[3] <-colnames(rzp_tree_mat_spend_simple)[3] <- colnames(rzp_tree_mat_spend)[3] <- colnames(c_forest_mat_spend)[3] <- "Womens E-Mail"
+random_spend_mat <- data.frame(Percentile = sma_rf_spend_mat$Percentile
+                              , mens = cumsum(rep(men_total_increase / nrow(sma_rf_spend_mat), nrow(sma_rf_spend_mat))) 
+                              , womens = cumsum(rep(women_total_increase / nrow(sma_rf_spend_mat), nrow(sma_rf_spend_mat))) 
+                              , max_t = cumsum(rep(dynamic_total_increase / nrow(sma_rf_spend_mat), nrow(sma_rf_spend_mat))) 
+                              ,  Model='Random')
+
+
+colnames(random_spend_mat)[2] <- colnames(rzp_tree_mat_spend_simple)[2] <- colnames(rzp_tree_mat_spend)[2] <- colnames(c_forest_mat_spend)[2] <- colnames(sma_rf_spend_mat)[2] <- "Mens.E-Mail"
+colnames(random_spend_mat)[3] <-colnames(rzp_tree_mat_spend_simple)[3] <- colnames(rzp_tree_mat_spend)[3] <- colnames(c_forest_mat_spend)[3] <- colnames(sma_rf_spend_mat)[3] <- "Womens.E-Mail"
 
 
 ## Display of results only for SMA models
 melt(rbind(
-            sma_rf_mat_spend[, c("Percentile","Model","Mens E-Mail")], 
-            rzp_tree_mat_spend[, c("Percentile","Model","Mens E-Mail")], 
-            rzp_tree_mat_spend_simple[, c("Percentile","Model","Mens E-Mail")], 
-            c_forest_mat_spend[, c("Percentile","Model","Mens E-Mail")],
-            random_spend_mat[, c("Percentile","Model","Mens E-Mail")])
+            sma_rf_spend_mat[, c("Percentile","Model","Mens.E-Mail")], 
+            rzp_tree_mat_spend[, c("Percentile","Model","Mens.E-Mail")], 
+            rzp_tree_mat_spend_simple[, c("Percentile","Model","Mens.E-Mail")], 
+            c_forest_mat_spend[, c("Percentile","Model","Mens.E-Mail")],
+            random_spend_mat[, c("Percentile","Model","Mens.E-Mail")])
      , id.vars  =c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
   geom_line(aes(y = value, group= Model, color= Model), size=1  ) +
   labs(
@@ -292,11 +202,11 @@ melt(rbind(
   theme_light()
 
 melt(rbind(
-            sma_rf_mat_spend[, c("Percentile","Model","Womens E-Mail")], 
-            rzp_tree_mat_spend[, c("Percentile","Model","Womens E-Mail")], 
-            rzp_tree_mat_spend_simple[, c("Percentile","Model","Womens E-Mail")], 
-            c_forest_mat_spend[, c("Percentile","Model","Womens E-Mail")],
-            random_spend_mat[, c("Percentile","Model","Womens E-Mail")])
+            sma_rf_spend_mat[, c("Percentile","Model","Womens.E-Mail")], 
+            rzp_tree_mat_spend[, c("Percentile","Model","Womens.E-Mail")], 
+            rzp_tree_mat_spend_simple[, c("Percentile","Model","Womens.E-Mail")], 
+            c_forest_mat_spend[, c("Percentile","Model","Womens.E-Mail")],
+            random_spend_mat[, c("Percentile","Model","Womens.E-Mail")])
      , id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
   geom_line(aes(y = value, group= Model, color= Model), size=1  ) +
   labs(
@@ -314,10 +224,10 @@ melt(rbind(
 ```{r, eval = T}
 # Expected Outcome
 melt(rbind(
-  sma_rf_exp_spend[, c("Percentile","Model","Expected Outcome")], 
-  rzp_tree_exp_spend[, c("Percentile","Model","Expected Outcome")],
-  rzp_tree_exp_spend_simple[, c("Percentile","Model","Expected Outcome")],
-  c_forest_exp_spend[, c("Percentile","Model","Expected Outcome")]
+  sma_rf_spend_exp[, c("Percentile","Model","Expected.Outcome")], 
+  rzp_tree_exp_spend[, c("Percentile","Model","Expected.Outcome")],
+  rzp_tree_exp_spend_simple[, c("Percentile","Model","Expected.Outcome")],
+  c_forest_exp_spend[, c("Percentile","Model","Expected.Outcome")]
   ), 
   id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
   

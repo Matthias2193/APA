@@ -231,7 +231,6 @@ rf_models <- function(train_data, response, prediction_method){
       train[, response] <- as.factor(train[, response])
     }
     
-    ## TODO how to set / adjust parameters ??
     rf <- randomForest(as.formula(paste(response, "~.")), data = train, mtry=3, ntree = 300)
     
     models <- append(models, list(x= rf))
