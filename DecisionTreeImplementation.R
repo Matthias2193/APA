@@ -479,10 +479,21 @@ final_node <- function(data,treatment_list,target,control){
   effects <- c()
   for(t in treatment_list){
     treatment_names <- c(treatment_names,t)
-    effects <- c(effects,mean(data[data[t]==1,target]))
+    temp_effect <- mean(data[data[t]==1,target])
+    if(is.na(temp_effect)){
+      effects <- c(effects,0)
+    } else{
+      effects <- c(effects,temp_effect)
+    }
+    
   }
   treatment_names <- c(treatment_names,'control')
-  effects <- c(effects,mean(data[data[control]==1,target]))
+  temp_effect <- mean(data[data[control]==1,target])
+  if(is.na(temp_effect)){
+    effects <- c(effects,0)
+  } else{
+    effects <- c(effects,temp_effect)
+  }
   names(effects) <- treatment_names
   node <- list()
   node[['type']] <- 'leaf'
@@ -493,7 +504,7 @@ final_node <- function(data,treatment_list,target,control){
 
 #Forest
 build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                         criterion){
+                         criterion,pruning,divergence = "binary_KL_divergence"){
   trees <- list()
   retain_cols <- c(treatment_list,control,response)
   sample_cols <- setdiff(colnames(train_data),retain_cols)
@@ -502,9 +513,15 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
     chosen_cols <- c(temp_cols,retain_cols)
     test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
     temp_tree <- create_node(data = train_data[,chosen_cols],0,100,treatment_list = treatment_list, 
-                             test_list = test_list, criterion = criterion,target = response,control = control)
-    temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
-    trees[[x]] <- temp_prune_tree
+                             test_list = test_list, criterion = criterion,target = response,control = control,
+                             divergence = divergence)
+    if(pruning){
+      temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
+      trees[[x]] <- temp_prune_tree
+    } else{
+      trees[[x]] <- temp_tree
+    }
+    
   }
   return(trees)
 }
@@ -521,73 +538,7 @@ prune_tree <- function(tree, val_data, treatment_list, test_list, target,control
 
 check_pruning <- function(node,val_data,target,control){
   if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
-    
-    #Check if we are already at the root
-    if(node[['type']] == 'root'){
-      return(node)
-    }
-    
-    #Left
-    temp_pred_left <- node[['left']][['results']]
-    temp_left <- node[['left']][['n_samples']]
-    best_treatment_left <- names(temp_pred_left[match(max(temp_pred_left[1:2]),temp_pred_left)])
-    left_sign <- sign(temp_pred_left[[best_treatment_left]]-temp_pred_left[['control']])
-    
-    #Right
-    temp_pred_right <- node[['right']][['results']]
-    temp_right <- node[['right']][['n_samples']]
-    best_treatment_right <- names(temp_pred_right[match(max(temp_pred_right[1:2]),temp_pred_right)])
-    right_sign <- sign(temp_pred_right[[best_treatment_right]]-temp_pred_right[['control']])
-    
-    #Root
-    temp_pred_root <- node[['results']]
-    best_treatment_root <- names(temp_pred_root[match(max(temp_pred_root[1:2]),temp_pred_root)])
-    root_sign <- sign(temp_pred_root[[best_treatment_root]]-temp_pred_root[['control']])
-    
-    
-    #The rows of the validation set, that ended up in the left and right leaf
-    temp_left_bool <- node[['left']][['val_samples']]
-    temp_right_bool <- node[['right']][['val_samples']]
-    
-    if(temp_left_bool == 0 || temp_right_bool == 0){
-      node[['type']] <- 'leaf'
-      node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
-      return(node)
-    }
-    
-    n_treat_left <- node[['left']][[best_treatment_left]][1]
-    n_control_left <- node[['left']][[control]][1]
-    prob_treatment_left <- node[['left']][["val_predictions"]][[best_treatment_left]][1]
-    prob_control_left <- node[['left']][["val_predictions"]][[control]][1]
-    
-    n_treat_right <- node[['right']][[best_treatment_right]][1]
-    n_control_right <- node[['right']][[control]][1]
-    prob_treatment_right <- node[['right']][["val_predictions"]][[best_treatment_right]][1]
-    prob_control_right <- node[['right']][["val_predictions"]][[control]][1]
-    
-    n_treat_root <- node[[best_treatment_root]][1]
-    n_control_root <-  node[[control]][1]
-    prob_treatment_root <- node[["val_predictions"]][[best_treatment_root]][1]
-    prob_control_root <- node[["val_predictions"]][[control]][1]
-    
-    
-    d1 <-  (n_treat_left+n_control_left)/(n_treat_root+n_control_root)*
-      left_sign*(prob_treatment_left-prob_control_left)
-    d1 <-  d1 + (n_treat_right+n_control_right)/(n_treat_root+n_control_root)*
-      right_sign*(prob_treatment_right-prob_control_right)
-    
-    d2 <- root_sign*(prob_treatment_root-prob_control_root)
-    
-    if(is.nan(d1) || is.nan(d2)){
-      return(node)
-    }
-    if(d1 <= d2){
-      node[['type']] <- 'leaf'
-      node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
-      return(node)
-    } else{
-      return(node)
-    }
+    return(pruning_helper(node))
   } else{
     if(node[['left']][['type']] != 'leaf'){
       node[['left']] <- check_pruning(node[['left']],val_data,target,control)
@@ -596,77 +547,83 @@ check_pruning <- function(node,val_data,target,control){
       node[['right']] <- check_pruning(node[['right']],val_data,target,control)
     }
     if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
-      
-      #Check if we are already at the root
-      if(node[['type']] == 'root'){
-        return(node)
-      }
-      
-      #Left
-      temp_pred_left <- node[['left']][['results']]
-      temp_left <- node[['left']][['n_samples']]
-      best_treatment_left <- names(temp_pred_left[match(max(temp_pred_left[1:2]),temp_pred_left)])
-      left_sign <- sign(temp_pred_left[[best_treatment_left]]-temp_pred_left[['control']])
-      
-      #Right
-      temp_pred_right <- node[['right']][['results']]
-      temp_right <- node[['right']][['n_samples']]
-      best_treatment_right <- names(temp_pred_right[match(max(temp_pred_right[1:2]),temp_pred_right)])
-      right_sign <- sign(temp_pred_right[[best_treatment_right]]-temp_pred_right[['control']])
-      
-      #Root
-      temp_pred_root <- node[['results']]
-      best_treatment_root <- names(temp_pred_root[match(max(temp_pred_root[1:2]),temp_pred_root)])
-      root_sign <- sign(temp_pred_root[[best_treatment_root]]-temp_pred_root[['control']])
-      
-      
-      #The rows of the validation set, that ended up in the left and right leaf
-      temp_left_bool <- node[['left']][['val_samples']]
-      temp_right_bool <- node[['right']][['val_samples']]
-      
-      if(temp_left_bool == 0 || temp_right_bool == 0){
-        node[['type']] <- 'leaf'
-        node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
-        return(node)
-      }
-      
-      n_treat_left <- node[['left']][[best_treatment_left]][1]
-      n_control_left <- node[['left']][[control]][1]
-      prob_treatment_left <- node[['left']][["val_predictions"]][[best_treatment_left]][1]
-      prob_control_left <- node[['left']][["val_predictions"]][[control]][1]
-      
-      n_treat_right <- node[['right']][[best_treatment_right]][1]
-      n_control_right <- node[['right']][[control]][1]
-      prob_treatment_right <- node[['right']][["val_predictions"]][[best_treatment_right]][1]
-      prob_control_right <- node[['right']][["val_predictions"]][[control]][1]
-      
-      n_treat_root <- node[[best_treatment_root]][1]
-      n_control_root <-  node[[control]][1]
-      prob_treatment_root <- node[["val_predictions"]][[best_treatment_root]][1]
-      prob_control_root <- node[["val_predictions"]][[control]][1]
-      
-      
-      d1 <-  (n_treat_left+n_control_left)/(n_treat_root+n_control_root)*
-        left_sign*(prob_treatment_left-prob_control_left)
-      d1 <-  d1 + (n_treat_right+n_control_right)/(n_treat_root+n_control_root)*
-        right_sign*(prob_treatment_right-prob_control_right)
-      
-      d2 <- root_sign*(prob_treatment_root-prob_control_root)
-      
-      if(is.nan(d1) || is.nan(d2)){
-        return(node)
-      }
-      if(d1 <= d2){
-        node[['type']] <- 'leaf'
-        node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
-        return(node)
-      } else{
-        return(node)
-      }
+      return(pruning_helper(node))
     } else{
       return(node)
     }
   } 
+}
+
+pruning_helper <- function(node){
+  #Check if we are already at the root
+  if(node[['type']] == 'root'){
+    return(node)
+  }
+  
+  #Left
+  temp_pred_left <- node[['left']][['results']]
+  temp_left <- node[['left']][['n_samples']]
+  best_treatment_left <- names(temp_pred_left[match(max(temp_pred_left[1:2]),temp_pred_left)])
+  left_sign <- sign(temp_pred_left[[best_treatment_left]]-temp_pred_left[['control']])
+  
+  #Right
+  temp_pred_right <- node[['right']][['results']]
+  temp_right <- node[['right']][['n_samples']]
+  best_treatment_right <- names(temp_pred_right[match(max(temp_pred_right[1:2]),temp_pred_right)])
+  right_sign <- sign(temp_pred_right[[best_treatment_right]]-temp_pred_right[['control']])
+  
+  #Root
+  temp_pred_root <- node[['results']]
+  best_treatment_root <- names(temp_pred_root[match(max(temp_pred_root[1:2]),temp_pred_root)])
+  root_sign <- sign(temp_pred_root[[best_treatment_root]]-temp_pred_root[['control']])
+  
+  
+  #The rows of the validation set, that ended up in the left and right leaf
+  temp_left_bool <- node[['left']][['val_samples']]
+  temp_right_bool <- node[['right']][['val_samples']]
+  
+  if(temp_left_bool == 0 || temp_right_bool == 0){
+    node[['type']] <- 'leaf'
+    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
+    return(node)
+  }
+  
+  n_treat_left <- node[['left']][[best_treatment_left]][1]
+  n_control_left <- node[['left']][[control]][1]
+  prob_treatment_left <- node[['left']][["val_predictions"]][[best_treatment_left]][1]
+  prob_control_left <- node[['left']][["val_predictions"]][[control]][1]
+  
+  n_treat_right <- node[['right']][[best_treatment_right]][1]
+  n_control_right <- node[['right']][[control]][1]
+  prob_treatment_right <- node[['right']][["val_predictions"]][[best_treatment_right]][1]
+  prob_control_right <- node[['right']][["val_predictions"]][[control]][1]
+  
+  n_treat_root <- node[[best_treatment_root]][1]
+  n_control_root <-  node[[control]][1]
+  prob_treatment_root <- node[["val_predictions"]][[best_treatment_root]][1]
+  prob_control_root <- node[["val_predictions"]][[control]][1]
+  
+  
+  d1 <-  (n_treat_left+n_control_left)/(n_treat_root+n_control_root)*
+    left_sign*(prob_treatment_left-prob_control_left)
+  d1 <-  d1 + (n_treat_right+n_control_right)/(n_treat_root+n_control_root)*
+    right_sign*(prob_treatment_right-prob_control_right)
+  
+  d2 <- root_sign*(prob_treatment_root-prob_control_root)
+  
+  if(is.nan(d1) || is.nan(d2)){
+    return(node)
+  }
+  if(d1 <= d2){
+    node[['type']] <- 'leaf'
+    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
+    node[['left']] <- NULL
+    node[['right']] <- NULL
+    node[['split']] <- NULL
+    return(node)
+  } else{
+    return(node)
+  }
 }
 
 assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target,control){
@@ -877,9 +834,7 @@ predict_forest_df <- function(forest,test_data){
 # print(time_old)
 # print(time_old_updated)
 
-
-
-#Old´Function----
+#Old´Functions----
 prune_tree_old <- function(tree, val_data, train_data, target){
   val_pred <- predict.dt(tree, val_data)
   train_pred <- predict.dt(tree, train_data)

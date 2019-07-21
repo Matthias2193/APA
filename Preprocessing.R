@@ -6,8 +6,6 @@ library("dplyr")
 
 #####Preprocessing#####
 
-setwd("/Users/tobychelton/Documents/MEMS/Predictive Analytics")
-
 #read in individuals data
 individuals <- read.csv("individuals.csv")
 
