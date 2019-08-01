@@ -15,17 +15,28 @@ control <- 'treatment_Control'
 
 treatment_list <- c("treatment_CivicDuty","treatment_Self","treatment_Hawthorne","treatment_Neighbors")
 test_list <- set_up_tests(individuals[,c("female","age","hh_size")],TRUE)
-#individuals_reduced <- individuals[1:15000,]
+n_treatments <- length(treatment_list)
 idx <- createDataPartition(y = individuals[ , response], p=0.3, list = FALSE)
 
 train <- individuals[-idx, ]
-
 test <- individuals[idx, ]
 
-n_treatments <- length(treatment_list)
+p_idx <- createDataPartition(y = train[ , response], p=0.2, list = FALSE)
+val <- train[p_idx,]
+train <- train[-p_idx,]
+
+
 
 start_time <- Sys.time()
 test_tree <- create_node(train,0,100,treatment_list,response,control,test_list,
                          normalize  = TRUE, l = rep(1/n_treatments,n_treatments),
                          g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments))
+pruned_tree <- prune_tree(test_tree,val,treatment_list,test_list,response,control)
+pred <- predict.dt.as.df(pruned_tree, test)
+print(Sys.time()-start_time)
+
+start_time <- Sys.time()
+forest <- build_forest(train,val,treatment_list,response,control,n_trees = 20,n_features = 3,criterion = 2,
+                       pruning = F)
+pred_forest <- predict_forest_df(forest, test)
 print(Sys.time()-start_time)
