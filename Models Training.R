@@ -22,8 +22,6 @@ for(f in names(folds)){
   raw_email[folds[f][[1]] , "fold"] <- f
 }
 
-#aggregate(conversion~fold, raw_email, length)
-
 email <- raw_email
 
 email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
@@ -33,7 +31,8 @@ email$mens <- as.factor(email$mens)
 email$womens <- as.factor(email$womens)
 email$newbie <- as.factor(email$newbie)
 
-email$visit <- email$spend <- email$segment <- NULL
+#email$conversion 
+email$visit<- email$spend <- email$segment <- NULL
 
 ########
 # Fit Rzp Tree
@@ -56,13 +55,15 @@ for(f in names(folds)){
   raw_tree <- create_node(train_tree,0,100,treatment_list,response,'control',test_list)
   
   pruned_tree <- prune_tree(raw_tree,val,train_tree,target = response)
+  #pruned_tree <- raw_tree
+  
   # add to the result df the outcome, assignment and calculate uplift for each T
   pred <- predict.dt.as.df(pruned_tree, test)
   
   ### Results Preparation to bring into equal format
   # Calculate Uplift for each T
-  pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
-  pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
+  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
   pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
     
   pred[ , "Outcome"] <- test[, response]
@@ -78,13 +79,9 @@ for(f in names(folds)){
 rzp_tree_exp_conv <- aggregate(.~Percentile, rzp_tree_exp_conv, mean)
 rzp_tree_mat_conv <- aggregate(.~Percentile, rzp_tree_mat_conv, mean)
 
-write.csv(rzp_tree_exp_conv, 'CSV/rzp_tree_exp_conv.csv', row.names = FALSE)
-write.csv(rzp_tree_mat_conv, 'CSV/rzp_tree_mat_conv.csv', row.names = FALSE)
+write.csv(rzp_tree_exp_conv, 'CSV-Conv/rzp_tree_exp_conv.csv', row.names = FALSE)
+write.csv(rzp_tree_mat_conv, 'CSV-Conv/rzp_tree_mat_conv.csv', row.names = FALSE)
 
-#!#
-# d <- data.frame(I = c("a","a","a"),A = c(-1,2,-3), B =c(1,-2,3))
-# d$C <- d$A - d$B
-# aggregate(.~I, d, mean)
 
 ######
 # Tree simple Criterion
@@ -103,8 +100,6 @@ for(f in names(folds)){
   test_list <- set_up_tests(train_tree[,c("recency","history_segment","history","mens","womens","zip_code",
                                           "newbie","channel")],TRUE)
   
-  
-  
   raw_tree <- create_node(train,0,100,treatment_list,response,'control',test_list,criterion = 2)
   
   pruned_tree <- raw_tree
@@ -113,8 +108,8 @@ for(f in names(folds)){
   
   ### Results Preparation to bring into equal format
   # Calculate Uplift for each T
-  pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
-  pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
+  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
   pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
   
   pred[ , "Outcome"] <- test[, response]
@@ -128,8 +123,8 @@ for(f in names(folds)){
 rzp_tree_exp_conv_simple <- aggregate(.~Percentile, rzp_tree_exp_conv_simple, mean)
 rzp_tree_mat_conv_simple <- aggregate(.~Percentile, rzp_tree_mat_conv_simple, mean)
 
-write.csv(rzp_tree_exp_conv_simple, 'CSV/rzp_tree_exp_conv_simple.csv', row.names = FALSE)
-write.csv(rzp_tree_mat_conv_simple, 'CSV/rzp_tree_mat_conv_simple.csv', row.names = FALSE)
+write.csv(rzp_tree_exp_conv_simple, 'CSV-Conv/rzp_tree_exp_conv_simple.csv', row.names = FALSE)
+write.csv(rzp_tree_mat_conv_simple, 'CSV-Conv/rzp_tree_mat_conv_simple.csv', row.names = FALSE)
 
 
 #######
@@ -144,9 +139,9 @@ for(f in names(folds)){
   
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response)
   # Results Prep
-  causal_forest_pred[ , "Uplift - Mens E-Mail"] <- causal_forest_pred[ , 1] - causal_forest_pred[ , 3]
+  causal_forest_pred[ , "uplift_men_treatment"] <- causal_forest_pred[ , 1] - causal_forest_pred[ , 3]
   #
-  causal_forest_pred[ , "Uplift - Womens E-Mail"] <- causal_forest_pred[ , 2] - causal_forest_pred[ , 3]
+  causal_forest_pred[ , "uplift_women_treatment"] <- causal_forest_pred[ , 2] - causal_forest_pred[ , 3]
   causal_forest_pred[ , "Treatment"] <- colnames(causal_forest_pred)[apply(causal_forest_pred[, 1:3], 1, which.max)]
   
   #levels(as.factor(causal_forest_pred[ , "Treatment"]))
@@ -162,9 +157,18 @@ for(f in names(folds)){
 c_forest_exp_conv <- aggregate(.~Percentile, c_forest_exp_conv, mean)
 c_forest_mat_conv <- aggregate(.~Percentile, c_forest_mat_conv, mean)
 
-write.csv(c_forest_exp_conv, 'CSV/c_forest_exp_conv.csv', row.names = FALSE)
-write.csv(c_forest_mat_conv, 'CSV/c_forest_mat_conv.csv', row.names = FALSE)
+write.csv(c_forest_exp_conv, 'CSV-Conv/c_forest_exp_conv.csv', row.names = FALSE)
+write.csv(c_forest_mat_conv, 'CSV-Conv/c_forest_mat_conv.csv', row.names = FALSE)
 
+###
+mean(causal_forest_pred$Outcome[causal_forest_pred$Assignment == 'control' ])
+
+levels(as.factor(causal_forest_pred$Treatment))
+
+min(causal_forest_pred$uplift_men_treatment)
+min(causal_forest_pred$uplift_women_treatment)
+## -> never negative uplift predicted....
+###
 
 ####################################
 ####################################
@@ -173,6 +177,7 @@ data <-  raw_email
 
 data$visit <- NULL      
 data$spend <- NULL
+#data$conversion <- NULL      
 
 treatment <- "segment"
 response <-  "conversion"
@@ -208,8 +213,6 @@ for(f in names(folds)){
   t_data <- t_data[ , names(t_data) != treatment]
   train_data <- append(train_data, list(Control = t_data[t_data$fold != f, !names(t_data) %in% c_f]))
   
-  
-  
   # Test Data
   test_data <- data[data$fold == f , ]
   test_data$fold <- NULL
@@ -217,20 +220,36 @@ for(f in names(folds)){
   rf_models_list <- rf_models(train_data, response, "class")
   
   rf_pred_class <- dt_x_model_predictions(rf_models_list, test_data, response, treatment, control_level, "class")
-
+  
+  colnames(rf_pred_class)[4] <- "uplift_men_treatment"
+  colnames(rf_pred_class)[5] <- "uplift_women_treatment"
+  
+  colnames(rf_pred_class)[1] <- "men_treatment"
+  colnames(rf_pred_class)[2] <- "women_treatment"
+  
+  
+  rf_pred_class[rf_pred_class[ , "Assignment"] == "Mens E-Mail" , "Assignment"] <- "men_treatment"
+  rf_pred_class[rf_pred_class[ , "Assignment"] == "Womens E-Mail" , "Assignment"] <- "women_treatment"
+  rf_pred_class[rf_pred_class[ , "Assignment"] == "Control" , "Assignment"] <- "control"
+  
+  rf_pred_class[rf_pred_class[ , "Treatment"] == "Mens E-Mail" , "Treatment"] <- "men_treatment"
+  rf_pred_class[rf_pred_class[ , "Treatment"] == "Womens E-Mail" , "Treatment"] <- "women_treatment"
+  rf_pred_class[rf_pred_class[ , "Treatment"] == "Control" , "Treatment"] <- "control"
+  
+  #predictions <- rf_pred_class
+  
   ##
   sma_rf_conv_exp <- rbind(sma_rf_conv_exp, expected_percentile_response(rf_pred_class))
-  sma_rf_conv_mat <- rbind(sma_rf_conv_mat, matching_evaluation(rf_pred_class, "Control"))
+  sma_rf_conv_mat <- rbind(sma_rf_conv_mat, matching_evaluation(rf_pred_class, "control"))
 }
 
-colnames(train_data$`Mens E-Mail`)
-sapply(train_data$`Mens E-Mail`, class)
+write.csv(rf_pred_class,"rf_conv_pred.csv", row.names = F)
 
 sma_rf_conv_exp <- aggregate(.~Percentile, sma_rf_conv_exp, mean)
 sma_rf_conv_mat <- aggregate(.~Percentile, sma_rf_conv_mat, mean)
 
-write.csv(sma_rf_conv_exp, 'CSV/sma_rf_conv_exp.csv', row.names = FALSE)
-write.csv(sma_rf_conv_mat, 'CSV/sma_rf_conv_mat.csv', row.names = FALSE)
+write.csv(sma_rf_conv_exp, 'CSV-Conv/sma_rf_conv_exp.csv', row.names = FALSE)
+write.csv(sma_rf_conv_mat, 'CSV-Conv/sma_rf_conv_mat.csv', row.names = FALSE)
 
 
 #####################################################################################
@@ -249,9 +268,6 @@ email$visit <- email$conversion <- email$segment <- NULL
 
 response <- 'spend'
 
-
-####################################
-# TODO
 
 ########
 # Fit Rzp Tree
@@ -279,8 +295,8 @@ for(f in names(folds)){
   
   ### Results Preparation to bring into equal format
   # Calculate Uplift for each T
-  pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
-  pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
+  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
   pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
   
   pred[ , "Outcome"] <- test[, response]
@@ -296,8 +312,8 @@ for(f in names(folds)){
 rzp_tree_exp_spend <- aggregate(.~Percentile, rzp_tree_exp_spend, mean)
 rzp_tree_mat_spend <- aggregate(.~Percentile, rzp_tree_mat_spend, mean)
 
-write.csv(rzp_tree_exp_spend, 'CSV/rzp_tree_exp_spend.csv', row.names = FALSE)
-write.csv(rzp_tree_mat_spend, 'CSV/rzp_tree_mat_spend.csv', row.names = FALSE)
+write.csv(rzp_tree_exp_spend, 'CSV-Spend/rzp_tree_exp_spend.csv', row.names = FALSE)
+write.csv(rzp_tree_mat_spend, 'CSV-Spend/rzp_tree_mat_spend.csv', row.names = FALSE)
 
 
 ######
@@ -326,8 +342,8 @@ for(f in names(folds)){
   
   ### Results Preparation to bring into equal format
   # Calculate Uplift for each T
-  pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
-  pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
+  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
   pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
   
   pred[ , "Outcome"] <- test[, response]
@@ -341,8 +357,8 @@ for(f in names(folds)){
 rzp_tree_exp_spend_simple <- aggregate(.~Percentile, rzp_tree_exp_spend_simple, mean)
 rzp_tree_mat_spend_simple <- aggregate(.~Percentile, rzp_tree_mat_spend_simple, mean)
 
-write.csv(rzp_tree_exp_spend_simple, 'CSV/rzp_tree_exp_spend_simple.csv', row.names = FALSE)
-write.csv(rzp_tree_mat_spend_simple, 'CSV/rzp_tree_mat_spend_simple.csv', row.names = FALSE)
+write.csv(rzp_tree_exp_spend_simple, 'CSV-Spend/rzp_tree_exp_spend_simple.csv', row.names = FALSE)
+write.csv(rzp_tree_mat_spend_simple, 'CSV-Spend/rzp_tree_mat_spend_simple.csv', row.names = FALSE)
 
 
 #######
@@ -356,8 +372,8 @@ for(f in names(folds)){
   
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response)
   # Results Prep
-  causal_forest_pred[ , "Uplift - Mens E-Mail"] <- causal_forest_pred[ , 1] - causal_forest_pred[ , 3]
-  causal_forest_pred[ , "Uplift - Womens E-Mail"] <- causal_forest_pred[ , 2] - causal_forest_pred[ , 3]
+  causal_forest_pred[ , "uplift_men_treatment"] <- causal_forest_pred[ , 1] - causal_forest_pred[ , 3]
+  causal_forest_pred[ , "uplift_women_treatment"] <- causal_forest_pred[ , 2] - causal_forest_pred[ , 3]
   causal_forest_pred[ , "Treatment"] <- colnames(causal_forest_pred)[apply(causal_forest_pred[, 1:3], 1, which.max)]
   
   causal_forest_pred[ , "Outcome"] <- test[, response]
@@ -371,8 +387,8 @@ for(f in names(folds)){
 c_forest_exp_spend <- aggregate(.~Percentile, c_forest_exp_spend, mean)
 c_forest_mat_spend <- aggregate(.~Percentile, c_forest_mat_spend, mean)
 
-write.csv(c_forest_exp_spend, 'CSV/c_forest_exp_spend.csv', row.names = FALSE)
-write.csv(c_forest_mat_spend, 'CSV/c_forest_mat_spend.csv', row.names = FALSE)
+write.csv(c_forest_exp_spend, 'CSV-Spend/c_forest_exp_spend.csv', row.names = FALSE)
+write.csv(c_forest_mat_spend, 'CSV-Spend/c_forest_mat_spend.csv', row.names = FALSE)
 
 
 ####################################
@@ -402,6 +418,8 @@ for(f in names(folds)){
   for(x in treatments){
     t_data <- train_split[train_split[, treatment] == x, ]
     
+    c_f <- c("fold")
+    
     # Remove the treatment column from training data
     t_data <- t_data[ , names(t_data) != treatment]
     
@@ -423,15 +441,33 @@ for(f in names(folds)){
   
   rf_pred_class <- dt_x_model_predictions(rf_models_list, test_data, response, treatment, control_level, "anova")
   
+  
+  colnames(rf_pred_class)[4] <- "uplift_men_treatment"
+  colnames(rf_pred_class)[5] <- "uplift_women_treatment"
+  
+  colnames(rf_pred_class)[1] <- "men_treatment"
+  colnames(rf_pred_class)[2] <- "women_treatment"
+  
+  
+  rf_pred_class[rf_pred_class[ , "Assignment"] == "Mens E-Mail" , "Assignment"] <- "men_treatment"
+  rf_pred_class[rf_pred_class[ , "Assignment"] == "Womens E-Mail" , "Assignment"] <- "women_treatment"
+  rf_pred_class[rf_pred_class[ , "Assignment"] == "Control" , "Assignment"] <- "control"
+  
+  rf_pred_class[rf_pred_class[ , "Treatment"] == "Mens E-Mail" , "Treatment"] <- "men_treatment"
+  rf_pred_class[rf_pred_class[ , "Treatment"] == "Womens E-Mail" , "Treatment"] <- "women_treatment"
+  rf_pred_class[rf_pred_class[ , "Treatment"] == "Control" , "Treatment"] <- "control"
+  
+  
+  
   sma_rf_spend_exp <- rbind(sma_rf_spend_exp, expected_percentile_response(rf_pred_class))
-  sma_rf_spend_mat <- rbind(sma_rf_spend_mat, matching_evaluation(rf_pred_class, "Control"))
+  sma_rf_spend_mat <- rbind(sma_rf_spend_mat, matching_evaluation(rf_pred_class, "control"))
 }
 
 sma_rf_spend_exp <- aggregate(.~Percentile, sma_rf_spend_exp, mean)
 sma_rf_spend_mat <- aggregate(.~Percentile, sma_rf_spend_mat, mean)
 
-write.csv(sma_rf_spend_exp, 'CSV/sma_rf_spend_exp.csv', row.names = FALSE)
-write.csv(sma_rf_spend_mat, 'CSV/sma_rf_spend_mat.csv', row.names = FALSE)
+write.csv(sma_rf_spend_exp, 'CSV-Spend/sma_rf_spend_exp.csv', row.names = FALSE)
+write.csv(sma_rf_spend_mat, 'CSV-Spend/sma_rf_spend_mat.csv', row.names = FALSE)
 
 
 #aggregate(conversion~fold+segment, raw_email, mean)

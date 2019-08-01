@@ -2,68 +2,38 @@
 # Evaluation metrics
 ####################################
 
-##TODO
-# is a second upscaling necessary?
-
 # As described in Zhao et al. 2017
 expected_outcome <- function(eval_data){
   # Number of observations
   N <- nrow(eval_data)
   
-  # Frequencies of treatments z_i
-  t <- table(eval_data$Assignment)
-  p_i <- data.frame(t/ nrow(eval_data))
-  colnames(p_i) <- c("Assignment", "Freq")
-  
   # only include points where the assigned treatment equals the predicted
   matching <- eval_data[eval_data$Treatment == eval_data$Assignment , ]
-  matching <- merge(matching, p_i, all.x = T )
   
-  ##TODO
-  # print how many have been matched for evaluation
-  # print(paste("Total ",N))
-  #print(aggregate(Outcome~Assignment,matching, length ))
+  p_c <- nrow(matching[matching$Treatment == 'control', ]) / nrow(eval_data[eval_data$Treatment == 'control', ]) 
+  p_t <-  nrow(matching[matching$Treatment != 'control', ]) / nrow(eval_data[eval_data$Treatment != 'control', ])
   
+  if(is.na(p_c) | p_c == 0) {
+    p_c <- 1
+  }
+    
+  if(is.na(p_t)| p_t == 0) {
+    p_t <- 1
+  }
   
-  matching[matching$Assignment == 'control', ]
+  result <- (sum(matching$Outcome[matching$Treatment != "control"]) / p_t) + (sum(matching$Outcome[matching$Treatment == "control"]) / p_c )
+  # Take AVG Outcome per customer
+  result <- result / N
   
-  # Expected value of response as AVG sum of outcomes / probability of Assignment
-  res <- (sum(matching$Outcome / matching$Freq) / N)
-  
-  return(res)
+  return(result)
 }
 
-
-# scaled_expected_outcome <- function(eval_data){
-#   # Number of observations
-#   N <- nrow(eval_data)
-#   
-#   # Frequencies of treatments z_i
-#   t <- table(eval_data$Assignment)
-#   p_i <- data.frame(t/ nrow(eval_data))
-#   colnames(p_i) <- c("Assignment", "Freq")
-#   
-#   # only include points where the assigned treatment equals the predicted
-#   matching <- eval_data[eval_data$Treatment == eval_data$Assignment , ]
-#   
-#   # also count how many have been matched...
-#   # number matched for each T / this T in eval_data
-#   aggregate(Outcome~Treatment, eval_data, length)
-#   
-#   
-#   matching <- merge(matching, p_i, all.x = T )
-#   
-#   # Expected value of response as AVG sum of outcomes / probability of Assignment
-#   res <- (sum(matching$Outcome / matching$Freq) / N)
-#   
-#   return(res)
-# }
 
 ## Modified Uplift Curve by Zhao
 # *Assumption* outcome for each treatment equals prediction of model
 expected_percentile_response <- function(predictions){
   # Choose only the uplift columns
-  predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
+  predictions$max_uplift <- apply(predictions[ , grep("^uplift",colnames(predictions))], 1 , max)
   
   predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
   
@@ -78,9 +48,15 @@ expected_percentile_response <- function(predictions){
     # Assign optimal treatment for all
     predictions$Treatment <- colnames(predictions)[predictions$T_index]
     
+    
+    ###quick fix
+    predictions[is.na(predictions)] <- 0
+    
+    
     # For all who are not in top x Percentile assign Control Treatment
     # For implementation of Matthias lower case control...
-    predictions$Treatment[predictions$max_uplift < quantile(predictions$max_uplift,prob=(1-x))] <- control_level
+    predictions$Treatment[predictions$max_uplift < quantile(predictions$max_uplift, prob=(1-x))] <- control_level
+    
     
     # Calculate the Expected Response Value top Percentile
     ret <- rbind(ret, c(x, expected_outcome(predictions)) )
@@ -94,9 +70,9 @@ expected_percentile_response <- function(predictions){
 
 # *Assumption* always the higher predicted treatment assigned
 # Rzepakowski 2012
-matching_evaluation <- function(predictions, control_level){
+old_matching_evaluation <- function(predictions, control_level){
   # Choose only the uplift columns
-  predictions$max_uplift <- apply(predictions[ , grep("^Uplift",colnames(predictions))], 1 , max)
+  predictions$max_uplift <- apply(predictions[ , grep("^uplift",colnames(predictions))], 1 , max)
   predictions$max_treatment_outcome <- apply(predictions[ , c(1: (length(levels(as.factor(predictions$Assignment))) - 1)  )], 1 , max)
   
   # All treatments and control levels
@@ -110,6 +86,8 @@ matching_evaluation <- function(predictions, control_level){
     
     N <- nrow(group)
     
+    
+    ## Do not sort by max uplift, but uplift for this T
     # Sort by max uplift Treatment
     group <- group[order(-group$max_uplift) , ]
     
@@ -149,6 +127,43 @@ matching_evaluation <- function(predictions, control_level){
 
 
 
+## Input Uplift columns
+matching_evaluation <- function(predictions, control_level){
+  # score for each T individually
+  c_group <- predictions[predictions$Assignment == control_level , ]
+  N_c <- nrow(c_group)
+  
+  ret <- data.frame(Percentile=  seq(0,1, 0.05))
+  
+  
+  treatments <- levels(as.factor(predictions$Assignment[predictions$Assignment != control_level]))
+  
+  for(t in treatments) {
+    
+    tmp <- predictions[predictions$Assignment == t, ]
+    
+    # score by uplift column of T
+    tmp <- tmp[order(tmp[ , paste0("uplift_",t)] , decreasing = T) , ]
+    c_tmp <- c_group[order(c_group[ , paste0("uplift_",t)] , decreasing = T) , ]
+    
+    N_t  <- nrow(tmp)
+    
+    outcomes <- c()
+    # For each percentile
+    for(x in seq(0,1, 0.05)){
+      outcomes <- c(outcomes, mean(head(tmp$Outcome, x * N_t)) - mean(head(c_tmp$Outcome, x * N_c)))
+    }     
+    ret[ , t] <- outcomes
+  }
+  
+  ret[is.na(ret)] <- 0 
+  
+  return(ret)
+}
+
+#new_matching_evaluation(predictions = causal_forest_pred, 'control')
+
+
 # better ???
 
 ## Own naive evaluation approach
@@ -179,3 +194,36 @@ naive_percentile_response <- function(predictions){
   
   return(ret)
 }
+
+
+####old
+
+# # As described in Zhao et al. 2017
+# expected_outcome <- function(eval_data){
+#   # Number of observations
+#   N <- nrow(eval_data)
+#   
+#   ###TODO
+#   # change back to Assignment ???
+#   # t <- table(eval_data$Assignment)
+#   # p_i <- data.frame(t/ nrow(eval_data))
+#   # colnames(p_i) <- c("Assignment", "Freq")
+#   
+#   # only include points where the assigned treatment equals the predicted
+#   matching <- eval_data[eval_data$Treatment == eval_data$Assignment , ]
+#   #matching <- merge(matching, p_i, all.x = T )
+#   
+#   p_c <- nrow(matching[matching$Treatment == 'control', ]) / nrow(eval_data[eval_data$Treatment == 'control', ]) 
+#   p_t <-  nrow(matching[matching$Treatment != 'control', ]) / nrow(eval_data[eval_data$Treatment != 'control', ])
+#   
+#   result <- (sum(matching$Outcome[matching$Treatment != "control"]) / p_t) + (sum(matching$Outcome[matching$Treatment == "control"]) / p_c )
+#   # Take AVG Outcome per customer
+#   result <- result / N
+#   
+#   #matching[matching$Assignment == 'control', ]
+#   
+#   # Expected value of response as AVG sum of outcomes / probability of Assignment
+#   #res <- (sum(matching$Outcome / matching$Freq) / N)
+#   
+#   return(result)
+# }

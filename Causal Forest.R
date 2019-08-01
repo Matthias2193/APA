@@ -30,14 +30,14 @@ causalForestPredicitons <- function(train, test,treatment_list, response){
   pred <- data.frame(cbind(predictions_men_treatment,predictions_women_treatment))
   colnames(pred) <- treatment_list
   pred$control <- 0
-  pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
-  pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
-  
-  pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
-  
-  pred[ , "Outcome"] <- test[, response]
-  
-  pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+  # pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
+  # pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
+  # 
+  # pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+  # 
+  # pred[ , "Outcome"] <- test[, response]
+  # 
+  # pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
   
   return(pred)
 }

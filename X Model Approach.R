@@ -186,9 +186,7 @@ dt_x_model_predictions <- function(models_dt, test_data, response, treatment, co
         predictions[ , paste0(i)] <- as.numeric(predict(models_dt[[i]], test_data) )
       }
     }
-    
   }
-  
   
   # Rename columns to treatment names
   colnames(predictions) <- names(models_dt)
@@ -196,7 +194,9 @@ dt_x_model_predictions <- function(models_dt, test_data, response, treatment, co
   k <- ncol(predictions)
   # For each treatment calculate the Uplift as T_i - Control
   for (i in c(1: k - 1)) {
-    predictions[ , paste0("Uplift - ", names(models_dt)[i])] <- predictions[ , i] - predictions[ , k]
+    #t_name <- if(grepl("Mens", names(models_dt)[i], fixed = TRUE)) "mens_treatment" else "womens_treatment"
+    
+    predictions[ , paste0("uplift_", names(models_dt)[i])] <- predictions[ , i] - predictions[ , k]
   }
   
   # choose predicted treatment by the model
