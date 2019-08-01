@@ -532,13 +532,13 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
 
 prune_tree <- function(tree, val_data, treatment_list, test_list, target,control){
   new_tree <- assign_val_predictions(tree,val_data,treatment_list,test_list,response,control)
-  pruned_tree <- check_pruning(new_tree,val_data,target,control)
+  pruned_tree <- check_pruning(new_tree,val_data,target,control,treatment_list)
   return(pruned_tree)
 }
 
-check_pruning <- function(node,val_data,target,control){
+check_pruning <- function(node,val_data,target,control,treatments){
   if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
-    return(pruning_helper(node))
+    return(pruning_helper(node,treatments))
   } else{
     if(node[['left']][['type']] != 'leaf'){
       node[['left']] <- check_pruning(node[['left']],val_data,target,control)
@@ -547,14 +547,14 @@ check_pruning <- function(node,val_data,target,control){
       node[['right']] <- check_pruning(node[['right']],val_data,target,control)
     }
     if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
-      return(pruning_helper(node))
+      return(pruning_helper(node,treatments))
     } else{
       return(node)
     }
   } 
 }
 
-pruning_helper <- function(node){
+pruning_helper <- function(node,treatments){
   #Check if we are already at the root
   if(node[['type']] == 'root'){
     return(node)
@@ -563,18 +563,18 @@ pruning_helper <- function(node){
   #Left
   temp_pred_left <- node[['left']][['results']]
   temp_left <- node[['left']][['n_samples']]
-  best_treatment_left <- names(temp_pred_left[match(max(temp_pred_left[1:2]),temp_pred_left)])
+  best_treatment_left <- names(temp_pred_left[match(max(temp_pred_left[treatments]),temp_pred_left)])
   left_sign <- sign(temp_pred_left[[best_treatment_left]]-temp_pred_left[['control']])
   
   #Right
   temp_pred_right <- node[['right']][['results']]
   temp_right <- node[['right']][['n_samples']]
-  best_treatment_right <- names(temp_pred_right[match(max(temp_pred_right[1:2]),temp_pred_right)])
+  best_treatment_right <- names(temp_pred_right[match(max(temp_pred_right[treatments]),temp_pred_right)])
   right_sign <- sign(temp_pred_right[[best_treatment_right]]-temp_pred_right[['control']])
   
   #Root
   temp_pred_root <- node[['results']]
-  best_treatment_root <- names(temp_pred_root[match(max(temp_pred_root[1:2]),temp_pred_root)])
+  best_treatment_root <- names(temp_pred_root[match(max(temp_pred_root[treatments]),temp_pred_root)])
   root_sign <- sign(temp_pred_root[[best_treatment_root]]-temp_pred_root[['control']])
   
   
@@ -627,21 +627,42 @@ pruning_helper <- function(node){
 }
 
 assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target,control){
-  treatment_names <- c()
-  effects <- c()
-  for(t in treatment_list){
-    treatment_names <- c(treatment_names,t)
-    effects <- c(effects,mean(val_data[val_data[t]==1,target]))
+  if(nrow(val_data) == 0){
+    treatment_names <- c(treatment_list,control)
+    effects <- rep(0,length(treatment_names))
+    names(effects) <- treatment_names
+    tree[['val_samples']] <- nrow(val_data)
+    for(n in treatment_names){
+      tree[[n]] <- 0
+    }
+    tree[['val_predictions']] <- effects
+  } else{
+    treatment_names <- c()
+    effects <- c()
+    for(t in treatment_list){
+      treatment_names <- c(treatment_names,t)
+      temp_effect <- mean(val_data[val_data[t]==1,target])
+      if(is.na(temp_effect)){
+        effects <- c(effects,0)
+      } else{
+        effects <- c(effects,temp_effect)
+        }
+    }
+    treatment_names <- c(treatment_names,control)
+    temp_effect <- mean(val_data[val_data[control]==1,target])
+    if(is.na(temp_effect)){
+      effects <- c(effects,0)
+    } else{
+      effects <- c(effects,temp_effect)
+    }
+    
+    names(effects) <- treatment_names
+    tree[['val_samples']] <- nrow(val_data)
+    for(n in treatment_names){
+      tree[[n]] <- nrow(val_data[val_data[n] == 1,])
+    }
+    tree[['val_predictions']] <- effects
   }
-  treatment_names <- c(treatment_names,control)
-  effects <- c(effects,mean(val_data[val_data[control]==1,target]))
-  names(effects) <- treatment_names
-  tree[['val_samples']] <- nrow(val_data)
-  for(n in treatment_names){
-    tree[[n]] <- nrow(val_data[val_data[n] == 1,])
-  }
-  tree[['val_predictions']] <- effects
-  
   if(tree[['type']] != 'leaf'){
     split_col <- names(tree[['split']])
     split_value <- tree[['split']][[1]]
