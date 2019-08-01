@@ -35,7 +35,7 @@ causalTreePredicitons <- function(train, test,treatment_list, response){
       load(paste(paste('models/tree',t,sep = '_'),'rda',sep='.'))
     }
     else{
-      tree <- causalTree(as.formula(paste(response, "~.")), data = train_data, treatment = train[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
+      tree <- causalTree(as.formula(paste(response, "~.")), data = train_data, treatment = train_data[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
                          cv.Honest = T, split.Bucket = F, xval = 5, cp = 0, minsize = 20, propensity = 0.5)
       save(tree, file = paste(paste('models/tree',t,sep = '_'),'rda',sep='.'))
     }
