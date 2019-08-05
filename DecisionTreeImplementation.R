@@ -259,13 +259,17 @@ conditional_divergence <- function(a,l,g,divergence,test_case,treatments,control
 binary_KL_divergence <- function(x,y){
   p <- mean(x)
   q <- mean(y)
-  temp_result <- (p*log(p/q))+((1-p)*log((1-p)/1-q))
+  temp_result <- (p*log(p/q))+((1-p)*log((1-p)/(1-q)))
   if(is.nan(temp_result)||is.infinite(temp_result)){
     return(0)
   }
   else{
     return(temp_result)
   }
+}
+
+EucDistance <- function(x,y){
+  return(sqrt((mean(x) - mean(y)) ^ 2))
 }
 
 binary_Entropy <- function(prob_vec){
@@ -281,12 +285,13 @@ binary_Entropy <- function(prob_vec){
   }
 }
 
-
-EucDistance <- function(x,y){
-  return(sqrt((mean(x) - mean(y)) ^ 2))
+qini_coef <- function(prob_vec){
+  temp_result <- 0
+  for(x in prob_vec){
+    temp_result <- temp_result + x^2
+  }
+  return(1-temp_result)
 }
-
-
 
 #Normalization ----
 KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test_case,test_type){
