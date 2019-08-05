@@ -516,7 +516,7 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
 #Returns a pruned tree.
 
 prune_tree <- function(tree, val_data, treatment_list, test_list, target,control){
-  new_tree <- assign_val_predictions(tree,val_data,treatment_list,test_list,response,control)
+  new_tree <- assign_val_predictions(tree,val_data,treatment_list,test_list,target,control)
   pruned_tree <- check_pruning(new_tree,val_data,target,control,treatment_list)
   return(pruned_tree)
 }
@@ -649,18 +649,24 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
     tree[['val_predictions']] <- effects
   }
   if(tree[['type']] != 'leaf'){
-    split_col <- names(tree[['split']])
-    split_value <- tree[['split']][[1]]
-    if(split_col %in% names(test_list$categorical)){
-      data_left <- val_data[val_data[split_col] == split_value,]
-      data_right <- val_data[val_data[split_col] != split_value,]
-    } else{
-      data_left <- val_data[val_data[split_col] < split_value,]
-      data_right <- val_data[val_data[split_col] >= split_value,]
+    if(nrow(val_data) == 0){
+      tree[['left']] <- assign_val_predictions(tree[['left']],val_data,treatment_list,test_list,target,control)
+      tree[['right']] <- assign_val_predictions(tree[['right']],val_data,treatment_list,test_list,target,
+                                                control)
+    }else{
+      split_col <- names(tree[['split']])
+      split_value <- tree[['split']][[1]]
+      if(split_col %in% names(test_list$categorical)){
+        data_left <- val_data[val_data[split_col] == split_value,]
+        data_right <- val_data[val_data[split_col] != split_value,]
+      } else{
+        data_left <- val_data[val_data[split_col] < split_value,]
+        data_right <- val_data[val_data[split_col] >= split_value,]
+      }
+      tree[['left']] <- assign_val_predictions(tree[['left']],data_left,treatment_list,test_list,target,control)
+      tree[['right']] <- assign_val_predictions(tree[['right']],data_right,treatment_list,test_list,target,
+                                                control)
     }
-    tree[['left']] <- assign_val_predictions(tree[['left']],data_left,treatment_list,test_list,target,control)
-    tree[['right']] <- assign_val_predictions(tree[['right']],data_right,treatment_list,test_list,target,
-                                              control)
   }
   return(tree)
 }
@@ -803,28 +809,28 @@ predict_forest_df <- function(forest,test_data){
 
 #Test Area----
 
-email <- read.csv('Email.csv')
-
-email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
-email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
-email$control <- ifelse(email$segment=='No E-Mail',1,0)
-email$mens <- as.factor(email$mens)
-email$womens <- as.factor(email$womens)
-email$newbie <- as.factor(email$newbie)
-
-email$visit <- email$spend <- email$segment <- NULL
-
-response <- 'conversion'
-control <- 'control'
-
-treatment_list <- c('men_treatment','women_treatment')
-test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
-                                   "newbie","channel")],TRUE)
-idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
-
-train <- email[-idx, ]
-
-test <- email[idx, ]
+# email <- read.csv('Email.csv')
+# 
+# email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
+# email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
+# email$control <- ifelse(email$segment=='No E-Mail',1,0)
+# email$mens <- as.factor(email$mens)
+# email$womens <- as.factor(email$womens)
+# email$newbie <- as.factor(email$newbie)
+# 
+# email$visit <- email$spend <- email$segment <- NULL
+# 
+# response <- 'conversion'
+# control <- 'control'
+# 
+# treatment_list <- c('men_treatment','women_treatment')
+# test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
+#                                    "newbie","channel")],TRUE)
+# idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
+# 
+# train <- email[-idx, ]
+# 
+# test <- email[idx, ]
 # 
 # test_tree <- create_node(email[1:50000,],0,100,treatment_list,'conversion','control',test_list,
 #                          normalize  = TRUE)
