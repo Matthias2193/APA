@@ -138,6 +138,8 @@ matching_evaluation <- function(predictions, control_level){
   
   treatments <- levels(as.factor(predictions$Assignment[predictions$Assignment != control_level]))
   
+  treatments <- treatments[treatments != 'control']
+  
   for(t in treatments) {
     
     tmp <- predictions[predictions$Assignment == t, ]
