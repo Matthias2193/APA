@@ -5,7 +5,7 @@
 set.seed(213)
 
 #Set up tests ----
-set_up_tests <- function(x,reduce_cases,max_cases = 100){
+set_up_tests <- function(x,reduce_cases,max_cases = 10){
   type_list <- sapply(x, class)
   categorical_splits = list()
   numerical_splits = list()
@@ -212,11 +212,11 @@ gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,
 multiple_divergence <- function(a,l,g,divergence,treatments,control,target,temp_data){
   divergence_function <- match.fun(divergence)
   multiple <- 0
-  for(t in length(treatments)){
+  for(t in 1:length(treatments)){
     multiple <- multiple + a*l[t]*divergence_function(temp_data[temp_data[treatments[t]]==1,target],
                                                       temp_data[temp_data[control]==1,target])
     between_treatments <- 0
-    for(s in length(treatments)){
+    for(s in 1:length(treatments)){
       between_treatments <- between_treatments + g[t,s]*divergence_function(
         temp_data[temp_data[treatments[t]]==1,target],temp_data[temp_data[treatments[s]]==1,target])
     }
@@ -388,7 +388,7 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
 #For a binary categorical use 'binary_KL_divergence'
 create_node <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
                         l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
-                        divergence = 'binary_KL_divergence',normalize = FALSE, criterion = 1){
+                        divergence = 'binary_KL_divergence',normalize = T, criterion = 1){
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
   }
@@ -431,10 +431,12 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
                                    criterion = criterion)
   }
   else{
-    node[['left']] <- create_node(data[data[names(temp_split)] < temp_split[[1]],],depth = depth+1,max_depth,
-                                  treatment_list,target,control,test_list)
-    node[['right']] <- create_node(data[data[names(temp_split)] >= temp_split[[1]],],depth = depth+1,max_depth,
-                                   treatment_list,target, control,test_list)
+    node[['left']] <- create_node(data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,max_depth,
+                                  treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
+                                  criterion = criterion)
+    node[['right']] <- create_node(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,max_depth,
+                                   treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
+                                   criterion = criterion)
   }
   return(node)
 }
