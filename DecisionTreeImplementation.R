@@ -222,7 +222,11 @@ multiple_divergence <- function(a,l,g,divergence,treatments,control,target,temp_
     }
     multiple <- multiple + (1-a)*between_treatments
   }
-  return(multiple)
+  if(is.na(multiple)){
+    return(-1)
+  }else{
+    return(multiple)
+  }
 }
 
 conditional_divergence <- function(a,l,g,divergence,test_case,treatments,control,target,temp_data,test_type,
@@ -244,7 +248,11 @@ conditional_divergence <- function(a,l,g,divergence,test_case,treatments,control
       multiple_divergence(a,l,g,divergence,treatments,control,target,
                           temp_data[temp_data[test_col]>=t,])
   }
-  return(div)
+  if(is.na(div)){
+    return(-1)
+  }else{
+    return(div)
+  }
 }
 
 
