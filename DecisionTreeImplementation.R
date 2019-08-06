@@ -201,12 +201,7 @@ gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,
                                         test_type,test_col)
   multiple <- multiple_divergence(a,l,g,divergence,treatment,control,target,temp_data)
   if(normalize){
-    if(divergence == 'binary_KL_divergence'){
-      normalizer <- KL_Normalization(a,temp_data,control,treatment,target,test_col,test_case,test_type)
-    }
-    else{
-      normalizer <- KL_Normalization(a,temp_data,control,treatment,target,test_col,test_case,test_type)
-    }
+    normalizer <- Normalization(a,temp_data,control,treatment,target,test_col,test_case,test_type,divergence)
     return((conditional-multiple)/normalizer)
   }
   else{
@@ -294,19 +289,25 @@ qini_coef <- function(prob_vec){
 }
 
 #Normalization ----
-KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test_case,test_type){
+Normalization <- function(a,temp_data,control,treatments,target,test_col,test_case,test_type,divergence){
   n <- nrow(temp_data)
   nt <- nrow(temp_data[temp_data[,control] != 1,])/n
   nc <- nrow(temp_data[temp_data[,control] == 1,])/n
+  divergence_function <- match.fun(divergence)
+  if(divergence == "binary_KL_divergence"){
+    temp_function <- match.fun("binary_Entropy")
+  }else{
+    temp_function <- match.fun("qini_coef")
+  }
   if(test_type == 'categorical'){
-    norm_factor <- a*binary_Entropy(c(nt,nc))*
-      binary_KL_divergence(nrow(temp_data[(temp_data[,control] != 1) & (temp_data[,test_col] == test_case),])/
+    norm_factor <- a*temp_function(c(nt,nc))*
+      divergence_function(nrow(temp_data[(temp_data[,control] != 1) & (temp_data[,test_col] == test_case),])/
                              nrow(temp_data[(temp_data[,control] != 1),]),
                            nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] == test_case),])/
                              nrow(temp_data[(temp_data[,control] == 1),]))
   } else{
-    norm_factor <- a*binary_Entropy(c(nt,nc))*
-      binary_KL_divergence(nrow(temp_data[(temp_data[,control] != 1) & 
+    norm_factor <- a*temp_function(c(nt,nc))*
+      divergence_function(nrow(temp_data[(temp_data[,control] != 1) & 
                                             (temp_data[,test_col] < test_case),])/
                              nrow(temp_data[(temp_data[,control] != 1),]),
                            nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/
@@ -319,16 +320,16 @@ KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test
     pi <- nti/(nti+nc)
     pc <- nc/(nti+nc)
     if(test_type == 'categorical'){
-      norm_factor <- norm_factor + (1-a) * binary_Entropy(c(pi,pc)) * 
-        binary_KL_divergence(nrow(temp_data[(temp_data[,t] == 1) & 
+      norm_factor <- norm_factor + (1-a) * temp_function(c(pi,pc)) * 
+        divergence_function(nrow(temp_data[(temp_data[,t] == 1) & 
                                               (temp_data[,test_col] == test_case),])/
                                nrow(temp_data[(temp_data[,t] == 1),]),
                              nrow(temp_data[(temp_data[,control] == 1) &
                                               (temp_data[,test_col] == test_case),])/
                                nrow(temp_data[(temp_data[,control] == 1),]))
     } else{
-      norm_factor <- norm_factor + (1-a) * binary_Entropy(c(pi,pc)) * 
-        binary_KL_divergence(nrow(temp_data[(temp_data[,t] == 1) & 
+      norm_factor <- norm_factor + (1-a) * temp_function(c(pi,pc)) * 
+        divergence_function(nrow(temp_data[(temp_data[,t] == 1) & 
                                               (temp_data[,test_col] < test_case),])/
                                nrow(temp_data[(temp_data[,t] == 1),]),
                              nrow(temp_data[(temp_data[,control] == 1) &
@@ -347,7 +348,7 @@ KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test
       #   nrow(temp_data[(temp_data[,t] == 1),])
     }
     if(pti != 0){
-      norm_factor <- norm_factor + nti/nrow(temp_data) * binary_Entropy(c(pti,1-pti))
+      norm_factor <- norm_factor + nti/nrow(temp_data) * temp_function(c(pti,1-pti))
     }
   }
   if(test_type == 'categorical'){
@@ -362,7 +363,7 @@ KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test
     #   nrow(temp_data[(temp_data[,control] == 1),])
   }
   if(pc != 0){
-    norm_factor <- norm_factor +nc/nrow(temp_data) * binary_Entropy(c(pc,1-pc))
+    norm_factor <- norm_factor +nc/nrow(temp_data) * temp_function(c(pc,1-pc))
     # norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc2 * log(pc2)
   }
   norm_factor <- norm_factor  + 0.5
@@ -371,40 +372,6 @@ KL_Normalization <- function(a,temp_data,control,treatments,target,test_col,test
   }
   return(norm_factor)
 }
-
-
-Euc_Normalization <- function(a,temp_data,control,treatments,target,test_col,test_case){
-  nt <- nrow(temp_data[temp_data[,control] != 1,])/nrow(temp_data)
-  nc <- nrow(temp_data[temp_data[,control] == 1,])/nrow(temp_data)
-  norm_factor <- a*(nt*nc)*EucDistance(temp_data[temp_data[,control] != 1,target],
-                                       temp_data[temp_data[,control] == 1,target])
-  for(t in treatments){
-    nti <-nrow(temp_data[temp_data[,t] == 1,])
-    nc <- nrow(temp_data[temp_data[,control] == 1,])
-    norm_factor <- norm_factor + (1-a) * (nti/(nti+nc)*nc/(nti+nc)) * 
-      EucDistance(temp_data[temp_data[,t] == 1,target],
-                  temp_data[temp_data[,control] == 1,target])
-    pti <- mean(temp_data[temp_data[,t] == 1,target])
-    if(pti != 0){
-      norm_factor <- norm_factor + nti/nrow(temp_data) * (-1) * pti * log(pti)
-    }
-  }
-  pc <- mean(temp_data[temp_data[,control] == 1,target])
-  if(pc != 0){
-    norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc * log(pc)
-  }
-  norm_factor <- norm_factor  + 0.5
-  if(norm_factor == 0 || is.na(norm_factor)){
-    return(1)
-  }
-  return(norm_factor)
-}
-
-
-
-
-
-
 
 #Functions to build the tree ----
 
