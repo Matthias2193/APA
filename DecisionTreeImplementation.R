@@ -471,7 +471,8 @@ final_node <- function(data,treatment_list,target,control){
 
 #Forest
 build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                         criterion,pruning,divergence = "binary_KL_divergence"){
+                         criterion,pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
+                         g = matrix(0.25,nrow = 2, ncol = 2)){
   trees <- list()
   retain_cols <- c(treatment_list,control,response)
   sample_cols <- setdiff(colnames(train_data),retain_cols)
@@ -481,7 +482,7 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
     test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
     temp_tree <- create_node(data = train_data[,chosen_cols],0,100,treatment_list = treatment_list, 
                              test_list = test_list, criterion = criterion,target = response,control = control,
-                             divergence = divergence)
+                             divergence = divergence,alpha = a, l = l, g=g)
     if(pruning){
       temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
       trees[[x]] <- temp_prune_tree
