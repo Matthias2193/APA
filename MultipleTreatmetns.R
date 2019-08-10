@@ -1,6 +1,7 @@
 source('Preprocessing.R')
 source('DecisionTreeImplementation.R')
 library('caret')
+source('CausalTree.R')
 
 remain_cols <- c("female","age","voted","hh_size","treatment_CivicDuty","treatment_Self",
                  "treatment_Control","treatment_Hawthorne","treatment_Neighbors")
@@ -41,52 +42,3 @@ n_treatments <- length(treatment_list)
 #                        pruning = F)
 # pred_forest <- predict_forest_df(forest, test)
 # print(Sys.time()-start_time)
-
-
-#Benchmark
-size_vector <- c(50000,150000,300000)
-time_vector_rzp <- list()
-time_vector_simple <- list()
-for(i in 2:4){
-  treatment_list <- treatments[1:i]
-  n_treatments <- length(treatment_list)
-  temp_time_vec_rzp <- c()
-  temp_time_vec_simple <- c()
-  for(s in size_vector){
-    temp_data <- individuals[1:s ,]
-    idx <- createDataPartition(y = temp_data[ , response], p=0.2, list = FALSE)
-    val <- temp_data[idx,]
-    train <- temp_data[-idx,]
-    start_time <- Sys.time()
-    test_tree <- create_node(train,0,100,treatment_list,response,control,test_list,
-                             normalize  = TRUE, l = rep(1/n_treatments,n_treatments),
-                             g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments))
-    temp_time_vec_rzp <- c(temp_time_vec_rzp,difftime(Sys.time(), start_time, units='mins'))
-    start_time <- Sys.time()
-    test_tree <- create_node(train,0,100,treatment_list,response,control,test_list,
-                             normalize  = TRUE, l = rep(1/n_treatments,n_treatments),
-                             g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments),criterion = 2)
-    temp_time_vec_simple <- c(temp_time_vec_simple,difftime(Sys.time(), start_time, units='mins'))
-  }
-  time_vector_rzp[[i-1]] <- temp_time_vec_rzp
-  time_vector_simple[[i-1]] <- temp_time_vec_simple
-}
-rzp_df <- data.frame(cbind(time_vector_rzp[[1]],cbind(time_vector_rzp[[2]],time_vector_rzp[[3]])))
-simple_df <- data.frame(cbind(time_vector_simple[[1]],cbind(time_vector_simple[[2]],time_vector_simple[[3]])))
-colnames(rzp_df) <- colnames(simple_df) <- c("2 Treatments","3 Treatments", "4 Treatments") 
-rownames(rzp_df) <- rownames(simple_df) <- c("50k","150k", "300k")
-
-for(c in c("2 Treatments","3 Treatments", "4 Treatments")){
-  counts <- rbind(round(rzp_df[,c],2), round(simple_df[,c],2))
-  x <- barplot(counts, main= paste("Training duration:", c,sep = " "),
-               xlab="Number of Simples", col=c("darkblue","red"),
-               beside=TRUE, ylab = "Time (mins)",
-               names.arg = c("50k","150k", "300k"),ylim = c(0,max(counts)+0.2))
-  legend ("topleft", 
-          c("Rzp","Simple"),
-          fill = c("darkblue","red"))
-  y <- as.matrix(counts)
-  text(x,y+0.15,labels=as.character(y))
-}
-
-
