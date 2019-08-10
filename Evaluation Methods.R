@@ -135,8 +135,9 @@ matching_evaluation <- function(predictions, control_level){
   
   ret <- data.frame(Percentile=  seq(0,1, 0.05))
   
-  
   treatments <- levels(as.factor(predictions$Assignment[predictions$Assignment != control_level]))
+  
+  treatments <- treatments[treatments != control_level]
   
   for(t in treatments) {
     
