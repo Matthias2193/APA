@@ -49,47 +49,54 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
   gain_list <- c()
   name_list <- c()
   if(criterion == 1){
-    for(x in 1:length(test_list$categorical)){
-      temp_name <- names(test_list$categorical[x])
-      for(y in 1:length(test_list$categorical[[x]])){
-        t <- test_list$categorical[[x]][y]
-        new_name <- paste(temp_name, as.character(t), sep = '@@')
-        gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-                                      treatment,control,target,temp_data,'categorical',temp_name,normalize))
-        name_list <- c(name_list,new_name)
+    if(length(test_list$categorical)>0){
+      for(x in 1:length(test_list$categorical)){
+        temp_name <- names(test_list$categorical[x])
+        for(y in 1:length(test_list$categorical[[x]])){
+          t <- test_list$categorical[[x]][y]
+          new_name <- paste(temp_name, as.character(t), sep = '@@')
+          gain_list <- c(gain_list,gain(a,l,g,divergence,t,
+                                        treatment,control,target,temp_data,'categorical',temp_name,normalize))
+          name_list <- c(name_list,new_name)
+        }
       }
     }
-    for(x in 1:length(test_list$numerical)){
-      temp_name <- names(test_list$numerical[x])
-      for(y in 1:length(test_list$numerical[[x]])){
-        t <- test_list$numerical[[x]][y]
-        new_name <- paste(temp_name, as.character(t), sep = '@@')
-        gain_list <- c(gain_list,gain(a,l,g,divergence,t,
-                                      treatment,control,target,temp_data,'numerical',temp_name,normalize))
-        name_list <- c(name_list,new_name)
+    if(length(test_list$numerical)>0){
+      for(x in 1:length(test_list$numerical)){
+        temp_name <- names(test_list$numerical[x])
+        for(y in 1:length(test_list$numerical[[x]])){
+          t <- test_list$numerical[[x]][y]
+          new_name <- paste(temp_name, as.character(t), sep = '@@')
+          gain_list <- c(gain_list,gain(a,l,g,divergence,t,
+                                        treatment,control,target,temp_data,'numerical',temp_name,normalize))
+          name_list <- c(name_list,new_name)
+        }
       }
     }
   }
   if(criterion == 2){
-    for(x in 1:length(test_list$categorical)){
-      temp_name <- names(test_list$categorical[x])
-      for(y in 1:length(test_list$categorical[[x]])){
-        t <- test_list$categorical[[x]][y]
-        new_name <- paste(temp_name, as.character(t), sep = '@@')
-        gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'categorical',temp_name))
-        name_list <- c(name_list,new_name)
+    if(length(test_list$categorical)>0){
+      for(x in 1:length(test_list$categorical)){
+        temp_name <- names(test_list$categorical[x])
+        for(y in 1:length(test_list$categorical[[x]])){
+          t <- test_list$categorical[[x]][y]
+          new_name <- paste(temp_name, as.character(t), sep = '@@')
+          gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'categorical',temp_name))
+          name_list <- c(name_list,new_name)
+        }
       }
     }
-    for(x in 1:length(test_list$numerical)){
-      temp_name <- names(test_list$numerical[x])
-      for(y in 1:length(test_list$numerical[[x]])){
-        t <- test_list$numerical[[x]][y]
-        new_name <- paste(temp_name, as.character(t), sep = '@@')
-        gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'numerical',temp_name))
-        name_list <- c(name_list,new_name)
+    if(length(test_list$numerical)>0){
+      for(x in 1:length(test_list$numerical)){
+        temp_name <- names(test_list$numerical[x])
+        for(y in 1:length(test_list$numerical[[x]])){
+          t <- test_list$numerical[[x]][y]
+          new_name <- paste(temp_name, as.character(t), sep = '@@')
+          gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'numerical',temp_name))
+          name_list <- c(name_list,new_name)
+        }
       }
     }
-    
   }
   if(criterion == 3){
     for(x in 1:length(test_list$categorical)){
