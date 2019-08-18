@@ -144,6 +144,8 @@ qini_curve <- function(predictions, control_level){
   
   treatments <- levels(as.factor(predictions$Assignment[predictions$Assignment != control_level]))
   
+  treatments <- treatments[treatments != control_level]
+  
   for(t in treatments) {
     
     tmp <- predictions[predictions$Assignment == t, ]

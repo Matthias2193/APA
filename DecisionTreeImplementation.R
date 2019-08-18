@@ -317,16 +317,16 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
   if(test_type == 'categorical'){
     norm_factor <- a*temp_function(c(nt,nc))*
       divergence_function(nrow(temp_data[(temp_data[,control] != 1) & (temp_data[,test_col] == test_case),])/
-                            nrow(temp_data[(temp_data[,control] != 1),]),
-                          nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] == test_case),])/
-                            nrow(temp_data[(temp_data[,control] == 1),]))
+                             nrow(temp_data[(temp_data[,control] != 1),]),
+                           nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] == test_case),])/
+                             nrow(temp_data[(temp_data[,control] == 1),]))
   } else{
     norm_factor <- a*temp_function(c(nt,nc))*
       divergence_function(nrow(temp_data[(temp_data[,control] != 1) & 
-                                           (temp_data[,test_col] < test_case),])/
-                            nrow(temp_data[(temp_data[,control] != 1),]),
-                          nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/
-                            nrow(temp_data[(temp_data[,control] == 1),]))
+                                            (temp_data[,test_col] < test_case),])/
+                             nrow(temp_data[(temp_data[,control] != 1),]),
+                           nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/
+                             nrow(temp_data[(temp_data[,control] == 1),]))
   }
   
   for(t in treatments){
@@ -337,19 +337,19 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
     if(test_type == 'categorical'){
       norm_factor <- norm_factor + (1-a) * temp_function(c(pi,pc)) * 
         divergence_function(nrow(temp_data[(temp_data[,t] == 1) & 
-                                             (temp_data[,test_col] == test_case),])/
-                              nrow(temp_data[(temp_data[,t] == 1),]),
-                            nrow(temp_data[(temp_data[,control] == 1) &
-                                             (temp_data[,test_col] == test_case),])/
-                              nrow(temp_data[(temp_data[,control] == 1),]))
+                                              (temp_data[,test_col] == test_case),])/
+                               nrow(temp_data[(temp_data[,t] == 1),]),
+                             nrow(temp_data[(temp_data[,control] == 1) &
+                                              (temp_data[,test_col] == test_case),])/
+                               nrow(temp_data[(temp_data[,control] == 1),]))
     } else{
       norm_factor <- norm_factor + (1-a) * temp_function(c(pi,pc)) * 
         divergence_function(nrow(temp_data[(temp_data[,t] == 1) & 
-                                             (temp_data[,test_col] < test_case),])/
-                              nrow(temp_data[(temp_data[,t] == 1),]),
-                            nrow(temp_data[(temp_data[,control] == 1) &
-                                             (temp_data[,test_col] < test_case),])/
-                              nrow(temp_data[(temp_data[,control] == 1),]))
+                                              (temp_data[,test_col] < test_case),])/
+                               nrow(temp_data[(temp_data[,t] == 1),]),
+                             nrow(temp_data[(temp_data[,control] == 1) &
+                                              (temp_data[,test_col] < test_case),])/
+                               nrow(temp_data[(temp_data[,control] == 1),]))
     }
     if(test_type == 'categorical'){
       pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] == test_case),])/
@@ -622,7 +622,7 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
         effects <- c(effects,0)
       } else{
         effects <- c(effects,temp_effect)
-      }
+        }
     }
     treatment_names <- c(treatment_names,control)
     temp_effect <- mean(val_data[val_data[control]==1,target])
@@ -837,7 +837,7 @@ predict_forest_df <- function(forest,test_data){
 # print(time_old)
 # print(time_old_updated)
 
-#Old´Functions----
+#Oldï¿½Functions----
 prune_tree_old <- function(tree, val_data, train_data, target){
   val_pred <- predict.dt(tree, val_data)
   train_pred <- predict.dt(tree, train_data)

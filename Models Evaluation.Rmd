@@ -67,7 +67,7 @@ test_list <- set_up_tests(train[,c("recency","history_segment","history","mens",
 
 ```{r fit_tree, eval=F}
 
-raw_tree <- create_node(train,0,100,treatment_list,response,control,test_list)
+raw_tree <- create_node(train,0,100,treatment_list,response,control,test_list,normalize = F)
 
 
 # takes a lot of time..

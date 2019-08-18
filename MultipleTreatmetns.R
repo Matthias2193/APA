@@ -1,5 +1,6 @@
 source('DecisionTreeImplementation.R')
 library('caret')
+source('CausalTree.R')
 
 individuals  <- read.csv('individuals_preprocessed.csv')
 
@@ -14,45 +15,32 @@ response <- 'voted'
 control <- 'treatment_Control'
 
 
-treatment_list <- c("treatment_CivicDuty","treatment_Self","treatment_Hawthorne","treatment_Neighbors")
+treatments <- c("treatment_CivicDuty","treatment_Self","treatment_Hawthorne","treatment_Neighbors")
+treatment_list <- c("treatment_CivicDuty","treatment_Self")
 test_list <- set_up_tests(individuals[,c("female","age","hh_size")],TRUE)
-#individuals_reduced <- individuals[1:15000,]
-idx <- createDataPartition(y = individuals[ , response], p=0.3, list = FALSE)
-
-train <- individuals[-idx, ]
-
-test <- individuals[idx, ]
-
 n_treatments <- length(treatment_list)
 
-start_time <- Sys.time()
-test_tree <- create_node(train,0,100,treatment_list,response,control,test_list,
-                         normalize  = TRUE, l = rep(1/n_treatments,n_treatments),
-                         g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments))
-print(Sys.time()-start_time)
-
-
-pred <- predict.dt.as.df(test_tree, test)
-
-pred %>% head()
-
-# from predicted outcomes calculate uplift ??
-
-## TODO
-pred[ , "uplift_CivicDuty"] <- pred[ , 1] - pred[ , 5]
-pred[ , "uplift_Self"] <- pred[ , 2] - pred[ , 5]
-pred[ , "uplift_Hawthorne"] <- pred[ , 3] - pred[ , 5]
-pred[ , "uplift_Neighbors"] <- pred[ , 4] - pred[ , 5]
-
-
-pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:5], 1, which.max)]
-
-pred[ , "Outcome"] <- test[, response]
-# get the actual assignment from test data
-pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
-
-
-
-# bind  matching and expected outcome evaluation
-rzp_tree_exp_conv <- rbind(rzp_tree_exp_conv, expected_percentile_response(pred))
-rzp_tree_mat_conv <- rbind(rzp_tree_mat_conv, matching_evaluation(pred, "control"))
+# idx <- createDataPartition(y = individuals[ , response], p=0.3, list = FALSE)
+# 
+# train <- individuals[-idx, ]
+# test <- individuals[idx, ]
+# 
+# p_idx <- createDataPartition(y = train[ , response], p=0.2, list = FALSE)
+# val <- train[p_idx,]
+# train <- train[-p_idx,]
+# 
+# 
+# 
+# start_time <- Sys.time()
+# test_tree <- create_node(train,0,100,treatment_list,response,control,test_list,
+#                          normalize  = TRUE, l = rep(1/n_treatments,n_treatments),
+#                          g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments))
+# pruned_tree <- prune_tree(test_tree,val,treatment_list,test_list,response,control)
+# pred <- predict.dt.as.df(pruned_tree, test)
+# print(Sys.time()-start_time)
+# 
+# start_time <- Sys.time()
+# forest <- build_forest(train,val,treatment_list,response,control,n_trees = 20,n_features = 3,criterion = 2,
+#                        pruning = F)
+# pred_forest <- predict_forest_df(forest, test)
+# print(Sys.time()-start_time)

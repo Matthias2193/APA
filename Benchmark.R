@@ -63,12 +63,12 @@ for(r in 5:7){
       start_time <- Sys.time()
       for(t in treatment_list){
         tree <- causalForest(as.formula(paste(paste(response, " ~ ",sep = ""),
-                                              paste(setdiff(remain_cols,c("treatment_Control")),collapse = "+"))),
-                             data = train[,c(setdiff(remain_cols,c("treatment_Control")),t)],
-                             treatment = train[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
-                             cv.Honest = T, split.Bucket = F, minsize = 20, propensity = 0.5, mtry = 2,
-                             num.trees = 100, ncov_sample = 3, 
-                             ncolx = (ncol(train[,c(setdiff(remain_cols,c("treatment_Control")))])-1))
+                                            paste(setdiff(remain_cols,c("treatment_Control")),collapse = "+"))),
+                           data = train[,c(setdiff(remain_cols,c("treatment_Control")),t)],
+                           treatment = train[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
+                           cv.Honest = T, split.Bucket = F, minsize = 20, propensity = 0.5, mtry = 2,
+                           num.trees = 100, ncov_sample = 3, 
+                           ncolx = (ncol(train[,c(setdiff(remain_cols,c("treatment_Control")))])-1))
       }
       temp_time_vec_causal_tree <- c(temp_time_vec_causal_tree,difftime(Sys.time(), start_time, units='mins'))
     }
