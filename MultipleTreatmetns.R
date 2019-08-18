@@ -1,7 +1,8 @@
-source('Preprocessing.R')
 source('DecisionTreeImplementation.R')
 library('caret')
 source('CausalTree.R')
+
+individuals  <- read.csv('individuals_preprocessed.csv')
 
 remain_cols <- c("female","age","voted","hh_size","treatment_CivicDuty","treatment_Self",
                  "treatment_Control","treatment_Hawthorne","treatment_Neighbors")
@@ -18,6 +19,7 @@ treatments <- c("treatment_CivicDuty","treatment_Self","treatment_Hawthorne","tr
 treatment_list <- c("treatment_CivicDuty","treatment_Self")
 test_list <- set_up_tests(individuals[,c("female","age","hh_size")],TRUE)
 n_treatments <- length(treatment_list)
+
 # idx <- createDataPartition(y = individuals[ , response], p=0.3, list = FALSE)
 # 
 # train <- individuals[-idx, ]

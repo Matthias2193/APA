@@ -693,14 +693,14 @@ predict.dt.as.df <- function(tree, new_data){
       }
     }
     results <- rbind(results , node[['results']])
-
+    
     # in first round colnames need to be set T names
     if(x == 1){
       colnames(results) <- names(node[['results']])
     }
-
+    
   }
-
+  
   return(results)
 }
 
@@ -837,7 +837,7 @@ predict_forest_df <- function(forest,test_data){
 # print(time_old)
 # print(time_old_updated)
 
-#Old´Functions----
+#Old�Functions----
 prune_tree_old <- function(tree, val_data, train_data, target){
   val_pred <- predict.dt(tree, val_data)
   train_pred <- predict.dt(tree, train_data)
