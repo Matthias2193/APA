@@ -147,7 +147,7 @@ qini_curve <- function(predictions, control_level){
   treatments <- treatments[treatments != control_level]
   
   for(t in treatments) {
-    
+    print(t)
     tmp <- predictions[predictions$Assignment == t, ]
     
     # score by uplift column of T

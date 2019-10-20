@@ -21,7 +21,7 @@ library(reshape2)
 
 source('DecisionTreeImplementation.R')
 source('Evaluation Methods.R')
-source('X Model Approach.R')
+#source('X Model Approach.R')
 
 set.seed(1234)
 
@@ -67,7 +67,7 @@ test_list <- set_up_tests(train[,c("recency","history_segment","history","mens",
 
 ```{r fit_tree, eval=F}
 
-raw_tree <- create_node(train,0,100,treatment_list,response,control,test_list,normalize = F)
+raw_tree <- build_tree(train,0,100,treatment_list,response,control,test_list,normalize = F)
 
 
 # takes a lot of time..
@@ -97,7 +97,7 @@ pred <- read.csv('rzp tree pred.csv')
 # Expected Response per targeted customers
 rzp_tree_exp_conv <- expected_percentile_response(pred)
 
-rzp_tree_mat_conv <- matching_evaluation(pred, "control")
+rzp_tree_mat_conv <- qini_curve(pred, "control")
 ```
 
 
@@ -105,7 +105,7 @@ rzp_tree_mat_conv <- matching_evaluation(pred, "control")
 
 ```{r fit_tree, eval=F}
 
-raw_tree <- create_node(train,0,100,treatment_list,response,'control',test_list,criterion = 2)
+raw_tree <- build_tree(train,0,100,treatment_list,response,'control',test_list,criterion = 2)
 
 
 # takes a lot of time..
@@ -518,7 +518,7 @@ c_tree_mat_spend <- matching_evaluation(causal_pred, "control")
 ```{r, eval=FALSE}
 ## Raw tree still 
 
-raw_tree <- create_node(train,0,100,treatment_list,response,'control',test_list, divergence = "EucDistance")
+raw_tree <- build_tree(train,0,100,treatment_list,response,'control',test_list, divergence = "EucDistance")
 
 # takes a lot of time..
 #conversion
@@ -555,7 +555,7 @@ rzp_tree_mat_spend <- matching_evaluation(pred, "control")
 ```{r, eval=FALSE}
 ## Raw tree still 
 
-raw_tree <- create_node(train,0,100,treatment_list,response,'control',test_list, divergence = "EucDistance",
+raw_tree <- build_tree(train,0,100,treatment_list,response,'control',test_list, divergence = "EucDistance",
                         criterion = 2)
 
 # Partition training data for pruning
