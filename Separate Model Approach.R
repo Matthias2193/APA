@@ -114,7 +114,7 @@ logit_x_model_predictions <- function(models_logit, test_data, response, treatme
   k <- ncol(predictions)
   # For each treatment calculate the Uplift as T_i - Control
   for (i in c(1: k - 1)) {
-    predictions[ , paste0("Uplift - ", names(models_logit)[i])] <- predictions[ , i] - predictions[ , k]
+    predictions[ , paste0("uplift_", names(models_logit)[i])] <- predictions[ , i] - predictions[ , k]
   }
   
   # choose predicted treatment by the model
