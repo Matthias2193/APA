@@ -502,6 +502,36 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
   return(trees)
 }
 
+library(parallel)
+library(foreach)
+library(doParallel)
+parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+                         criterion,pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
+                         g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10){
+  numCores <- detectCores()
+  registerDoParallel(numCores)
+  retain_cols <- c(treatment_list,control,response)
+  sample_cols <- setdiff(colnames(train_data),retain_cols)
+  trees <- foreach(x=1:n_trees) %dopar% {
+    source('DecisionTreeImplementation.R')
+    temp_cols <- sample(sample_cols,n_features,replace = F)
+    chosen_cols <- c(temp_cols,retain_cols)
+    test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
+    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
+                            test_list = test_list, criterion = criterion,target = response,control = control,
+                            divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
+                            max_depth = max_depth)
+    return(temp_tree)
+    if(pruning){
+      temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
+      return(temp_prune_tree)
+    } else{
+      return(temp_tree)
+    }
+  }
+  return(trees)
+}
+
 #Pruning ----
 #Takes a tree and prunes it with the help of a validation set.
 #Returns a pruned tree.
@@ -782,6 +812,56 @@ predict_forest_average <- function(forest,test_data){
   }
   return(final_predictions)
 }
+parallel_predict_forest_average <- function(forest,test_data){
+  predictions <- list()
+  numCores <- detectCores()
+  registerDoParallel(numCores)
+  predictions <- foreach(x = 1:length(forest)) %dopar%{
+    source('DecisionTreeImplementation.R')
+    tree <- forest[[x]]
+    new_data <- test_data
+    type_list <- sapply(new_data, class)
+    names(type_list) = colnames(new_data)
+    results = list()
+    for(y in 1:nrow(new_data)){
+      d = new_data[x,]
+      type = 'root'
+      node = tree
+      while(type != 'leaf'){
+        split = node[['split']]
+        if(type_list[[names(split)]] == 'factor'){
+          if(d[names(split)] == split[[1]]){
+            node = node[['left']]
+            type = node[['type']]
+          } else{
+            node = node[['right']]
+            type = node[['type']]
+          }
+        } else{
+          if(d[names(split)] < split[[1]]){
+            node = node[['left']]
+            type = node[['type']]
+          } else{
+            node = node[['right']]
+            type = node[['type']]
+          }
+        }
+      }
+      results[[y]] <- node[['results']]
+    }
+    return(results)
+  }
+  final_predictions <- list()
+  for(x in 1:nrow(test_data)){
+    temp <- unlist(predictions[[1]][x])
+    for(y in 2:length(predictions)){
+      temp <- temp + unlist(predictions[[y]][x])
+    }
+    temp <- temp/length(predictions)
+    final_predictions[[x]] <- temp
+  }
+  return(final_predictions)
+}
 
 forest_predictions_helper <- function(preds){
   temp_names <- unique(unlist(preds))
@@ -794,6 +874,10 @@ forest_predictions_helper <- function(preds){
 
 predict_forest_df <- function(forest,test_data){
   temp_pred <- predict_forest_average(forest,test_data)
+  return(predictions_to_df(temp_pred))
+}
+parallel_predict_forest_df <- function(forest,test_data){
+  temp_pred <- parallel_predict_forest_average(forest,test_data)
   return(predictions_to_df(temp_pred))
 }
 
