@@ -3,8 +3,16 @@
 
 #Importing libraries
 set.seed(213)
+library(parallel)
+library(foreach)
+library(doParallel)
 
 #Set up tests ----
+#Creates a list of possible splits.
+#Parameters:
+#reduce_cases(Boolean): Allows to limit the number of possible splits for continuous covariates
+#max_cases(Integer): The maximum number of possible splits to be examined for each covariate. These splits will
+#be evenly distributed over the range of the covariate
 set_up_tests <- function(x,reduce_cases,max_cases = 10){
   type_list <- sapply(x, class)
   categorical_splits = list()
@@ -44,7 +52,8 @@ set_up_tests <- function(x,reduce_cases,max_cases = 10){
 
 
 #Split selection ----
-
+#For each possible split the gain is calculated. The split with the highest gain is returned. If no split has a
+#gain > 0, then -1 is returned indicating that no split is beneficial
 select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data,normalize,criterion = 1){
   gain_list <- c()
   name_list <- c()
@@ -98,27 +107,6 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
       }
     }
   }
-  if(criterion == 3){
-    for(x in 1:length(test_list$categorical)){
-      temp_name <- names(test_list$categorical[x])
-      for(y in 1:length(test_list$categorical[[x]])){
-        t <- test_list$categorical[[x]][y]
-        new_name <- paste(temp_name, as.character(t), sep = '@@')
-        gain_list <- c(gain_list,simple_gain_median(t,treatment,control,target,temp_data,'categorical',temp_name))
-        name_list <- c(name_list,new_name)
-      }
-    }
-    for(x in 1:length(test_list$numerical)){
-      temp_name <- names(test_list$numerical[x])
-      for(y in 1:length(test_list$numerical[[x]])){
-        t <- test_list$numerical[[x]][y]
-        new_name <- paste(temp_name, as.character(t), sep = '@@')
-        gain_list <- c(gain_list,simple_gain_median(t,treatment,control,target,temp_data,'numerical',temp_name))
-        name_list <- c(name_list,new_name)
-      }
-    }
-    
-  }
   if(is.na(max(gain_list))){
     return(-1)
   }
@@ -140,6 +128,7 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
     return(-1)
   }
 }
+
 
 simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
   treatments <- c(treatment, control)
@@ -190,7 +179,7 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
   return(gain)
 }
 
-
+#Calculates the gain for a given split according to Rzepakowski 2012
 gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,test_type,test_col,normalize){
   if(test_type == 'categorical'){
     if((nrow(temp_data) == 0) || nrow(temp_data[temp_data[test_col]==test_case,]) == 0 ||
@@ -354,13 +343,9 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
     if(test_type == 'categorical'){
       pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] == test_case),])/
         nrow(temp_data[(temp_data[,t] == 1),])
-      # pti2 <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] != test_case),])/
-      #   nrow(temp_data[(temp_data[,t] == 1),])
     } else{
       pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] < test_case),])/
         nrow(temp_data[(temp_data[,t] == 1),])
-      # pti2 <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] >= test_case),])/
-      #   nrow(temp_data[(temp_data[,t] == 1),])
     }
     if(pti != 0){
       norm_factor <- norm_factor + nti/nrow(temp_data) * temp_function(c(pti,1-pti))
@@ -369,17 +354,12 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
   if(test_type == 'categorical'){
     pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] == test_case),])/
       nrow(temp_data[(temp_data[,control] == 1),])
-    # pc2 <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] != test_case),])/
-    #   nrow(temp_data[(temp_data[,control] == 1),])
   } else{
     pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/
       nrow(temp_data[(temp_data[,control] == 1),])
-    # pc2 <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] >= test_case),])/
-    #   nrow(temp_data[(temp_data[,control] == 1),])
   }
   if(pc != 0){
     norm_factor <- norm_factor +nc/nrow(temp_data) * temp_function(c(pc,1-pc))
-    # norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc2 * log(pc2)
   }
   norm_factor <- norm_factor  + 0.5
   if(norm_factor == 0 || is.na(norm_factor)){
@@ -502,9 +482,6 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
   return(trees)
 }
 
-library(parallel)
-library(foreach)
-library(doParallel)
 parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
                          criterion,pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
                          g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10){
@@ -881,32 +858,3 @@ parallel_predict_forest_df <- function(forest,test_data){
   temp_pred <- parallel_predict_forest_average(forest,test_data)
   return(predictions_to_df(temp_pred))
 }
-
-
-#Test Area----
-
-# email <- read.csv('Email.csv')
-# 
-# email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
-# email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
-# email$control <- ifelse(email$segment=='No E-Mail',1,0)
-# email$mens <- as.factor(email$mens)
-# email$womens <- as.factor(email$womens)
-# email$newbie <- as.factor(email$newbie)
-# 
-# email$visit <- email$spend <- email$segment <- NULL
-# 
-# response <- 'conversion'
-# control <- 'control'
-# 
-# treatment_list <- c('men_treatment','women_treatment')
-# test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
-#                                    "newbie","channel")],TRUE)
-# idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
-# 
-# train <- email[-idx, ]
-# 
-# test <- email[idx, ]
-# 
-# test_tree <- build_tree(email[1:50000,],0,100,treatment_list,'conversion','control',test_list,
-#                          normalize  = TRUE)
