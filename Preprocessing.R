@@ -7,7 +7,7 @@ library("dplyr")
 #####Preprocessing#####
 
 #read in individuals data
-individuals <- read.csv("individuals.csv")
+individuals <- read.csv("Data/individuals.csv")
 
 #convert past votes into dummy coding. Convert sex into factor. Create variable age.
 individuals <- individuals%>%

@@ -26,7 +26,7 @@ source('Separate Model Approach.R')
 set.seed(1234)
 
 #Data import
-email <- read.csv('Email.csv')
+email <- read.csv('Data/Email.csv')
 
 email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
 email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
@@ -239,7 +239,7 @@ c_forest_mat_conv <- qini_curve(causal_forest_pred, "control")
 
 ```{r}
 # Import data and creat Train / Test splits
-data <-  read.csv('Email.csv')
+data <-  read.csv('Data/Email.csv')
 
 ## Prepare data to only include independent variables, treatment assignment and dependent variable
 # Possible for conversion or visit
@@ -476,7 +476,7 @@ melt(rbind(
 ## Spent Prediction
 
 ```{r rzp_tree_spent}
-email <- read.csv('Email.csv')
+email <- read.csv('Data/Email.csv')
 
 email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
 email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
@@ -647,7 +647,7 @@ rzp_forest_mat_spend <- qini_curve(pred, "control")
 
 
 ```{r, eval=TRUE}
-data <-  read.csv('Email.csv')
+data <-  read.csv('Data/Email.csv')
 
 ## Prepare data to only include independent variables, treatment assignment and dependent variable
 # Possible for conversion or visit
