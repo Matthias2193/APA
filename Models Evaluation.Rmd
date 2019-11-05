@@ -142,11 +142,11 @@ rzp_tree_mat_conv_simple <- qini_curve(pred, "control")
 ### Forest
 ```{r fit_tree, eval=F}
 start_time <- Sys.time()
-default_forest <- build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1, pruning = F)
+default_forest <- build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1, pruning = T)
 default_time <- difftime(Sys.time(), start_time, units='mins')
 start_time <- Sys.time()
 forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1, pruning = T)
-parallel_time2 <- difftime(Sys.time(), start_time, units='mins')
+parallel_time <- difftime(Sys.time(), start_time, units='mins')
 
 # takes a lot of time..
 #conversion

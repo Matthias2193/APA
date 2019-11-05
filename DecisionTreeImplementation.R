@@ -523,7 +523,8 @@ parallel_build_forest <- function(train_data, val_data,treatment_list,response,c
                             max_depth = max_depth)
     return(temp_tree)
     if(pruning){
-      temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
+      temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
+                                    test_list, response,control = control)
       return(temp_prune_tree)
     } else{
       return(temp_tree)
