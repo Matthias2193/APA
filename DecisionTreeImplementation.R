@@ -486,7 +486,8 @@ parallel_build_forest <- function(train_data, val_data,treatment_list,response,c
                          criterion,pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
                          g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10){
   numCores <- detectCores()
-  registerDoParallel(numCores)
+  cl <- makePSOCKcluster(numCores)
+  registerDoParallel(cl)
   retain_cols <- c(treatment_list,control,response)
   sample_cols <- setdiff(colnames(train_data),retain_cols)
   trees <- foreach(x=1:n_trees) %dopar% {
@@ -507,6 +508,7 @@ parallel_build_forest <- function(train_data, val_data,treatment_list,response,c
       return(temp_tree)
     }
   }
+  stopCluster(cl)
   return(trees)
 }
 
@@ -793,7 +795,8 @@ predict_forest_average <- function(forest,test_data){
 parallel_predict_forest_average <- function(forest,test_data){
   predictions <- list()
   numCores <- detectCores()
-  registerDoParallel(numCores)
+  cl <- makePSOCKcluster(numCores)
+  registerDoParallel(cl)
   predictions <- foreach(x = 1:length(forest)) %dopar%{
     source('DecisionTreeImplementation.R')
     tree <- forest[[x]]
@@ -838,6 +841,7 @@ parallel_predict_forest_average <- function(forest,test_data){
     temp <- temp/length(predictions)
     final_predictions[[x]] <- temp
   }
+  stopCluster(cl)
   return(final_predictions)
 }
 
