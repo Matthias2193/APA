@@ -2,7 +2,7 @@
 # library(devtools) 
 # install_github("susanathey/causalTree")
  library(causalTree)
-# 
+
 # email <- read.csv('Email.csv')
 # email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
 # email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
@@ -26,19 +26,14 @@ causalTreePredicitons <- function(train, test,treatment_list, response){
     train_data <- train_data[train_data[,setdiff(treatment_list,t)] == 0,]
     train_data_new <- train_data[,1:8]
     train_data_new[, response] <- train_data[, response]
+    train_data_new[,t] <- train_data[,t]
     train_data <- train_data_new
     
     test_data <- test[,1:8]
     test_data[,t] <- test[,t]
     
-    if(file.exists(paste(paste('models/tree',t,sep = '_'),'rda',sep='.'))){
-      load(paste(paste('models/tree',t,sep = '_'),'rda',sep='.'))
-    }
-    else{
-      tree <- causalTree(as.formula(paste(response, "~.")), data = train_data, treatment = train_data[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
-                         cv.Honest = T, split.Bucket = F, xval = 5, cp = 0, minsize = 20, propensity = 0.5)
-      save(tree, file = paste(paste('models/tree',t,sep = '_'),'rda',sep='.'))
-    }
+    tree <- causalTree(as.formula(paste(response, "~.")), data = train_data, treatment = train_data[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
+                       cv.Honest = T, split.Bucket = F, xval = 5, cp = 0, minsize = 20, propensity = 0.5)
     
     ## TODO - include this ??
     
