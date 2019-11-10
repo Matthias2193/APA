@@ -3,23 +3,6 @@
 # install_github("susanathey/causalTree")
  library(causalTree)
 
-# email <- read.csv('Email.csv')
-# email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
-# email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
-# email$control <- ifelse(email$segment=='No E-Mail',1,0)
-# email$segment <- NULL
-# email$mens <- as.factor(email$mens)
-# email$womens <- as.factor(email$womens)
-# email$newbie <- as.factor(email$newbie)
-# 
-# treatment_list <- c('men_treatment','women_treatment')
-# 
-# smp_size <- floor(0.75 * nrow(email))
-# set.seed(123)
-# train_ind <- sample(seq_len(nrow(email)), size = smp_size)
-# train <- email[train_ind, ]
-# test <- email[-train_ind, ]
-
 causalTreePredicitons <- function(train, test,treatment_list, response){
   for(t in treatment_list){
     train_data <- train
@@ -46,8 +29,8 @@ causalTreePredicitons <- function(train, test,treatment_list, response){
   pred <- data.frame(cbind(predictions_men_treatment,predictions_women_treatment))
   colnames(pred) <- treatment_list
   pred$control <- 0
-  pred[ , "Uplift - Mens E-Mail"] <- pred[ , 1] - pred[ , 3]
-  pred[ , "Uplift - Womens E-Mail"] <- pred[ , 2] - pred[ , 3]
+  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
   
   pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
   

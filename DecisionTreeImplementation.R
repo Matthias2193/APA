@@ -149,7 +149,8 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
     data2 <- data[data[,test_col] != test_case,]
     for(t in treatments){
       for(s in treatments){
-        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
+        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
+          (mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
         gain <- gain + temp_gain
       }
     }
@@ -164,7 +165,8 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
     temp_gain <- 0
     for(t in treatments){
       for(s in treatments){
-        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
+        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
+          (mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
         gain <- gain + temp_gain
       }
     }
@@ -522,6 +524,12 @@ prune_tree <- function(tree, val_data, treatment_list, test_list, target,control
   return(pruned_tree)
 }
 
+simple_prune_tree <- function(tree, val_data, treatment_list, test_list, target,control){
+  new_tree <- assign_val_predictions(tree,val_data,treatment_list,test_list,target,control)
+  pruned_tree <- simple_check_pruning(new_tree,val_data,target,control,treatment_list)
+  return(pruned_tree)
+}
+
 check_pruning <- function(node,val_data,target,control,treatments){
   if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
     return(pruning_helper(node,treatments))
@@ -534,6 +542,24 @@ check_pruning <- function(node,val_data,target,control,treatments){
     }
     if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
       return(pruning_helper(node,treatments))
+    } else{
+      return(node)
+    }
+  } 
+}
+
+simple_check_pruning <- function(node,val_data,target,control,treatments){
+  if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
+    return(simple_pruning_helper(node,treatments,control))
+  } else{
+    if(node[['left']][['type']] != 'leaf'){
+      node[['left']] <- simple_check_pruning(node[['left']],val_data,target,control,treatments)
+    }
+    if(node[['right']][['type']] != 'leaf'){
+      node[['right']] <- simple_check_pruning(node[['right']],val_data,target,control,treatments)
+    }
+    if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
+      return(simple_pruning_helper(node,treatments,control))
     } else{
       return(node)
     }
@@ -671,6 +697,64 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
   }
   return(tree)
 }
+
+simple_pruning_helper <- function(node,treatments,control){
+  #Check if we are already at the root
+  if(node[['type']] == 'root'){
+    return(node)
+  }
+  
+  #The rows of the validation set, that ended up in the left and right leaf
+  temp_left_bool <- node[['left']][['val_samples']]
+  temp_right_bool <- node[['right']][['val_samples']]
+  
+  if(temp_left_bool == 0 || temp_right_bool == 0){
+    node[['type']] <- 'leaf'
+    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
+    return(node)
+  }
+  
+  left_distance <- 0
+  for(r in node[['left']][['val_predictions']]){
+    for(s in node[['left']][['val_predictions']]){
+      left_distance <- left_distance + (r-s)^2
+    }
+  }
+  right_distance <- 0
+  for(r in node[['right']][['val_predictions']]){
+    for(s in node[['right']][['val_predictions']]){
+      right_distance <- right_distance + (r-s)^2
+    }
+  }
+  root_distance <- 0
+  for(r in node[['val_predictions']]){
+    for(s in node[['val_predictions']]){
+      root_distance <- root_distance + (r-s)^2
+    }
+  }
+  sub_distance <- (right_distance+left_distance)/2
+  for (r in c(treatments,control)) {
+    sub_distance <- sub_distance*(node[['left']][[r]]+node[['right']][[r]])/
+      (node[['left']][['val_samples']]+node[['right']][['val_samples']])
+    root_distance <- root_distance*node[[r]]/node[['val_samples']]
+  }
+  
+  
+  if(is.nan(sub_distance) || is.nan(root_distance)){
+    return(node)
+  }
+  if(sub_distance <= root_distance){
+    node[['type']] <- 'leaf'
+    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
+    node[['left']] <- NULL
+    node[['right']] <- NULL
+    node[['split']] <- NULL
+    return(node)
+  } else{
+    return(node)
+  }
+}
+
 
 #Prediction---- 
 #Tree  
