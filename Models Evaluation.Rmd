@@ -71,9 +71,6 @@ test_list <- set_up_tests(train[,c("recency","history_segment","history","mens",
 
 raw_tree <- build_tree(train,0,100,treatment_list,response,control,test_list,normalize = F)
 
-
-# takes a lot of time..
-#conversion
 pruned_tree <- prune_tree(raw_tree,val,treatment_list,test_list,response,control) #conversion
 
 # add to the result df the outcome, assignment and calculate uplift for each T
@@ -109,10 +106,6 @@ rzp_tree_mat_conv <- qini_curve(pred, "control")
 
 raw_tree <- build_tree(train,0,100,treatment_list,response,'control',test_list,criterion = 2)
 
-
-# takes a lot of time..
-#conversion
-#pruned_tree <- prune_tree(raw_tree,val,train,target = 'conversion') #conversion
 pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
 
 # add to the result df the outcome, assignment and calculate uplift for each T
@@ -399,42 +392,6 @@ melt(rbind(
 
 ```
 
-
-```{r, eval=T}
-# Dynamic Curve
-
-sma_rf_conv_exp$Model <- sma_rf_conv_mat$Model <- "SMA-RF"
-sma_dt_conv_exp$Model <- sma_dt_conv_mat$Model <- "SMA-DT"
-sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "SMA-Logit"
-
-rzp_tree_exp_conv$Model<- rzp_tree_mat_conv$Model <- "Rzp Tree"
-rzp_tree_exp_conv_simple$Model<- rzp_tree_mat_conv_simple$Model <- "Rzp Tree Simple"
-
-
-melt(rbind(
-          sma_logit_conv_mat[, c("Percentile","Model","max T")], 
-          sma_dt_conv_mat[, c("Percentile","Model","max T")], 
-          sma_rf_conv_mat[, c("Percentile","Model","max T")], 
-          rzp_tree_mat_conv[, c("Percentile","Model","max T")],
-          rzp_tree_mat_conv_simple[, c("Percentile","Model","max T")],
-          rzp_forest_mat_conv[, c("Percentile","Model","max T")],
-          c_tree_mat_conv[, c("Percentile","Model","max T")],
-          random_conv_mat[, c("Percentile","Model","max T")]
-          ), id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
-  geom_line(aes(y = value, group= Model, color= Model), size=1  ) +
-  
-  labs(
-    color="Base Learner",
-    title = "All Models - Dynamic Treatment Curve",
-    y = "Conversion Increase",
-    x ="Amount of Treated"
-  ) +
-  scale_colour_brewer(palette = "Dark2") +
-  theme_light()
-
-```
-
-
 ```{r}
 # Expected Outcome
 melt(rbind(
@@ -559,10 +516,8 @@ raw_tree <- build_tree(train,0,100,treatment_list,response,'control',test_list, 
 
 # Partition training data for pruning
 p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
-# takes a lot of time..
-#conversion
-#pruned_tree <- prune_tree(raw_tree,val,train,target = response) 
-pruned_tree <- raw_tree
+
+pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
 
 # add to the result df the outcome, assignment and calculate uplift for each T
 pred <- predict.dt.as.df(pruned_tree, test)
@@ -593,15 +548,13 @@ rzp_tree_mat_spend_simple <- qini_curve(pred, "control")
 
 ### Forest
 ```{r fit_tree, eval=F}
-forest <- build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1,
-                         pruning = T, divergence = "EucDistance")
-
+forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1,pruning = T, divergence = "EucDistance")
 
 # takes a lot of time..
 #conversion
 
 # add to the result df the outcome, assignment and calculate uplift for each T
-pred <- predict_forest_df(forest, test)
+pred <- parallel_predict_forest_df(forest, test)
 
 ### Results Preparation to bring into equal format
 # Calculate Uplift for each T
@@ -706,10 +659,10 @@ sma_rf_exp_spend$Model <- sma_rf_mat_spend$Model <- "SMA-RF"
 sma_dt_exp_spend$Model <- sma_dt_mat_spend$Model <- "SMA-DT"
 
 rzp_tree_exp_spend$Model<- rzp_tree_mat_spend$Model <- "Rzp-Tree"
-#rzp_forest_exp_spend$Model<- rzp_forest_mat_spend$Model <- "Rzp-Forest"
+rzp_forest_exp_spend$Model<- rzp_forest_mat_spend$Model <- "Rzp-Forest"
 rzp_tree_exp_spend_simple$Model<- rzp_tree_mat_spend_simple$Model <- "Rzp-Tree Simple"
 
-# c_tree_exp_spend$Model<- c_tree_mat_spend$Model <- "Causal-Tree"
+c_tree_exp_spend$Model<- c_tree_mat_spend$Model <- "Causal-Tree"
 
 
 # Random line
@@ -720,8 +673,8 @@ random_spend_mat <- data.frame(Percentile = sma_rf_mat_spend$Percentile, mens = 
 
 
 
-colnames(random_spend_mat)[2] <- colnames(rzp_tree_mat_spend_simple)[2] <- colnames(rzp_tree_mat_spend)[2] <- "Mens E-Mail"
-colnames(random_spend_mat)[3] <-colnames(rzp_tree_mat_spend_simple)[3] <- colnames(rzp_tree_mat_spend)[3] <- "Womens E-Mail"
+colnames(random_spend_mat)[2] <- colnames(rzp_tree_mat_spend_simple)[2] <- colnames(rzp_tree_mat_spend)[2] <- colnames(rzp_forest_mat_spend)[2] <- colnames(c_tree_mat_spend)[2] <- "Mens E-Mail"
+colnames(random_spend_mat)[3] <-colnames(rzp_tree_mat_spend_simple)[3] <- colnames(rzp_tree_mat_spend)[3] <- colnames(rzp_forest_mat_spend)[3] <- colnames(c_tree_mat_spend)[3] <-"Womens E-Mail"
 
 
 ## Display of results only for SMA models
@@ -729,9 +682,9 @@ melt(rbind(
             sma_dt_mat_spend[, c("Percentile","Model","Mens E-Mail")], 
             sma_rf_mat_spend[, c("Percentile","Model","Mens E-Mail")], 
             rzp_tree_mat_spend[, c("Percentile","Model","Mens E-Mail")], 
-            #rzp_forest_mat_spend[, c("Percentile","Model","Mens E-Mail")], 
+            rzp_forest_mat_spend[, c("Percentile","Model","Mens E-Mail")], 
             rzp_tree_mat_spend_simple[, c("Percentile","Model","Mens E-Mail")], 
-            #c_tree_mat_spend[, c("Percentile","Model","Mens E-Mail")],
+            c_tree_mat_spend[, c("Percentile","Model","Mens E-Mail")],
             random_spend_mat[, c("Percentile","Model","Mens E-Mail")])
      , id.vars  =c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
    
@@ -749,9 +702,9 @@ melt(rbind(
 melt(rbind(sma_dt_mat_spend[, c("Percentile","Model","Womens E-Mail")], 
             sma_rf_mat_spend[, c("Percentile","Model","Womens E-Mail")], 
             rzp_tree_mat_spend[, c("Percentile","Model","Womens E-Mail")], 
-            #rzp_forest_mat_spend[, c("Percentile","Model","Womens E-Mail")], 
+            rzp_forest_mat_spend[, c("Percentile","Model","Womens E-Mail")], 
             rzp_tree_mat_spend_simple[, c("Percentile","Model","Womens E-Mail")], 
-            #c_tree_mat_spend[, c("Percentile","Model","Womens E-Mail")],
+            c_tree_mat_spend[, c("Percentile","Model","Womens E-Mail")],
             random_spend_mat[, c("Percentile","Model","Womens E-Mail")])
      , id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
   geom_line(aes(y = value, group= Model, color= Model), size=1  ) +
@@ -773,9 +726,9 @@ melt(rbind(
   sma_dt_exp_spend[, c("Percentile","Model","Expected Outcome")], 
   sma_rf_exp_spend[, c("Percentile","Model","Expected Outcome")], 
   rzp_tree_exp_spend[, c("Percentile","Model","Expected Outcome")],
-  #rzp_forest_exp_spend[, c("Percentile","Model","Expected Outcome")],
-  rzp_tree_exp_spend_simple[, c("Percentile","Model","Expected Outcome")]
-  #c_tree_exp_spend[, c("Percentile","Model","Expected Outcome")]
+  rzp_forest_exp_spend[, c("Percentile","Model","Expected Outcome")],
+  rzp_tree_exp_spend_simple[, c("Percentile","Model","Expected Outcome")],
+  c_tree_exp_spend[, c("Percentile","Model","Expected Outcome")]
   ), 
   id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
   
