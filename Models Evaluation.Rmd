@@ -94,6 +94,8 @@ write.csv(pred, 'Predictions/rzp tree pred.csv', row.names = FALSE)
 pred <- read.csv('Predictions/rzp tree pred.csv')
 
 # Expected Response per targeted customers
+exp_outcome_rzp <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
+
 rzp_tree_exp_conv <- expected_percentile_response(pred)
 
 rzp_tree_mat_conv <- qini_curve(pred, "control")
@@ -129,6 +131,8 @@ write.csv(pred, 'Predictions/rzp tree pred simple.csv', row.names = FALSE)
 pred <- read.csv('Predictions/rzp tree pred simple.csv')
 
 # Expected Response per targeted customers
+exp_outcome_simple <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
+
 rzp_tree_exp_conv_simple <- expected_percentile_response(pred)
 
 rzp_tree_mat_conv_simple <- qini_curve(pred, "control")
@@ -137,7 +141,7 @@ rzp_tree_mat_conv_simple <- qini_curve(pred, "control")
 ### Forest
 ```{r fit_tree, eval=F}
 
-forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1, pruning = F)
+forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1, pruning = T)
 
 
 # takes a lot of time..
@@ -165,6 +169,8 @@ write.csv(pred, 'Predictions/rzp forest.csv', row.names = FALSE)
 pred <- read.csv('Predictions/rzp forest.csv')
 
 # Expected Response per targeted customers
+exp_outcome_rzp_forest <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
+
 rzp_forest_exp_conv <- expected_percentile_response(pred)
 
 rzp_forest_mat_conv <- qini_curve(pred, "control")
@@ -182,6 +188,8 @@ write.csv(causal_pred, "Predictions/causal tree pred.csv", row.names = FALSE)
 ```{r}
 # Evaluate pre saved Causal Tree results
 causal_pred <- read.csv("Predictions/causal tree pred.csv")
+
+exp_outcome_c_tree <- new_expected_outcome(test,response,control,treatment_list,causal_pred$Treatment)
 
 c_tree_exp_conv <- expected_percentile_response(causal_pred)
 
@@ -208,6 +216,8 @@ write.csv(causal_forest_pred, "Predictions/causal forest conv pred.csv", row.nam
 ```{r}
 # Evaluate pre saved Causal Tree results
 causal_forest_pred <- read.csv("Predictions/causal forest conv pred.csv")
+
+exp_outcome_c_forest <- new_expected_outcome(test,response,control,treatment_list,causal_forest_pred$Treatment)
 
 c_forest_exp_conv <- expected_percentile_response(causal_forest_pred)
 
