@@ -95,6 +95,7 @@ pred <- read.csv('Predictions/rzp tree pred.csv')
 
 # Expected Response per targeted customers
 exp_outcome_rzp <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
+exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,treatment_list,pred)
 
 rzp_tree_exp_conv <- expected_percentile_response(pred)
 
@@ -132,6 +133,7 @@ pred <- read.csv('Predictions/rzp tree pred simple.csv')
 
 # Expected Response per targeted customers
 exp_outcome_simple <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
+exp_inc_outcome_simple <- new_expected_quantile_response(test,response,control,treatment_list,pred)
 
 rzp_tree_exp_conv_simple <- expected_percentile_response(pred)
 
@@ -170,6 +172,7 @@ pred <- read.csv('Predictions/rzp forest.csv')
 
 # Expected Response per targeted customers
 exp_outcome_rzp_forest <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
+exp_inc_outcome_rzp_forest <- new_expected_quantile_response(test,response,control,treatment_list,pred)
 
 rzp_forest_exp_conv <- expected_percentile_response(pred)
 
@@ -190,6 +193,7 @@ write.csv(causal_pred, "Predictions/causal tree pred.csv", row.names = FALSE)
 causal_pred <- read.csv("Predictions/causal tree pred.csv")
 
 exp_outcome_c_tree <- new_expected_outcome(test,response,control,treatment_list,causal_pred$Treatment)
+exp_inc_outcome_c_tree <- new_expected_quantile_response(test,response,control,treatment_list,causal_pred)
 
 c_tree_exp_conv <- expected_percentile_response(causal_pred)
 
@@ -218,6 +222,7 @@ write.csv(causal_forest_pred, "Predictions/causal forest conv pred.csv", row.nam
 causal_forest_pred <- read.csv("Predictions/causal forest conv pred.csv")
 
 exp_outcome_c_forest <- new_expected_outcome(test,response,control,treatment_list,causal_forest_pred$Treatment)
+exp_inc_outcome_c_forest <- new_expected_quantile_response(test,response,control,treatment_list,causal_forest_pred)
 
 c_forest_exp_conv <- expected_percentile_response(causal_forest_pred)
 
@@ -285,6 +290,9 @@ models_clas_dt <- dt_models(train_data, response, "class")
 pred_sma_con_dt <- tree_sma_uplift(models_clas_dt, test_data, response, treatment, control_level, "class")
 
 # Expected Response per targeted customers
+
+
+
 sma_dt_conv_exp <- expected_percentile_response(pred_sma_con_dt)
 
 sma_dt_conv_mat <- qini_curve(pred_sma_con_dt, "Control")
@@ -325,6 +333,34 @@ sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "Logit"
 
 
 ### Model Comparison
+```{r}
+temp_df <- cbind(exp_outcome_c_forest,exp_outcome_c_tree,exp_outcome_rzp,exp_outcome_rzp_forest,exp_outcome_simple)
+colnames(temp_df) <- c("C_Forest","C_Tree","Rzp_Tree","Rzp_Forest","Simple_Tree")
+barplot(temp_df)
+
+temp_vec <- rep(seq(0,1,0.1),5)
+name_vec <- c(rep("C_Forest",11),rep("C_Tree",11),rep("Rzp_Tree",11),rep("Rzp_Forest",11),rep("Simple_Tree",11))
+temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_c_tree,exp_inc_outcome_rzp,exp_inc_outcome_rzp_forest,exp_inc_outcome_simple))
+temp_df <- data.frame(cbind(temp_vec,temp_results,name_vec))
+temp_df$Expected_Outcome <- as.numeric(as.character(temp_df$Expected_Outcome))
+colnames(temp_df) <- c("Percentile","Expected_Outcome","Model")
+ggplot(data = temp_df, aes(x="Percentile", y="Expected_Outcome")) + geom_line(aes(colour="Model"))
+ggplot(data = df, aes(x=x, y=val)) + geom_line(aes(colour=variable))
+
+p <-  melt(temp_df, id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes(y = value, group= Model, color= Model), size=1 ) +
+  labs(
+    color="Base Learner",
+    title = "All Models - Men's Treatment Curve",
+    y = "Conversion Increase",
+    x ="Amount of Treated"
+  ) +
+  scale_colour_brewer(palette = "Dark2") +
+  theme_light()
+p
+
+
+```
 
 ```{r}
 # Separate Male and Women Treatment
@@ -357,7 +393,6 @@ colnames(random_conv_mat)[2] <- colnames(rzp_tree_mat_conv)[2] <- colnames(rzp_t
 colnames(random_conv_mat)[3] <-colnames(rzp_tree_mat_conv)[3] <-colnames(rzp_tree_mat_conv_simple)[3] <-colnames(rzp_forest_mat_conv)[3]  <- colnames(c_forest_mat_conv)[3] <- colnames(c_tree_mat_conv)[3] <- "Womens E-Mail"
 colnames(random_conv_mat)[4] <- "max T"
 
-## Display of results only for SMA models
 melt(rbind(
             sma_logit_conv_mat[, c("Percentile","Model","Mens E-Mail")], 
             sma_dt_conv_mat[, c("Percentile","Model","Mens E-Mail")], 
