@@ -348,7 +348,7 @@ ggplot(data = temp_df, aes(x="Percentile", y="Expected_Outcome")) + geom_line(ae
 ggplot(data = df, aes(x=x, y=val)) + geom_line(aes(colour=variable))
 
 p <-  melt(temp_df, id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
-  geom_line(aes(y = value, group= Model, color= Model), size=1 ) +
+  geom_line(aes(y = value, group= Model, color= Model), size=0.5 ) +
   labs(
     color="Base Learner",
     title = "All Models - Men's Treatment Curve",

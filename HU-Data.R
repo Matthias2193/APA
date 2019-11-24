@@ -26,7 +26,7 @@ for (x in grep("^log.of",colnames(hu_data))) {
   hu_data[,x] <- as.numeric(lapply(as.character(hu_data[,x]), tempfunction))
 }
 
-for (x in colnames(train[,16:155])) {
+for (x in colnames(hu_data[,16:155])) {
   if(is.na(mean(hu_data[[x]]))){
     print(x)
   }
