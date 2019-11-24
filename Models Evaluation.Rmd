@@ -69,7 +69,7 @@ test_list <- set_up_tests(train[,c("recency","history_segment","history","mens",
 
 ```{r fit_tree, eval=F}
 
-raw_tree <- build_tree(train,0,100,treatment_list,response,control,test_list,normalize = F)
+raw_tree <- build_tree(train,0,100,treatment_list,response,control,test_list,normalize = T)
 
 pruned_tree <- prune_tree(raw_tree,val,treatment_list,test_list,response,control) #conversion
 
@@ -140,16 +140,42 @@ rzp_tree_exp_conv_simple <- expected_percentile_response(pred)
 rzp_tree_mat_conv_simple <- qini_curve(pred, "control")
 ```
 
-### Forest
+### Simple Forest
 ```{r fit_tree, eval=F}
 
-forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1, pruning = T)
+forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 2, pruning = T)
+
+pred <- parallel_predict_forest_df(forest, test)
 
 
-# takes a lot of time..
-#conversion
+### Results Preparation to bring into equal format
+# Calculate Uplift for each T
+pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
 
-# add to the result df the outcome, assignment and calculate uplift for each T
+pred[ , "Outcome"] <- test[, response]
+# get the actual assignment from test data
+pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+
+write.csv(pred, 'Predictions/simple forest.csv', row.names = FALSE)
+```
+
+```{r}
+pred <- read.csv('Predictions/simple forest.csv')
+
+# Expected Response per targeted customers
+exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
+exp_inc_outcome_simple_forest <- new_expected_quantile_response(test,response,control,treatment_list,pred)
+
+simple_forest_exp_conv <- expected_percentile_response(pred)
+
+simple_forest_mat_conv <- qini_curve(pred, "control")
+```
+### Rzp Forest
+```{r fit_tree, eval=F}
+
+forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1, pruning = T,normalize = T)
 
 pred <- parallel_predict_forest_df(forest, test)
 
@@ -178,6 +204,7 @@ rzp_forest_exp_conv <- expected_percentile_response(pred)
 
 rzp_forest_mat_conv <- qini_curve(pred, "control")
 ```
+
 
 ### Causal Tree
 
@@ -334,16 +361,21 @@ sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "Logit"
 
 ### Model Comparison
 ```{r}
-temp_df <- cbind(exp_outcome_c_forest,exp_outcome_c_tree,exp_outcome_rzp,exp_outcome_rzp_forest,exp_outcome_simple)
-colnames(temp_df) <- c("C_Forest","C_Tree","Rzp_Tree","Rzp_Forest","Simple_Tree")
-barplot(temp_df)
+temp_df = data.frame(models=c("C_Forest","C_Tree","Rzp_Tree","Rzp_Forest","Simple_Tree","Simple_Forest"),values = c(exp_outcome_c_forest,exp_outcome_c_tree,exp_outcome_rzp,exp_outcome_rzp_forest,exp_outcome_simple,exp_outcome_simple_forest))
 
-temp_vec <- rep(seq(0,1,0.1),5)
-name_vec <- c(rep("C_Forest",11),rep("C_Tree",11),rep("Rzp_Tree",11),rep("Rzp_Forest",11),rep("Simple_Tree",11))
-temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_c_tree,exp_inc_outcome_rzp,exp_inc_outcome_rzp_forest,exp_inc_outcome_simple))
+p<-ggplot(data=temp_df, aes(x=reorder(models, values), y=values)) +
+  geom_bar(stat="identity")
+p
+```
+
+
+```{r}
+temp_vec <- rep(seq(0,1,0.1),6)
+name_vec <- c(rep("C_Forest",11),rep("C_Tree",11),rep("Rzp_Tree",11),rep("Rzp_Forest",11),rep("Simple_Tree",11),rep("Simple_Forest",11))
+temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_c_tree,exp_inc_outcome_rzp,exp_inc_outcome_rzp_forest,exp_inc_outcome_simple,exp_inc_outcome_simple_forest))
 temp_df <- data.frame(cbind(temp_vec,temp_results,name_vec))
-temp_df$Expected_Outcome <- as.numeric(as.character(temp_df$Expected_Outcome))
 colnames(temp_df) <- c("Percentile","Expected_Outcome","Model")
+temp_df$Expected_Outcome <- as.numeric(as.character(temp_df$Expected_Outcome))
 ggplot(data = temp_df, aes(x="Percentile", y="Expected_Outcome")) + geom_line(aes(colour="Model"))
 ggplot(data = df, aes(x=x, y=val)) + geom_line(aes(colour=variable))
 
@@ -358,8 +390,6 @@ p <-  melt(temp_df, id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percen
   scale_colour_brewer(palette = "Dark2") +
   theme_light()
 p
-
-
 ```
 
 ```{r}
