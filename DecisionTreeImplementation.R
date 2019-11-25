@@ -129,10 +129,11 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
   }
 }
 
-
+#This method calculates the gain for a given split
 simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
   treatments <- c(treatment, control)
   gain <- 0
+  #First check if there is data in each subset after the data is split. If not return -1.
   if(test_type == 'categorical'){
     if((nrow(data) == 0) || nrow(data[data[test_col]==test_case,]) == 0 ||
        nrow(data[data[test_col]!=test_case,]) == 0 ){
@@ -140,13 +141,17 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
     }
   } else{
     if((nrow(data) == 0) || nrow(data[data[test_col]<test_case,]) == 0 ||
-       nrow(data[data[test_col]!=test_case,]) >= 0 ){
+       nrow(data[data[test_col]>=test_case,]) == 0 ){
       return(-1)
     }
   }
+  #The actual calculation of the gain
+  #Here for a test of a categorical cavariate
   if(test_type == 'categorical'){
+    #First the data is split according to the given split
     data1 <- data[data[,test_col] == test_case,]
     data2 <- data[data[,test_col] != test_case,]
+    #Here the gain is calculated
     for(t in treatments){
       for(s in treatments){
         temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
@@ -154,15 +159,15 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
         gain <- gain + temp_gain
       }
     }
+    #Make sure that there are data points of each treatment in each subset of the data
     for(t in treatments){
       gain <- gain * (nrow(data1[data1[,t]==1,]))/nrow(data1)
       gain <- gain * (nrow(data2[data2[,t]==1,]))/nrow(data2)
     }
-  }
-  if(test_type == 'numerical'){
+  } else{
+    #The same as above, but for numerical covariates
     data1 <- data[data[,test_col] < test_case,]
     data2 <- data[data[,test_col] >= test_case,]
-    temp_gain <- 0
     for(t in treatments){
       for(s in treatments){
         temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
@@ -375,9 +380,17 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
 #Tree
 #For a continuous target variable use divergence = 'EucDistance'. 
 #For a binary categorical use 'binary_KL_divergence'
+#depth: the current depth, can be ignored by the user, for internal pruposes
+#treatment_list: a list with the names of all treatments
+#target: the name of the response variable
+#control: the name of the control 'treatment'
+#test_list: a list of possible splits created by the 'set_up_tests' function
+#criterion: 1 for Rzp-tree, 2 for simple tree
+#alpha, l and g are parameters according to Rzepakowski paper (only necessare if criterion = 1)
 build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
                         l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
                         divergence = 'binary_KL_divergence',normalize = T, criterion = 1){
+  #Return leaf if current depth is max depth
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
   }
@@ -389,17 +402,23 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   if(nrow(data[data[control]==1,]) == 0){
     return(final_node(data,treatment_list,target,control))
   }
+  #Create current node
   node <- list()
+  #Select split with maximum gain
   temp_split <- select_split(alpha,l,g , divergence,test_list = test_list,
                              treatment = treatment_list,control,target,data,normalize,criterion)
+  #Return a leaf, if there is no split with gain > 0
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
   }
+  #Construct current node
   node[['type']] = 'node'
   if(depth == 0){
     node[['type']] <- 'root'
   }
+  #Number of training samples in current node
   node[['n_samples']] <- nrow(data)
+  #The estimated effects for an observation in the current node, used for pruning
   treatment_names <- c()
   effects <- c()
   for(t in treatment_list){
@@ -410,7 +429,9 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   effects <- c(effects,mean(data[data[control]==1,target]))
   names(effects) <- treatment_names
   node[['results']] <- effects
+  #The current split
   node[['split']] <- temp_split
+  #Split the data and create two new subtrees, each using one subset of the data
   if(names(temp_split) %in% names(test_list$categorical)){
     node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
                                   treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
@@ -430,6 +451,7 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   return(node)
 }
 
+#Used to creat a leaf
 final_node <- function(data,treatment_list,target,control){
   treatment_names <- c()
   effects <- c()
@@ -890,7 +912,7 @@ parallel_predict_forest_average <- function(forest,test_data){
     results = list()
     for(y in 1:nrow(new_data)){
       d = new_data[x,]
-      type = 'root'
+      type = tree[['type']]
       node = tree
       while(type != 'leaf'){
         split = node[['split']]

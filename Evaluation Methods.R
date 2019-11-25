@@ -84,7 +84,6 @@ new_expected_quantile_response <- function(new_data,response,control,treatment_l
   new_data$max_uplift <- predictions$max_uplift
   sorted_new_data <- new_data[order(-new_data$max_uplift),]
   sorted_predictions$Treatment <- as.character(sorted_predictions$Treatment)
-  sorted_predictions$temp_treatment <- control
   n_tenth <- round(nrow(predictions)/10)
   deciles <- c(0)
   for (x in 1:9) {
