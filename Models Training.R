@@ -16,7 +16,7 @@ set.seed(123)
 #####################################################################################
 
 #Data import
-raw_email <- read.csv('Email.csv')
+raw_email <- read.csv('Data/Email.csv')
 response <- 'conversion'
 control <- 'control'
 

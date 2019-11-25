@@ -56,7 +56,7 @@ for(r in 5:7){
                                g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments),criterion = 2)
       temp_time_vec_simple <- c(temp_time_vec_simple,difftime(Sys.time(), start_time, units='mins'))
       start_time <- Sys.time()
-      forest <- build_forest(train,val,treatment_list,response,control,n_trees = 20,n_features = 2,criterion = 1,
+      forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 20,n_features = 2,criterion = 1,
                              pruning = F,l = rep(1/n_treatments,n_treatments),
                              g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments))
       temp_time_vec_forest <- c(temp_time_vec_forest,difftime(Sys.time(), start_time, units='mins'))

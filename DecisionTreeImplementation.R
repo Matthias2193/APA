@@ -3,8 +3,16 @@
 
 #Importing libraries
 set.seed(213)
+library(parallel)
+library(foreach)
+library(doParallel)
 
 #Set up tests ----
+#Creates a list of possible splits.
+#Parameters:
+#reduce_cases(Boolean): Allows to limit the number of possible splits for continuous covariates
+#max_cases(Integer): The maximum number of possible splits to be examined for each covariate. These splits will
+#be evenly distributed over the range of the covariate
 set_up_tests <- function(x,reduce_cases,max_cases = 10){
   type_list <- sapply(x, class)
   categorical_splits = list()
@@ -44,7 +52,8 @@ set_up_tests <- function(x,reduce_cases,max_cases = 10){
 
 
 #Split selection ----
-
+#For each possible split the gain is calculated. The split with the highest gain is returned. If no split has a
+#gain > 0, then -1 is returned indicating that no split is beneficial
 select_split <- function(a,l,g,divergence,test_list,treatment,control,target,temp_data,normalize,criterion = 1){
   gain_list <- c()
   name_list <- c()
@@ -98,27 +107,6 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
       }
     }
   }
-  if(criterion == 3){
-    for(x in 1:length(test_list$categorical)){
-      temp_name <- names(test_list$categorical[x])
-      for(y in 1:length(test_list$categorical[[x]])){
-        t <- test_list$categorical[[x]][y]
-        new_name <- paste(temp_name, as.character(t), sep = '@@')
-        gain_list <- c(gain_list,simple_gain_median(t,treatment,control,target,temp_data,'categorical',temp_name))
-        name_list <- c(name_list,new_name)
-      }
-    }
-    for(x in 1:length(test_list$numerical)){
-      temp_name <- names(test_list$numerical[x])
-      for(y in 1:length(test_list$numerical[[x]])){
-        t <- test_list$numerical[[x]][y]
-        new_name <- paste(temp_name, as.character(t), sep = '@@')
-        gain_list <- c(gain_list,simple_gain_median(t,treatment,control,target,temp_data,'numerical',temp_name))
-        name_list <- c(name_list,new_name)
-      }
-    }
-    
-  }
   if(is.na(max(gain_list))){
     return(-1)
   }
@@ -141,9 +129,11 @@ select_split <- function(a,l,g,divergence,test_list,treatment,control,target,tem
   }
 }
 
+#This method calculates the gain for a given split
 simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
   treatments <- c(treatment, control)
   gain <- 0
+  #First check if there is data in each subset after the data is split. If not return -1.
   if(test_type == 'categorical'){
     if((nrow(data) == 0) || nrow(data[data[test_col]==test_case,]) == 0 ||
        nrow(data[data[test_col]!=test_case,]) == 0 ){
@@ -151,31 +141,37 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
     }
   } else{
     if((nrow(data) == 0) || nrow(data[data[test_col]<test_case,]) == 0 ||
-       nrow(data[data[test_col]!=test_case,]) >= 0 ){
+       nrow(data[data[test_col]>=test_case,]) == 0 ){
       return(-1)
     }
   }
+  #The actual calculation of the gain
+  #Here for a test of a categorical cavariate
   if(test_type == 'categorical'){
+    #First the data is split according to the given split
     data1 <- data[data[,test_col] == test_case,]
     data2 <- data[data[,test_col] != test_case,]
+    #Here the gain is calculated
     for(t in treatments){
       for(s in treatments){
-        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
+        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
+          (mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
         gain <- gain + temp_gain
       }
     }
+    #Make sure that there are data points of each treatment in each subset of the data
     for(t in treatments){
       gain <- gain * (nrow(data1[data1[,t]==1,]))/nrow(data1)
       gain <- gain * (nrow(data2[data2[,t]==1,]))/nrow(data2)
     }
-  }
-  if(test_type == 'numerical'){
+  } else{
+    #The same as above, but for numerical covariates
     data1 <- data[data[,test_col] < test_case,]
     data2 <- data[data[,test_col] >= test_case,]
-    temp_gain <- 0
     for(t in treatments){
       for(s in treatments){
-        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2
+        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
+          (mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
         gain <- gain + temp_gain
       }
     }
@@ -190,7 +186,7 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
   return(gain)
 }
 
-
+#Calculates the gain for a given split according to Rzepakowski 2012
 gain <- function(a,l,g,divergence, test_case,treatment,control,target,temp_data,test_type,test_col,normalize){
   if(test_type == 'categorical'){
     if((nrow(temp_data) == 0) || nrow(temp_data[temp_data[test_col]==test_case,]) == 0 ||
@@ -354,13 +350,9 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
     if(test_type == 'categorical'){
       pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] == test_case),])/
         nrow(temp_data[(temp_data[,t] == 1),])
-      # pti2 <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] != test_case),])/
-      #   nrow(temp_data[(temp_data[,t] == 1),])
     } else{
       pti <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] < test_case),])/
         nrow(temp_data[(temp_data[,t] == 1),])
-      # pti2 <- nrow(temp_data[(temp_data[,t] == 1) & (temp_data[,test_col] >= test_case),])/
-      #   nrow(temp_data[(temp_data[,t] == 1),])
     }
     if(pti != 0){
       norm_factor <- norm_factor + nti/nrow(temp_data) * temp_function(c(pti,1-pti))
@@ -369,17 +361,12 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
   if(test_type == 'categorical'){
     pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] == test_case),])/
       nrow(temp_data[(temp_data[,control] == 1),])
-    # pc2 <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] != test_case),])/
-    #   nrow(temp_data[(temp_data[,control] == 1),])
   } else{
     pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/
       nrow(temp_data[(temp_data[,control] == 1),])
-    # pc2 <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] >= test_case),])/
-    #   nrow(temp_data[(temp_data[,control] == 1),])
   }
   if(pc != 0){
     norm_factor <- norm_factor +nc/nrow(temp_data) * temp_function(c(pc,1-pc))
-    # norm_factor <- norm_factor +nc/nrow(temp_data) * (-1) * pc2 * log(pc2)
   }
   norm_factor <- norm_factor  + 0.5
   if(norm_factor == 0 || is.na(norm_factor)){
@@ -393,9 +380,17 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
 #Tree
 #For a continuous target variable use divergence = 'EucDistance'. 
 #For a binary categorical use 'binary_KL_divergence'
-create_node <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
+#depth: the current depth, can be ignored by the user, for internal pruposes
+#treatment_list: a list with the names of all treatments
+#target: the name of the response variable
+#control: the name of the control 'treatment'
+#test_list: a list of possible splits created by the 'set_up_tests' function
+#criterion: 1 for Rzp-tree, 2 for simple tree
+#alpha, l and g are parameters according to Rzepakowski paper (only necessare if criterion = 1)
+build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
                         l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
                         divergence = 'binary_KL_divergence',normalize = T, criterion = 1){
+  #Return leaf if current depth is max depth
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
   }
@@ -407,17 +402,23 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   if(nrow(data[data[control]==1,]) == 0){
     return(final_node(data,treatment_list,target,control))
   }
+  #Create current node
   node <- list()
+  #Select split with maximum gain
   temp_split <- select_split(alpha,l,g , divergence,test_list = test_list,
                              treatment = treatment_list,control,target,data,normalize,criterion)
+  #Return a leaf, if there is no split with gain > 0
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
   }
+  #Construct current node
   node[['type']] = 'node'
   if(depth == 0){
     node[['type']] <- 'root'
   }
+  #Number of training samples in current node
   node[['n_samples']] <- nrow(data)
+  #The estimated effects for an observation in the current node, used for pruning
   treatment_names <- c()
   effects <- c()
   for(t in treatment_list){
@@ -428,26 +429,29 @@ create_node <- function(data,depth,max_depth,treatment_list,target,control,test_
   effects <- c(effects,mean(data[data[control]==1,target]))
   names(effects) <- treatment_names
   node[['results']] <- effects
+  #The current split
   node[['split']] <- temp_split
+  #Split the data and create two new subtrees, each using one subset of the data
   if(names(temp_split) %in% names(test_list$categorical)){
-    node[['left']] <- create_node(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
+    node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
                                   treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
                                   criterion = criterion)
-    node[['right']] <- create_node(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,max_depth,
+    node[['right']] <- build_tree(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,max_depth,
                                    treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
                                    criterion = criterion)
   }
   else{
-    node[['left']] <- create_node(data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,max_depth,
+    node[['left']] <- build_tree(data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,max_depth,
                                   treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
                                   criterion = criterion)
-    node[['right']] <- create_node(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,max_depth,
+    node[['right']] <- build_tree(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,max_depth,
                                    treatment_list,target,control,test_list,alpha,l,g,divergence,normalize,
                                    criterion = criterion)
   }
   return(node)
 }
 
+#Used to creat a leaf
 final_node <- function(data,treatment_list,target,control){
   treatment_names <- c()
   effects <- c()
@@ -487,7 +491,7 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
     temp_cols <- sample(sample_cols,n_features,replace = F)
     chosen_cols <- c(temp_cols,retain_cols)
     test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
-    temp_tree <- create_node(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
+    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
                              test_list = test_list, criterion = criterion,target = response,control = control,
                              divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
                              max_depth = max_depth)
@@ -502,6 +506,36 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
   return(trees)
 }
 
+parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+                         criterion,pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
+                         g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10){
+  numCores <- detectCores()
+  cl <- makePSOCKcluster(numCores)
+  registerDoParallel(cl)
+  retain_cols <- c(treatment_list,control,response)
+  sample_cols <- setdiff(colnames(train_data),retain_cols)
+  trees <- foreach(x=1:n_trees) %dopar% {
+    source('DecisionTreeImplementation.R')
+    temp_cols <- sample(sample_cols,n_features,replace = F)
+    chosen_cols <- c(temp_cols,retain_cols)
+    test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
+    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
+                            test_list = test_list, criterion = criterion,target = response,control = control,
+                            divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
+                            max_depth = max_depth)
+    return(temp_tree)
+    if(pruning){
+      temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
+                                    test_list, response,control = control)
+      return(temp_prune_tree)
+    } else{
+      return(temp_tree)
+    }
+  }
+  stopCluster(cl)
+  return(trees)
+}
+
 #Pruning ----
 #Takes a tree and prunes it with the help of a validation set.
 #Returns a pruned tree.
@@ -509,6 +543,12 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
 prune_tree <- function(tree, val_data, treatment_list, test_list, target,control){
   new_tree <- assign_val_predictions(tree,val_data,treatment_list,test_list,target,control)
   pruned_tree <- check_pruning(new_tree,val_data,target,control,treatment_list)
+  return(pruned_tree)
+}
+
+simple_prune_tree <- function(tree, val_data, treatment_list, test_list, target,control){
+  new_tree <- assign_val_predictions(tree,val_data,treatment_list,test_list,target,control)
+  pruned_tree <- simple_check_pruning(new_tree,val_data,target,control,treatment_list)
   return(pruned_tree)
 }
 
@@ -524,6 +564,24 @@ check_pruning <- function(node,val_data,target,control,treatments){
     }
     if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
       return(pruning_helper(node,treatments))
+    } else{
+      return(node)
+    }
+  } 
+}
+
+simple_check_pruning <- function(node,val_data,target,control,treatments){
+  if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
+    return(simple_pruning_helper(node,treatments,control))
+  } else{
+    if(node[['left']][['type']] != 'leaf'){
+      node[['left']] <- simple_check_pruning(node[['left']],val_data,target,control,treatments)
+    }
+    if(node[['right']][['type']] != 'leaf'){
+      node[['right']] <- simple_check_pruning(node[['right']],val_data,target,control,treatments)
+    }
+    if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
+      return(simple_pruning_helper(node,treatments,control))
     } else{
       return(node)
     }
@@ -662,6 +720,64 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
   return(tree)
 }
 
+simple_pruning_helper <- function(node,treatments,control){
+  #Check if we are already at the root
+  if(node[['type']] == 'root'){
+    return(node)
+  }
+  
+  #The rows of the validation set, that ended up in the left and right leaf
+  temp_left_bool <- node[['left']][['val_samples']]
+  temp_right_bool <- node[['right']][['val_samples']]
+  
+  if(temp_left_bool == 0 || temp_right_bool == 0){
+    node[['type']] <- 'leaf'
+    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
+    return(node)
+  }
+  
+  left_distance <- 0
+  for(r in node[['left']][['val_predictions']]){
+    for(s in node[['left']][['val_predictions']]){
+      left_distance <- left_distance + (r-s)^2
+    }
+  }
+  right_distance <- 0
+  for(r in node[['right']][['val_predictions']]){
+    for(s in node[['right']][['val_predictions']]){
+      right_distance <- right_distance + (r-s)^2
+    }
+  }
+  root_distance <- 0
+  for(r in node[['val_predictions']]){
+    for(s in node[['val_predictions']]){
+      root_distance <- root_distance + (r-s)^2
+    }
+  }
+  sub_distance <- (right_distance+left_distance)/2
+  for (r in c(treatments,control)) {
+    sub_distance <- sub_distance*(node[['left']][[r]]+node[['right']][[r]])/
+      (node[['left']][['val_samples']]+node[['right']][['val_samples']])
+    root_distance <- root_distance*node[[r]]/node[['val_samples']]
+  }
+  
+  
+  if(is.nan(sub_distance) || is.nan(root_distance)){
+    return(node)
+  }
+  if(sub_distance <= root_distance){
+    node[['type']] <- 'leaf'
+    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
+    node[['left']] <- NULL
+    node[['right']] <- NULL
+    node[['split']] <- NULL
+    return(node)
+  } else{
+    return(node)
+  }
+}
+
+
 #Prediction---- 
 #Tree  
 predict.dt.as.df <- function(tree, new_data){
@@ -782,6 +898,58 @@ predict_forest_average <- function(forest,test_data){
   }
   return(final_predictions)
 }
+parallel_predict_forest_average <- function(forest,test_data){
+  predictions <- list()
+  numCores <- detectCores()
+  cl <- makePSOCKcluster(numCores)
+  registerDoParallel(cl)
+  predictions <- foreach(x = 1:length(forest)) %dopar%{
+    source('DecisionTreeImplementation.R')
+    tree <- forest[[x]]
+    new_data <- test_data
+    type_list <- sapply(new_data, class)
+    names(type_list) = colnames(new_data)
+    results = list()
+    for(y in 1:nrow(new_data)){
+      d = new_data[x,]
+      type = tree[['type']]
+      node = tree
+      while(type != 'leaf'){
+        split = node[['split']]
+        if(type_list[[names(split)]] == 'factor'){
+          if(d[names(split)] == split[[1]]){
+            node = node[['left']]
+            type = node[['type']]
+          } else{
+            node = node[['right']]
+            type = node[['type']]
+          }
+        } else{
+          if(d[names(split)] < split[[1]]){
+            node = node[['left']]
+            type = node[['type']]
+          } else{
+            node = node[['right']]
+            type = node[['type']]
+          }
+        }
+      }
+      results[[y]] <- node[['results']]
+    }
+    return(results)
+  }
+  final_predictions <- list()
+  for(x in 1:nrow(test_data)){
+    temp <- unlist(predictions[[1]][x])
+    for(y in 2:length(predictions)){
+      temp <- temp + unlist(predictions[[y]][x])
+    }
+    temp <- temp/length(predictions)
+    final_predictions[[x]] <- temp
+  }
+  stopCluster(cl)
+  return(final_predictions)
+}
 
 forest_predictions_helper <- function(preds){
   temp_names <- unique(unlist(preds))
@@ -796,192 +964,7 @@ predict_forest_df <- function(forest,test_data){
   temp_pred <- predict_forest_average(forest,test_data)
   return(predictions_to_df(temp_pred))
 }
-
-
-#Test Area----
-
-# email <- read.csv('Email.csv')
-# 
-# email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
-# email$women_treatment <- ifelse(email$segment=='Womens E-Mail',1,0)
-# email$control <- ifelse(email$segment=='No E-Mail',1,0)
-# email$mens <- as.factor(email$mens)
-# email$womens <- as.factor(email$womens)
-# email$newbie <- as.factor(email$newbie)
-# 
-# email$visit <- email$spend <- email$segment <- NULL
-# 
-# response <- 'conversion'
-# control <- 'control'
-# 
-# treatment_list <- c('men_treatment','women_treatment')
-# test_list <- set_up_tests(email[,c("recency","history_segment","history","mens","womens","zip_code",
-#                                    "newbie","channel")],TRUE)
-# idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
-# 
-# train <- email[-idx, ]
-# 
-# test <- email[idx, ]
-# 
-# test_tree <- create_node(email[1:50000,],0,100,treatment_list,'conversion','control',test_list,
-#                          normalize  = TRUE)
-# 
-# start_time <- Sys.time()
-# pruned_tree <- prune_tree_old(test_tree,email[50001:64000,],email[1:50000,],target = response)
-# prune1_time <- Sys.time()
-# pruned_tree2 <- prune_tree(test_tree,email[50001:64000,], treatment_list, test_list, response, control)
-# prune2_time <- Sys.time()
-# 
-# time_old <- prune1_time - start_time
-# time_new <- prune2_time - prune1_time
-# print(time_old)
-# print(time_old_updated)
-
-#Old�Functions----
-prune_tree_old <- function(tree, val_data, train_data, target){
-  val_pred <- predict.dt(tree, val_data)
-  train_pred <- predict.dt(tree, train_data)
-  pruned_tree <- check_pruning_old(tree,train_pred,val_pred,val_data,target)
-  while(check_tree_changes(pruned_tree)){
-    pruned_tree <- type_subtrees(pruned_tree)
-    val_pred <- predict.dt(pruned_tree, val_data)
-    train_pred <- predict.dt(pruned_tree, train_data)
-    pruned_tree <- check_pruning_old(pruned_tree,train_pred,val_pred,val_data,target)
-  }
-  return(pruned_tree)
-}
-
-
-check_pruning_old <- function(node,predictions,predictions_val,val_data,target){
-  if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
-    #Left
-    if(node[['type']] == 'root'){
-      return(node)
-    }
-    temp_pred_left <- node[['left']][['results']]
-    temp_left <- plyr::compact(lapply(predictions, function(x) if(sum(x == temp_pred_left) == 3){x}))
-    best_treatment_left <- names(temp_pred_left[match(max(temp_pred_left[1:2]),temp_pred_left)])
-    left_sign <- sign(temp_pred_left[[best_treatment_left]]-temp_pred_left[['control']])
-    
-    #Right
-    temp_pred_right <- node[['right']][['results']]
-    temp_right <- plyr::compact(lapply(predictions, function(x) if(sum(x == temp_pred_right) == 3){x}))
-    best_treatment_right <- names(temp_pred_right[match(max(temp_pred_right[1:2]),temp_pred_right)])
-    right_sign <- sign(temp_pred_right[[best_treatment_right]]-temp_pred_right[['control']])
-    
-    #Root
-    temp_pred_root <- (length(temp_left)*temp_left[[1]]+length(temp_right)*temp_right[[1]])/(length(temp_left)+
-                                                                                               length(temp_right))
-    best_treatment_root <- names(temp_pred_root[match(max(temp_pred_root[1:2]),temp_pred_root)])
-    root_sign <- sign(temp_pred_root[[best_treatment_root]]-temp_pred_root[['control']])
-    
-    
-    #The rows of the validation set, that ended up in the left and right leaf
-    temp_left_bool <- unlist(lapply(predictions_val, function(x) (sum(x == temp_pred_left) == 3)))
-    temp_right_bool <- unlist(lapply(predictions_val, function(x) (sum(x == temp_pred_right) == 3)))
-    
-    if(sum(temp_left_bool) == 0 || sum(temp_right_bool) == 0){
-      result_node <- list()
-      result_node[['type']] <- 'leaf'
-      result_node[['results']] <- temp_pred_root
-      predictions <- lapply(predictions, function(x)if(sum(x == temp_pred_right) == 3 || 
-                                                       sum(x == temp_pred_left) == 3){temp_pred_root}
-                            else{x})
-      return(result_node)
-    }
-    
-    temp_val <- val_data[temp_left_bool,]
-    n_treat_left <- nrow(temp_val[temp_val[best_treatment_left] == 1,])
-    n_control_left <- nrow(temp_val[temp_val['control'] == 1,])
-    prob_treatment_left <- mean(temp_val[temp_val[best_treatment_left]== 1,target])
-    prob_control_left <- mean(temp_val[temp_val['control'] == 1,target])
-    
-    temp_val <- val_data[temp_right_bool,]
-    n_treat_right <- nrow(temp_val[temp_val[best_treatment_right] == 1,])
-    n_control_right <- nrow(temp_val[temp_val[best_treatment_right] == 1,])
-    prob_treatment_right <- mean(temp_val[temp_val[best_treatment_right] == 1,target])
-    prob_control_right <- mean(temp_val[temp_val['control']== 1,target])
-    
-    
-    temp_val <- val_data[(temp_left_bool+temp_right_bool) > 0,]
-    n_treat_root <- nrow(temp_val[temp_val[best_treatment_root] == 1,])
-    n_control_root <- nrow(temp_val[temp_val[best_treatment_root] == 1,])
-    prob_treatment_root <- mean(temp_val[temp_val[best_treatment_root] == 1,target])
-    prob_control_root <- mean(temp_val[temp_val['control'] == 1,target])
-    
-    
-    d1 <-  (n_treat_left+n_control_left)/(n_treat_root+n_control_root)*
-      left_sign*(prob_treatment_left-prob_control_left)
-    d1 <-  d1 + (n_treat_right+n_control_right)/(n_treat_root+n_control_root)*
-      right_sign*(prob_treatment_right-prob_control_right)
-    
-    d2 <- root_sign*(prob_treatment_root-prob_control_root)
-    
-    if(is.nan(d1) || is.nan(d2)){
-      return(node)
-    }
-    if(d1 <= d2){
-      result_node <- list()
-      result_node[['type']] <- 'leaf'
-      result_node[['results']] <- temp_pred_root
-      predictions <- lapply(predictions, function(x)if(sum(x == temp_pred_right) == 3 || 
-                                                       sum(x == temp_pred_left) == 3){temp_pred_root}
-                            else{x})
-      predictions_val <- lapply(predictions_val, function(x)if(sum(x == temp_pred_right) == 3 || 
-                                                               sum(x == temp_pred_left) == 3){temp_pred_root}
-                                else{x})
-      return(result_node)
-    } else{
-      return(node)
-    }
-  } else{
-    if(node[['left']][['type']] != 'leaf'){
-      node[['left']] <- check_pruning_old(node[['left']],predictions,predictions_val,val_data,target)
-    }
-    if(node[['right']][['type']] != 'leaf'){
-      node[['right']] <- check_pruning_old(node[['right']],predictions,predictions_val,val_data,target)
-    }
-  }
-  return(node)
-}
-
-#Function that goes to the tree to identify subtrees. Used for pruning
-
-type_subtrees <- function(tree){
-  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf'){
-    if(tree[['type']] != 'root'){
-      tree[['type']] <- 'sub'
-    }
-  } else{
-    if(tree[['left']][['type']] != 'leaf'){
-      tree[['left']] <- type_subtrees(tree[['left']])
-    }
-    if(tree[['right']][['type']] != 'leaf'){
-      tree[['right']] <- type_subtrees(tree[['right']])
-    }
-  }
-  return(tree)
-}
-
-
-#Helper function for pruning
-
-check_tree_changes <- function(tree){
-  result <- FALSE
-  if(tree[['left']][['type']] == 'leaf' && tree[['right']][['type']] == 'leaf' && tree[['type']] != 'sub'&& 
-     tree[['type']] != 'root'){
-    return(TRUE)
-  } else{
-    if(tree[['left']][['type']] != 'leaf'){
-      if(check_tree_changes(tree[['left']]) == TRUE){
-        return(TRUE)
-      }
-    }
-    if(tree[['right']][['type']] != 'leaf'){
-      if(check_tree_changes(tree[['right']]) == TRUE){
-        return(TRUE)
-      }
-    }
-  }
-  return(result)
+parallel_predict_forest_df <- function(forest,test_data){
+  temp_pred <- parallel_predict_forest_average(forest,test_data)
+  return(predictions_to_df(temp_pred))
 }

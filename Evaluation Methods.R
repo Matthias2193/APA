@@ -28,6 +28,20 @@ expected_outcome <- function(eval_data){
   return(result)
 }
 
+new_expected_outcome <- function(new_data,response,control,treatment_list,predictions){
+  N <- nrow(new_data)
+  for (t in c(treatment_list, control)) {
+    assign(paste(t,"prob",sep="_"),nrow(new_data[new_data[t]==1,])/N)
+  }
+  results <- 0
+  for(counter in 1:N){
+    if(new_data[counter,][predictions[counter]]==1){
+      results <- results + as.numeric(new_data[counter,][response]/
+                                        eval(as.name(paste(predictions[counter],"prob",sep = "_"))))
+    }
+  }
+  return(results/N)
+}
 
 ## Modified Uplift Curve by Zhao
 # *Assumption* outcome for each treatment equals prediction of model
@@ -62,6 +76,22 @@ expected_percentile_response <- function(predictions){
   colnames(ret) <- c("Percentile", "Expected Outcome")
   
   return(ret)
+}
+
+new_expected_quantile_response <- function(new_data,response,control,treatment_list,predictions){
+  predictions$max_uplift <- apply(predictions[ , grep("^uplift",colnames(predictions))], 1 , max)
+  sorted_predictions <- predictions[order(-predictions$max_uplift),]
+  new_data$max_uplift <- predictions$max_uplift
+  sorted_new_data <- new_data[order(-new_data$max_uplift),]
+  sorted_predictions$Treatment <- as.character(sorted_predictions$Treatment)
+  n_tenth <- round(nrow(predictions)/10)
+  deciles <- c(0)
+  for (x in 1:9) {
+    temp_treatments <- c(unlist(sorted_predictions[1:(x*n_tenth),]["Treatment"]),
+                         rep("control",nrow(new_data)-x*n_tenth))
+    deciles <- c(deciles,new_expected_outcome(sorted_new_data,response,control,treatment_list,temp_treatments))
+  }
+  deciles <- c(deciles,new_expected_outcome(new_data,response,control,treatment_list,predictions$Treatment))
 }
 
 # Incremental Uplift Curve
@@ -147,7 +177,7 @@ qini_curve <- function(predictions, control_level){
   treatments <- treatments[treatments != control_level]
   
   for(t in treatments) {
-    
+    print(t)
     tmp <- predictions[predictions$Assignment == t, ]
     
     # score by uplift column of T
