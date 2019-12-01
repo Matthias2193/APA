@@ -77,6 +77,7 @@ pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,
 tree_pred <-  predict.dt.as.df(pruned_tree, test)
 tree_pred[ , "Treatment"] <- colnames(tree_pred)[apply(tree_pred[, treatment_list], 1, which.max)]
 exp_outcome_simple_tree <- new_expected_outcome(test,response,control,treatment_list,tree_pred$Treatment) 
+exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,treatment_list,tree_pred)
   
 #Forest
 start_time <- Sys.time()
@@ -86,6 +87,7 @@ forest <- parallel_build_forest(train,val,treatment_list,response,'0',n_trees = 
 end_time <- Sys.time()
 forest_time <- difftime(end_time,start_time)
 print(forest_time)
-forest_pred <- parallel_predict_forest_df(forest, test)
-forest_pred[ , "Treatment"] <- colnames(forest_pred)[apply(forest_pred[, treatment_list], 1, which.max)]
-exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,forest_pred$Treatment)
+forest_pred2 <- predict_forest_df(forest, test)
+forest_pred2[ , "Treatment"] <- colnames(forest_pred2)[apply(forest_pred2[, treatment_list], 1, which.max)]
+exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,forest_pred2$Treatment)
+exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,treatment_list,tree_pred)
