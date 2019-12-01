@@ -88,7 +88,7 @@ new_expected_quantile_response <- function(new_data,response,control,treatment_l
   deciles <- c(0)
   for (x in 1:9) {
     temp_treatments <- c(unlist(sorted_predictions[1:(x*n_tenth),]["Treatment"]),
-                         rep("control",nrow(new_data)-x*n_tenth))
+                         rep(control,nrow(new_data)-x*n_tenth))
     deciles <- c(deciles,new_expected_outcome(sorted_new_data,response,control,treatment_list,temp_treatments))
   }
   deciles <- c(deciles,new_expected_outcome(new_data,response,control,treatment_list,predictions$Treatment))

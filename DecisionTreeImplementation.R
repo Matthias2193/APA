@@ -465,7 +465,7 @@ final_node <- function(data,treatment_list,target,control){
     }
     
   }
-  treatment_names <- c(treatment_names,'control')
+  treatment_names <- c(treatment_names,control)
   temp_effect <- mean(data[data[control]==1,target])
   if(is.na(temp_effect)){
     effects <- c(effects,0)
@@ -516,6 +516,7 @@ parallel_build_forest <- function(train_data, val_data,treatment_list,response,c
   sample_cols <- setdiff(colnames(train_data),retain_cols)
   trees <- foreach(x=1:n_trees) %dopar% {
     source('DecisionTreeImplementation.R')
+    set.seed(x)
     temp_cols <- sample(sample_cols,n_features,replace = F)
     chosen_cols <- c(temp_cols,retain_cols)
     test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
@@ -911,7 +912,7 @@ parallel_predict_forest_average <- function(forest,test_data){
     names(type_list) = colnames(new_data)
     results = list()
     for(y in 1:nrow(new_data)){
-      d = new_data[x,]
+      d = new_data[y,]
       type = tree[['type']]
       node = tree
       while(type != 'leaf'){

@@ -81,13 +81,16 @@ exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,trea
   
 #Forest
 start_time <- Sys.time()
-forest <- parallel_build_forest(train,val,treatment_list,response,'0',n_trees = 50,n_features = 15,criterion = 2, 
+forest <- parallel_build_forest(train,val,treatment_list,response,'0',n_trees = 4,n_features = 15,criterion = 2, 
                                 pruning = F,l = rep(1/n_treatments,n_treatments),
                                 g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments),max_depth = 5)
 end_time <- Sys.time()
 forest_time <- difftime(end_time,start_time)
 print(forest_time)
-forest_pred2 <- predict_forest_df(forest, test)
-forest_pred2[ , "Treatment"] <- colnames(forest_pred2)[apply(forest_pred2[, treatment_list], 1, which.max)]
-exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,forest_pred2$Treatment)
-exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,treatment_list,tree_pred)
+forest_pred <- parallel_predict_forest_df(forest, test)
+forest_pred[ , "Treatment"] <- colnames(forest_pred)[apply(forest_pred[, treatment_list], 1, which.max)]
+exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,forest_pred$Treatment)
+for (t in treatment_list) {
+  forest_pred[,paste("uplift",t,sep = "_")] <- forest_pred[t] - forest_pred[control]
+}
+exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,treatment_list,forest_pred)
