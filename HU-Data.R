@@ -1,5 +1,6 @@
 source("DecisionTreeImplementation.R")
 source("Evaluation Methods.R")
+source("Causal Forest.R")
 library(caret)
 set.seed(1234)
 #Preprocessing---- 
@@ -76,8 +77,13 @@ print(tree_time)
 pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
 tree_pred <-  predict.dt.as.df(pruned_tree, test)
 tree_pred[ , "Treatment"] <- colnames(tree_pred)[apply(tree_pred[, treatment_list], 1, which.max)]
-exp_outcome_simple_tree <- new_expected_outcome(test,response,control,treatment_list,tree_pred$Treatment) 
-exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,treatment_list,tree_pred)
+
+for (t in treatment_list) {
+  tree_pred[,paste("uplift",t,sep = "_")] <- tree_pred[t] - tree_pred[control]
+}
+
+exp_outcome_simple <- new_expected_outcome(test,response,control,treatment_list,tree_pred$Treatment) 
+exp_inc_outcome_simple <- new_expected_quantile_response(test,response,control,treatment_list,tree_pred)
   
 #Forest
 start_time <- Sys.time()
@@ -89,8 +95,18 @@ forest_time <- difftime(end_time,start_time)
 print(forest_time)
 forest_pred <- parallel_predict_forest_df(forest, test)
 forest_pred[ , "Treatment"] <- colnames(forest_pred)[apply(forest_pred[, treatment_list], 1, which.max)]
-exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,forest_pred$Treatment)
 for (t in treatment_list) {
   forest_pred[,paste("uplift",t,sep = "_")] <- forest_pred[t] - forest_pred[control]
 }
-exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,treatment_list,forest_pred)
+
+exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,forest_pred$Treatment)
+exp_inc_outcome_simple_forest <- new_expected_quantile_response(test,response,control,treatment_list,forest_pred)
+
+#Causal Forest
+causal_forest_pred <- newCausalForestPredicitons(train, test, treatment_list, response,control)
+causal_forest_pred[ , "Treatment"] <- colnames(causal_forest_pred)[apply(causal_forest_pred[, treatment_list], 1, which.max)]
+for (t in treatment_list) {
+  causal_forest_pred[,paste("uplift",t,sep = "_")] <- causal_forest_pred[t] - causal_forest_pred[control]
+}
+exp_outcome_causal_forest <- new_expected_outcome(test,response,control,treatment_list,causal_forest_pred$Treatment)
+exp_inc_outcome_causal_forest <- new_expected_quantile_response(test,response,control,treatment_list,causal_forest_pred)
