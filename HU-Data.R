@@ -1,6 +1,7 @@
 source("DecisionTreeImplementation.R")
 source("Evaluation Methods.R")
 source("Causal Forest.R")
+source("CausalTree.R")
 library(caret)
 set.seed(1234)
 #Preprocessing---- 
@@ -101,6 +102,9 @@ for (t in treatment_list) {
 
 exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,forest_pred$Treatment)
 exp_inc_outcome_simple_forest <- new_expected_quantile_response(test,response,control,treatment_list,forest_pred)
+
+#Causal Tree
+causal_tree_pred <- newcausalTreePredicitons(train,test,treatment_list,response,control)
 
 #Causal Forest
 causal_forest_pred <- newCausalForestPredicitons(train, test, treatment_list, response,control)

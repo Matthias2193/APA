@@ -27,12 +27,11 @@ newCausalForestPredicitons <- function(train,test,treatment_list,response,contro
   for(t in treatment_list){
     train_data <- train[train[,setdiff(treatment_list,t)] == 0,]
     train_data_new <- train_data[,setdiff(colnames(train_data),c(control,treatment_list))]
-    train_data_new <- train_data_new[,c(response,"IsMorning","IsEvening","IsNight")]
 
     test_data <- test[,setdiff(colnames(train_data),response)]
     
     forest <- causalForest(as.formula(paste(response,paste(setdiff(colnames(train_data_new),response),collapse = "+"),sep = "~")), data = train_data_new, treatment = train_data[,t], split.Rule = "CT", cv.option = "CT", split.Honest = T,
-                           cv.Honest = T, split.Bucket = F, minsize = 20, propensity = 0.5, mtry = 2, num.trees = 200, ncov_sample = 3, ncolx = ncol(train_data_new)-1)
+                           cv.Honest = T, split.Bucket = F, minsize = 20, propensity = 0.5, mtry = 2, num.trees = 5, ncov_sample = 3, ncolx = ncol(train_data_new)-1)
     
     assign(paste('predictions',t,sep = '_'), predict(forest, newdata = test_data))
     pred <- cbind(pred,eval(as.name(paste('predictions',t,sep = '_'))))
