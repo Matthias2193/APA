@@ -224,3 +224,5 @@ perc_matched <- function(predictions){
   deciles <- c(deciles,sum(new_data$Treatment == new_data$Assignment)/nrow(new_data))
   return(deciles)
 }
+
+

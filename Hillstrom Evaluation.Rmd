@@ -254,6 +254,21 @@ causal_forest_pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, wh
 write.csv(causal_forest_pred, "Predictions/causal forest conv pred.csv", row.names = FALSE)
 ```
 
+
+#Naive Predictions
+```{r}
+naive_predictions <- data.frame(cbind(rep("men_treatment",nrow(test)),sample(nrow(test),replace = T)))
+colnames(naive_predictions) <- c("Treatment","random_uplift")
+exp_outcome_naive_men <- new_expected_outcome(test,response,control,treatment_list,naive_predictions$Treatment)
+exp_inc_outcome_naive_men <- new_expected_quantile_response(test,response,control,treatment_list,naive_predictions)
+
+naive_predictions <- data.frame(cbind(rep("women_treatment",nrow(test)),sample(nrow(test),replace = T)))
+colnames(naive_predictions) <- c("Treatment","random_uplift")
+exp_outcome_naive_women <- new_expected_outcome(test,response,control,treatment_list,naive_predictions$Treatment)
+exp_inc_outcome_naive_women <- new_expected_quantile_response(test,response,control,treatment_list,naive_predictions)
+```
+
+
 ```{r}
 # Evaluate pre saved Causal Tree results
 causal_forest_pred <- read.csv("Predictions/causal forest conv pred.csv")
@@ -373,7 +388,7 @@ sma_logit_conv_exp$Model <- sma_logit_conv_mat$Model <- "Logit"
 
 ### Model Comparison
 ```{r}
-temp_df = data.frame(models=c("C_Forest","C_Tree","Rzp_Tree","Rzp_Forest","Simple_Tree","Simple_Forest"),values = c(exp_outcome_c_forest,exp_outcome_c_tree,exp_outcome_rzp,exp_outcome_rzp_forest,exp_outcome_simple,exp_outcome_simple_forest))
+temp_df = data.frame(models=c("C_Forest","C_Tree","Rzp_Tree","Rzp_Forest","Simple_Tree","Simple_Forest","Naive Men", "Naive Women"),values = c(exp_outcome_c_forest,exp_outcome_c_tree,exp_outcome_rzp,exp_outcome_rzp_forest,exp_outcome_simple,exp_outcome_simple_forest,exp_outcome_naive_men,exp_outcome_naive_women))
 
 p<-ggplot(data=temp_df, aes(x=reorder(models, values), y=values)) +
   geom_bar(stat="identity")
@@ -383,8 +398,8 @@ p
 
 ```{r}
 temp_vec <- rep(seq(0,1,0.1),6)
-name_vec <- c(rep("C_Forest",11),rep("C_Tree",11),rep("Rzp_Tree",11),rep("Rzp_Forest",11),rep("Simple_Tree",11),rep("Simple_Forest",11))
-temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_c_tree,exp_inc_outcome_rzp,exp_inc_outcome_rzp_forest,exp_inc_outcome_simple,exp_inc_outcome_simple_forest))
+name_vec <- c(rep("C_Forest",11),rep("C_Tree",11),rep("Rzp_Tree",11),rep("Rzp_Forest",11),rep("Simple_Tree",11),rep("Simple_Forest",11),rep("Naive Men",11),rep("Naive Women",11))
+temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_c_tree,exp_inc_outcome_rzp,exp_inc_outcome_rzp_forest,exp_inc_outcome_simple,exp_inc_outcome_simple_forest,exp_inc_outcome_naive_men,exp_inc_outcome_naive_women))
 temp_df <- data.frame(cbind(temp_vec,temp_results,name_vec))
 colnames(temp_df) <- c("Percentile","Expected_Outcome","Model")
 temp_df$Expected_Outcome <- as.numeric(as.character(temp_df$Expected_Outcome))
@@ -401,6 +416,9 @@ p <-  melt(temp_df, id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percen
   theme_light()
 p
 ```
+
+
+
 ```{r}
 temp_df = data.frame(models=c("C_Forest","C_Tree","Rzp_Tree","Rzp_Forest","Simple_Tree","Simple_Forest"),values = c(overall_matched_causal_forest,overall_matched_causal,overall_matched_rzp,overall_matched_rzp_forest,overall_matched_simple,overall_matched_simple_forest))
 
