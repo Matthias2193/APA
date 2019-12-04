@@ -201,3 +201,26 @@ qini_curve <- function(predictions, control_level){
   
   return(ret)
 }
+
+
+
+#Percent Matched
+perc_matched <- function(predictions){
+  predictions$max_uplift <- apply(predictions[ , grep("^uplift",colnames(predictions))], 1 , max)
+  sorted_predictions <- predictions[order(-predictions$max_uplift),]
+  sorted_predictions$Treatment <- as.character(sorted_predictions$Treatment)
+  n_tenth <- round(nrow(predictions)/10)
+  deciles <- c()
+  for (x in 1:9) {
+    if(x == 1){
+      new_data <- sorted_predictions[1:n_tenth,]
+      deciles <- c(deciles,sum(new_data$Treatment == new_data$Assignment)/nrow(new_data))
+    }else{
+      new_data <- sorted_predictions[((x-1)*n_tenth):(x*n_tenth),]
+      deciles <- c(deciles,sum(new_data$Treatment == new_data$Assignment)/nrow(new_data))
+    }
+  }
+  new_data <- sorted_predictions[(9*n_tenth):nrow(sorted_predictions),]
+  deciles <- c(deciles,sum(new_data$Treatment == new_data$Assignment)/nrow(new_data))
+  return(deciles)
+}

@@ -96,6 +96,8 @@ pred <- read.csv('Predictions/rzp tree pred.csv')
 # Expected Response per targeted customers
 exp_outcome_rzp <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
 exp_inc_outcome_rzp <- new_expected_quantile_response(test,response,control,treatment_list,pred)
+overall_matched_rzp <- sum(pred$Treatment==pred$Assignment)/nrow(pred)
+perc_matched_rzp <- perc_matched(pred)
 
 rzp_tree_exp_conv <- expected_percentile_response(pred)
 
@@ -134,6 +136,8 @@ pred <- read.csv('Predictions/rzp tree pred simple.csv')
 # Expected Response per targeted customers
 exp_outcome_simple <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
 exp_inc_outcome_simple <- new_expected_quantile_response(test,response,control,treatment_list,pred)
+overall_matched_simple <- sum(pred$Treatment==pred$Assignment)/nrow(pred)
+perc_matched_simple <- perc_matched(pred)
 
 rzp_tree_exp_conv_simple <- expected_percentile_response(pred)
 
@@ -143,7 +147,7 @@ rzp_tree_mat_conv_simple <- qini_curve(pred, "control")
 ### Simple Forest
 ```{r fit_tree, eval=F}
 
-forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 2, pruning = T)
+forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 200,n_features = 4,criterion = 2, pruning = T)
 
 pred <- parallel_predict_forest_df(forest, test)
 
@@ -167,6 +171,8 @@ pred <- read.csv('Predictions/simple forest.csv')
 # Expected Response per targeted customers
 exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
 exp_inc_outcome_simple_forest <- new_expected_quantile_response(test,response,control,treatment_list,pred)
+overall_matched_simple_forest <- sum(pred$Treatment==pred$Assignment)/nrow(pred)
+perc_matched_simple_forest <- perc_matched(pred)
 
 simple_forest_exp_conv <- expected_percentile_response(pred)
 
@@ -175,7 +181,7 @@ simple_forest_mat_conv <- qini_curve(pred, "control")
 ### Rzp Forest
 ```{r fit_tree, eval=F}
 
-forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 50,n_features = 4,criterion = 1, pruning = T,normalize = T)
+forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 200,n_features = 3,criterion = 1, pruning = F,normalize = T)
 
 pred <- parallel_predict_forest_df(forest, test)
 
@@ -199,6 +205,8 @@ pred <- read.csv('Predictions/rzp forest.csv')
 # Expected Response per targeted customers
 exp_outcome_rzp_forest <- new_expected_outcome(test,response,control,treatment_list,pred$Treatment)
 exp_inc_outcome_rzp_forest <- new_expected_quantile_response(test,response,control,treatment_list,pred)
+overall_matched_rzp_forest <- sum(pred$Treatment==pred$Assignment)/nrow(pred)
+perc_matched_rzp_forest <- perc_matched(pred)
 
 rzp_forest_exp_conv <- expected_percentile_response(pred)
 
@@ -221,6 +229,8 @@ causal_pred <- read.csv("Predictions/causal tree pred.csv")
 
 exp_outcome_c_tree <- new_expected_outcome(test,response,control,treatment_list,causal_pred$Treatment)
 exp_inc_outcome_c_tree <- new_expected_quantile_response(test,response,control,treatment_list,causal_pred)
+overall_matched_causal <- sum(causal_pred$Treatment==causal_pred$Assignment)/nrow(causal_pred)
+perc_matched_causal <- perc_matched(causal_pred)
 
 c_tree_exp_conv <- expected_percentile_response(causal_pred)
 
@@ -250,6 +260,8 @@ causal_forest_pred <- read.csv("Predictions/causal forest conv pred.csv")
 
 exp_outcome_c_forest <- new_expected_outcome(test,response,control,treatment_list,causal_forest_pred$Treatment)
 exp_inc_outcome_c_forest <- new_expected_quantile_response(test,response,control,treatment_list,causal_forest_pred)
+overall_matched_causal_forest <- sum(as.character(causal_forest_pred$Treatment)==as.character(causal_forest_pred$Assignment))/nrow(causal_forest_pred)
+perc_matched_causal_forest <- perc_matched(causal_forest_pred)
 
 c_forest_exp_conv <- expected_percentile_response(causal_forest_pred)
 
@@ -376,8 +388,6 @@ temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_c_tree,exp_inc_
 temp_df <- data.frame(cbind(temp_vec,temp_results,name_vec))
 colnames(temp_df) <- c("Percentile","Expected_Outcome","Model")
 temp_df$Expected_Outcome <- as.numeric(as.character(temp_df$Expected_Outcome))
-ggplot(data = temp_df, aes(x="Percentile", y="Expected_Outcome")) + geom_line(aes(colour="Model"))
-ggplot(data = df, aes(x=x, y=val)) + geom_line(aes(colour=variable))
 
 p <-  melt(temp_df, id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
   geom_line(aes(y = value, group= Model, color= Model), size=0.5 ) +
@@ -391,6 +401,41 @@ p <-  melt(temp_df, id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percen
   theme_light()
 p
 ```
+```{r}
+temp_df = data.frame(models=c("C_Forest","C_Tree","Rzp_Tree","Rzp_Forest","Simple_Tree","Simple_Forest"),values = c(overall_matched_causal_forest,overall_matched_causal,overall_matched_rzp,overall_matched_rzp_forest,overall_matched_simple,overall_matched_simple_forest))
+
+p<-ggplot(data=temp_df, aes(x=reorder(models, values), y=values)) +
+  geom_bar(stat="identity")
+p
+```
+
+
+
+```{r}
+temp_vec <- rep(seq(0,1,0.1),6)
+name_vec <- c(rep("C_Tree",10),rep("C_Forest",10),rep("Rzp_Tree",10),rep("Rzp_Forest",10),rep("Simple_Tree",10),rep("Simple_Forest",10))
+temp_results <- cbind(c(perc_matched_causal,perc_matched_causal_forest,perc_matched_rzp,perc_matched_rzp_forest,perc_matched_simple,perc_matched_simple_forest))
+temp_df <- data.frame(cbind(temp_vec,temp_results,name_vec))
+colnames(temp_df) <- c("Percentile","Matched","Model")
+temp_df$Matched <- as.numeric(as.character(temp_df$Matched))
+
+p <-  melt(temp_df, id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percentile)) +
+  geom_line(aes(y = value, group= Model, color= Model), size=0.5 ) +
+  labs(
+    color="Models",
+    title = "Percentage Matched in each Decile",
+    y = "Percentage Matched",
+    x ="Decile"
+  ) +
+  scale_colour_brewer(palette = "Dark2") +
+  theme_light()
+p
+
+```
+
+
+
+
 
 ```{r}
 # Separate Male and Women Treatment

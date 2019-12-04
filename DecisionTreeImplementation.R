@@ -509,7 +509,7 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
 parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
                          criterion,pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
                          g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10){
-  numCores <- detectCores()
+  numCores <- detectCores()-1
   cl <- makePSOCKcluster(numCores)
   registerDoParallel(cl)
   retain_cols <- c(treatment_list,control,response)
@@ -901,7 +901,7 @@ predict_forest_average <- function(forest,test_data){
 }
 parallel_predict_forest_average <- function(forest,test_data){
   predictions <- list()
-  numCores <- detectCores()
+  numCores <- detectCores()-1
   cl <- makePSOCKcluster(numCores)
   registerDoParallel(cl)
   predictions <- foreach(x = 1:length(forest)) %dopar%{
