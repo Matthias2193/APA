@@ -1,5 +1,7 @@
 source("DecisionTreeImplementation.R")
 source("Evaluation Methods.R")
+source("Causal Forest.R")
+source("CausalTree.R")
 library(caret)
 set.seed(1234)
 #Preprocessing---- 
@@ -65,22 +67,50 @@ train <- train[-p_idx,]
 
 treatment_list <- levels(hu_data$multi_treat)[2:7]
 n_treatments <- length(treatment_list)
-test_list <- set_up_tests(train[,colnames(train[,16:155])],TRUE)
+test_list <- set_up_tests(train[,colnames(train[,16:155])],TRUE,max_cases = 5)
 
 #Single Tree
-raw_tree_simple <- build_tree(train,0,100,treatment_list,response,control,test_list,criterion = 2)
-raw_tree_rzp <- build_tree(train,0,100,treatment_list,response,control,test_list,criterion = 1,
-                           divergence = 'EucDistance',l = rep(1/n_treatments,n_treatments),
-                           g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments))
+start_time <- Sys.time()
+raw_tree <- build_tree(train,0,5,treatment_list,response,control,test_list,criterion = 2)
+end_time <- Sys.time()
+tree_time <- difftime(end_time,start_time)
+print(tree_time)
 pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
 tree_pred <-  predict.dt.as.df(pruned_tree, test)
 tree_pred[ , "Treatment"] <- colnames(tree_pred)[apply(tree_pred[, treatment_list], 1, which.max)]
-exp_outcome_simple_tree <- new_expected_outcome(test,response,control,treatment_list,tree_pred$Treatment) 
+
+for (t in treatment_list) {
+  tree_pred[,paste("uplift",t,sep = "_")] <- tree_pred[t] - tree_pred[control]
+}
+
+exp_outcome_simple <- new_expected_outcome(test,response,control,treatment_list,tree_pred$Treatment) 
+exp_inc_outcome_simple <- new_expected_quantile_response(test,response,control,treatment_list,tree_pred)
   
 #Forest
-forest <- parallel_build_forest(train,val,treatment_list,response,'0',n_trees = 50,n_features = 15,criterion = 2, 
+start_time <- Sys.time()
+forest <- parallel_build_forest(train,val,treatment_list,response,'0',n_trees = 4,n_features = 15,criterion = 2, 
                                 pruning = F,l = rep(1/n_treatments,n_treatments),
-                                g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments))
+                                g = matrix(1/n_treatments^2,nrow = n_treatments, ncol = n_treatments),max_depth = 5)
+end_time <- Sys.time()
+forest_time <- difftime(end_time,start_time)
+print(forest_time)
 forest_pred <- parallel_predict_forest_df(forest, test)
 forest_pred[ , "Treatment"] <- colnames(forest_pred)[apply(forest_pred[, treatment_list], 1, which.max)]
+for (t in treatment_list) {
+  forest_pred[,paste("uplift",t,sep = "_")] <- forest_pred[t] - forest_pred[control]
+}
+
 exp_outcome_simple_forest <- new_expected_outcome(test,response,control,treatment_list,forest_pred$Treatment)
+exp_inc_outcome_simple_forest <- new_expected_quantile_response(test,response,control,treatment_list,forest_pred)
+
+#Causal Tree
+causal_tree_pred <- newcausalTreePredicitons(train,test,treatment_list,response,control)
+
+#Causal Forest
+causal_forest_pred <- newCausalForestPredicitons(train, test, treatment_list, response,control)
+causal_forest_pred[ , "Treatment"] <- colnames(causal_forest_pred)[apply(causal_forest_pred[, treatment_list], 1, which.max)]
+for (t in treatment_list) {
+  causal_forest_pred[,paste("uplift",t,sep = "_")] <- causal_forest_pred[t] - causal_forest_pred[control]
+}
+exp_outcome_causal_forest <- new_expected_outcome(test,response,control,treatment_list,causal_forest_pred$Treatment)
+exp_inc_outcome_causal_forest <- new_expected_quantile_response(test,response,control,treatment_list,causal_forest_pred)
