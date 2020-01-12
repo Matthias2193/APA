@@ -103,7 +103,7 @@ select_split <- function(test_list,treatment,control,target,temp_data){
 }
 
 #This method calculates the gain for a given split
-simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+new_simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
   treatments <- c(treatment, control)
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
@@ -252,7 +252,7 @@ new_simple_gain <- function(test_case, treatment, control, target, data, test_ty
   return(gain)
 }
 
-old_simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
   treatments <- c(treatment, control)
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
