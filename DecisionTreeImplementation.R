@@ -86,12 +86,14 @@ select_split <- function(test_list,treatment,control,target,temp_data){
   if(max(gain_list) > 0){
     temp_string <- name_list[match(max(gain_list),gain_list)]
     temp_result <- strsplit(temp_string,split='@@', fixed=TRUE)
+    options(warn=-1)
     if(is.na(as.numeric(temp_result[[1]][2]))){
       result <- c(temp_result[[1]][2])
       names(result) <- temp_result[[1]][1]
+      options(warn=0)
       return(result)
-    }
-    else{
+    } else{
+      options(warn=0)
       result <- c(as.numeric(temp_result[[1]][2]))
       names(result) <- temp_result[[1]][1]
       return(result)
@@ -108,15 +110,14 @@ new_simple_gain <- function(test_case, treatment, control, target, data, test_ty
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
   if(test_type == 'categorical'){
-    if((nrow(data) == 0) || nrow(data[data[test_col]==test_case,]) == 0 ||
-       nrow(data[data[test_col]!=test_case,]) == 0 ){
-      return(-1)
-    }
+    data1 <- data[data[,test_col] == test_case,]
+    data2 <- data[data[,test_col] != test_case,]
   } else{
-    if((nrow(data) == 0) || nrow(data[data[test_col]<test_case,]) == 0 ||
-       nrow(data[data[test_col]>=test_case,]) == 0 ){
-      return(-1)
-    }
+    data1 <- data[data[,test_col] < test_case,]
+    data2 <- data[data[,test_col] >= test_case,]
+  }
+  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
+    return(-1)
   }
   current_gain <- 0
   for(t in treatment){
@@ -124,45 +125,20 @@ new_simple_gain <- function(test_case, treatment, control, target, data, test_ty
       current_gain <- mean(data[data[,t]==1,target])
     }
   }
-  #The actual calculation of the gain
-  #Here for a test of a categorical cavariate
-  if(test_type == 'categorical'){
-    #First the data is split according to the given split
-    data1 <- data[data[,test_col] == test_case,]
-    data2 <- data[data[,test_col] != test_case,]
-    frac1 <- nrow(data1)/nrow(data)
-    frac2 <- nrow(data2)/nrow(data)
-    #Here the gain is calculated
-    left_gain <- 0
-    right_gain <- 0
-    for(t in treatment){
-      left_gain <- max(left_gain,mean(data1[data1[,t]==1,target]))
-      right_gain <- max(right_gain,mean(data2[data2[,t]==1,target]))
+
+  #Here the gain is calculated
+  left_gain <- 0
+  right_gain <- 0
+  for(t in treatment){
+    left_gain <- max(left_gain,mean(data1[data1[,t]==1,target]))
+    right_gain <- max(right_gain,mean(data2[data2[,t]==1,target]))
+  }
+  gain <- max(left_gain,right_gain)
+  # gain <- (frac1*left_gain+frac2*right_gain)
+  for(t in treatments){
+    if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
+      gain <- 0
     }
-    gain <- max(left_gain,right_gain)
-    for(t in treatments){
-      if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-        gain <- 0
-      }
-    }
-  } else{
-    #The same as above, but for numerical covariates
-    data1 <- data[data[,test_col] < test_case,]
-    data2 <- data[data[,test_col] >= test_case,]
-    frac1 <- nrow(data1)/nrow(data)
-    frac2 <- nrow(data2)/nrow(data)
-    left_gain <- 0
-    right_gain <- 0
-    for(t in treatment){
-      left_gain <- max(left_gain,mean(data1[data1[,t]==1,target]))
-      right_gain <- max(right_gain,mean(data2[data2[,t]==1,target]))
-    }
-    gain <- (frac1*left_gain+frac2*right_gain)
-    # for(t in treatments){
-    #   if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-    #     gain <- 0
-    #   }
-    # }
   }
   if(is.na(gain)){
     gain = -1
@@ -180,69 +156,40 @@ new_simple_gain <- function(test_case, treatment, control, target, data, test_ty
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
   if(test_type == 'categorical'){
-    if((nrow(data) == 0) || nrow(data[data[test_col]==test_case,]) == 0 ||
-       nrow(data[data[test_col]!=test_case,]) == 0 ){
-      return(-1)
-    }
+    data1 <- data[data[,test_col] == test_case,]
+    data2 <- data[data[,test_col] != test_case,]
   } else{
-    if((nrow(data) == 0) || nrow(data[data[test_col]<test_case,]) == 0 ||
-       nrow(data[data[test_col]>=test_case,]) == 0 ){
-      return(-1)
-    }
+    data1 <- data[data[,test_col] < test_case,]
+    data2 <- data[data[,test_col] >= test_case,]
   }
+  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
+    return(-1)
+  }
+  frac1 <- nrow(data1)/nrow(data)
+  frac2 <- nrow(data2)/nrow(data)
+  
   current_gain <- 0
-  while(x < length(treatments)){
+  for(x in 1:(length(treatments)-1)){
     t <- treatments[x]
     s <- treatments[x+1]
     temp_gain <- (mean(data[data[,t] == 1,target])-mean(data[data[,s] == 1,target]))^2
     current_gain <- current_gain + temp_gain
-    x <- x+1
   }
   #The actual calculation of the gain
   #Here for a test of a categorical cavariate
-  if(test_type == 'categorical'){
-    #First the data is split according to the given split
-    data1 <- data[data[,test_col] == test_case,]
-    frac1 <- nrow(data1)/nrow(data)
-    data2 <- data[data[,test_col] != test_case,]
-    frac2 <- nrow(data2)/nrow(data)
-    #Here the gain is calculated
-    x <- 1
-    while(x < length(treatments)){
-      t <- treatments[x]
-      s <- treatments[x+1]
-      temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-        frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
-      gain <- gain + temp_gain
-      x <- x+1
-    }
-    #Make sure that there are data points of each treatment in each subset of the data
-    # for(t in treatments){
-    #   if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-    #     gain <- 0
-    #   }
-    # }
-  } else{
-    #The same as above, but for numerical covariates
-    data1 <- data[data[,test_col] < test_case,]
-    frac1 <- nrow(data1)/nrow(data)
-    data2 <- data[data[,test_col] >= test_case,]
-    frac2 <- nrow(data2)/nrow(data)
-    x <- 1
-    while(x < length(treatments)){
-      t <- treatments[x]
-      s <- treatments[x+1]
-      temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-        frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
-      gain <- gain + temp_gain
-      x <- x+1
-    }
-    # for(t in treatments){
-    #   if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-    #     gain <- 0
-    #   }
-    # }
+  for(x in 1:(length(treatments)-1)){
+    t <- treatments[x]
+    s <- treatments[x+1]
+    temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
+      frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
+    gain <- gain + temp_gain
   }
+  #Make sure that there are data points of each treatment in each subset of the data
+  # for(t in treatments){
+  #   if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
+  #     gain <- 0
+  #   }
+  # }
   if(is.na(gain)){
     gain = -1
   }
@@ -252,57 +199,42 @@ new_simple_gain <- function(test_case, treatment, control, target, data, test_ty
   return(gain)
 }
 
+
+
 simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
   treatments <- c(treatment, control)
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
   if(test_type == 'categorical'){
-    if((nrow(data) == 0) || nrow(data[data[test_col]==test_case,]) == 0 ||
-       nrow(data[data[test_col]!=test_case,]) == 0 ){
-      return(-1)
-    }
+    data1 <- data[data[,test_col] == test_case,]
+    data2 <- data[data[,test_col] != test_case,]
   } else{
-    if((nrow(data) == 0) || nrow(data[data[test_col]<test_case,]) == 0 ||
-       nrow(data[data[test_col]>=test_case,]) == 0 ){
+    data1 <- data[data[,test_col] < test_case,]
+    data2 <- data[data[,test_col] >= test_case,]
+  }
+  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
+    return(-1)
+  }
+  for(t in treatments){
+    if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
       return(-1)
     }
   }
   #The actual calculation of the gain
   #Here for a test of a categorical cavariate
-  if(test_type == 'categorical'){
-    #First the data is split according to the given split
-    data1 <- data[data[,test_col] == test_case,]
-    data2 <- data[data[,test_col] != test_case,]
-    #Here the gain is calculated
-    for(t in treatments){
-      for(s in treatments){
-        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-          (mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
-        gain <- gain + temp_gain
-      }
-    }
-    #Make sure that there are data points of each treatment in each subset of the data
-    for(t in treatments){
-      if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-        gain <- 0
-      }
-    }
-  } else{
-    #The same as above, but for numerical covariates
-    data1 <- data[data[,test_col] < test_case,]
-    data2 <- data[data[,test_col] >= test_case,]
-    for(t in treatments){
-      for(s in treatments){
-        temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-          (mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
-        gain <- gain + temp_gain
-      }
-    }
-    for(t in treatments){
-      gain <- gain * (nrow(data1[data1[,t]==1,]))/nrow(data1)
-      gain <- gain * (nrow(data2[data2[,t]==1,]))/nrow(data2)
+  #Here the gain is calculated
+  for(t in treatments){
+    for(s in treatments){
+      temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
+        (mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
+      gain <- gain + temp_gain
     }
   }
+  #Make sure that there are data points of each treatment in each subset of the data
+  # for(t in treatments){
+  #   gain <- gain * (nrow(data1[data1[,t]==1,]))/nrow(data1)
+  #   gain <- gain * (nrow(data2[data2[,t]==1,]))/nrow(data2)
+  # }
   if(is.na(gain)){
     gain = -1
   }
@@ -354,7 +286,7 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
     treatment_names <- c(treatment_names,t)
     effects <- c(effects,mean(data[data[t]==1,target]))
   }
-  treatment_names <- c(treatment_names,'control')
+  treatment_names <- c(treatment_names,control)
   effects <- c(effects,mean(data[data[control]==1,target]))
   names(effects) <- treatment_names
   node[['results']] <- effects
