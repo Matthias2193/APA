@@ -137,7 +137,7 @@ new_simple_gain <- function(test_case, treatment, control, target, data, test_ty
   # gain <- (frac1*left_gain+frac2*right_gain)
   for(t in treatments){
     if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-      gain <- 0
+      gain <- -1
     }
   }
   if(is.na(gain)){
@@ -312,7 +312,7 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
 final_node <- function(data,treatment_list,target,control){
   treatment_names <- c()
   effects <- c()
-  for(t in treatment_list){
+  for(t in c(treatment_list,control)){
     treatment_names <- c(treatment_names,t)
     temp_effect <- mean(data[data[t]==1,target])
     if(is.na(temp_effect)){
@@ -320,14 +320,6 @@ final_node <- function(data,treatment_list,target,control){
     } else{
       effects <- c(effects,temp_effect)
     }
-    
-  }
-  treatment_names <- c(treatment_names,control)
-  temp_effect <- mean(data[data[control]==1,target])
-  if(is.na(temp_effect)){
-    effects <- c(effects,0)
-  } else{
-    effects <- c(effects,temp_effect)
   }
   names(effects) <- treatment_names
   node <- list()
@@ -420,8 +412,8 @@ simple_check_pruning <- function(node,val_data,target,control,treatments){
 
 
 assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target,control){
+  treatment_names <- c(treatment_list,control)
   if(nrow(val_data) == 0){
-    treatment_names <- c(treatment_list,control)
     effects <- rep(0,length(treatment_names))
     names(effects) <- treatment_names
     tree[['val_samples']] <- nrow(val_data)
@@ -430,10 +422,8 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
     }
     tree[['val_predictions']] <- effects
   } else{
-    treatment_names <- c()
     effects <- c()
-    for(t in treatment_list){
-      treatment_names <- c(treatment_names,t)
+    for(t in c(treatment_list,control)){
       temp_effect <- mean(val_data[val_data[t]==1,target])
       if(is.na(temp_effect)){
         effects <- c(effects,0)
@@ -441,14 +431,6 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
         effects <- c(effects,temp_effect)
         }
     }
-    treatment_names <- c(treatment_names,control)
-    temp_effect <- mean(val_data[val_data[control]==1,target])
-    if(is.na(temp_effect)){
-      effects <- c(effects,0)
-    } else{
-      effects <- c(effects,temp_effect)
-    }
-    
     names(effects) <- treatment_names
     tree[['val_samples']] <- nrow(val_data)
     for(n in treatment_names){
@@ -491,7 +473,6 @@ simple_pruning_helper <- function(node,treatments,control){
   
   if(temp_left_bool == 0 || temp_right_bool == 0){
     node[['type']] <- 'leaf'
-    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
     return(node)
   }
   
@@ -513,20 +494,11 @@ simple_pruning_helper <- function(node,treatments,control){
       root_distance <- root_distance + (r-s)^2
     }
   }
-  sub_distance <- (right_distance+left_distance)/2
-  for (r in c(treatments,control)) {
-    sub_distance <- sub_distance*(node[['left']][[r]]+node[['right']][[r]])/
-      (node[['left']][['val_samples']]+node[['right']][['val_samples']])
-    root_distance <- root_distance*node[[r]]/node[['val_samples']]
-  }
+  sub_distance <- (node[['right']][['val_predictions']]/node[['val_predictions']])*right_distance+
+    (node[['left']][['val_predictions']]/node[['val_predictions']])*left_distance
   
-  
-  if(is.nan(sub_distance) || is.nan(root_distance)){
-    return(node)
-  }
-  if(sub_distance <= root_distance){
+  if(is.nan(sub_distance) || is.nan(root_distance) || (sub_distance <= root_distance)){
     node[['type']] <- 'leaf'
-    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
     node[['left']] <- NULL
     node[['right']] <- NULL
     node[['split']] <- NULL
@@ -549,7 +521,9 @@ new_simple_pruning_helper <- function(node,treatments,control){
   
   if(temp_left_bool == 0 || temp_right_bool == 0){
     node[['type']] <- 'leaf'
-    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
+    node[['left']] <- NULL
+    node[['right']] <- NULL
+    node[['split']] <- NULL
     return(node)
   }
   
@@ -559,12 +533,9 @@ new_simple_pruning_helper <- function(node,treatments,control){
   root_distance <- max(node[['val_predictions']])
   
   
-  if(is.nan(left_distance) || is.nan(right_distance)|| is.nan(root_distance)){
-    return(node)
-  }
-  if(max(left_distance,right_distance) <= root_distance){
+  if(is.nan(left_distance) || is.nan(right_distance)|| is.nan(root_distance) || 
+     (max(left_distance,right_distance) <= root_distance)){
     node[['type']] <- 'leaf'
-    node[['n_samples']] <- node[['left']][['n_samples']][1] + node[['right']][['n_samples']][1]
     node[['left']] <- NULL
     node[['right']] <- NULL
     node[['split']] <- NULL
