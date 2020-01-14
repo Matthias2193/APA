@@ -149,9 +149,7 @@ rzp_tree_mat_conv_simple <- qini_curve(pred, "control")
 ```{r fit_tree, eval=F}
 forest <- parallel_build_forest(train,val,treatment_list,response,'control',n_trees = 3,n_features = 4, pruning = T)
 
-start_time <- Sys.time()
-pred <- parallel_predict_forest_df(forest, test)
-new_time <- difftime(Sys.time(),start_time,units = "mins")
+pred <- predict_forest_df(forest, test)
 
 ### Results Preparation to bring into equal format
 # Calculate Uplift for each T
@@ -182,7 +180,7 @@ simple_forest_mat_conv <- qini_curve(pred, "control")
 
 forest <- parallel_build_forest_rzp(train,val,treatment_list,response,'control',n_trees = 3,n_features = 3, pruning = F,normalize = T)
 
-pred <- parallel_predict_forest_df(forest, test)
+pred <- predict_forest_df(forest, test)
 
 
 ### Results Preparation to bring into equal format
@@ -516,7 +514,7 @@ perc_matched_simple <- perc_matched(pred)
 forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 3,n_features = 3, pruning = F)
 
 # add to the result df the outcome, assignment and calculate uplift for each T
-pred <- parallel_predict_forest_df(forest, test)
+pred <- predict_forest_df(forest, test)
 
 ### Results Preparation to bring into equal format
 # Calculate Uplift for each T

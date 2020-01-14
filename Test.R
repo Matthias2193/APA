@@ -50,23 +50,24 @@ test_list <- set_up_tests(train[,c("recency","history_segment","history","mens",
 
 
 # Single Tree
+start_time <- Sys.time()
 raw_tree <- build_tree(train,0,100,treatment_list,response,control,test_list)
-
+new_tree_time <- difftime(Sys.time(),start_time,units = "secs")
 pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
 
 # add to the result df the outcome, assignment and calculate uplift for each T
-pred <- predict.dt.as.df(pruned_tree, test)
+pred <- predict.dt.as.df_apply(pruned_tree, test)
 
 
 ### Results Preparation to bring into equal format
 # Calculate Uplift for each T
 pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
 pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
 
 pred[ , "Outcome"] <- test[, response]
 # get the actual assignment from test data
-pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
 
 
 write.csv(pred, 'Predictions/tree_Old.csv', row.names = FALSE)
@@ -78,24 +79,20 @@ exp_inc_tree_old <- new_expected_quantile_response(response,control,treatment_li
 
 
 #Forest
-forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 50,n_features = 3, pruning = F)
+forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3, pruning = F)
 
 # add to the result df the outcome, assignment and calculate uplift for each T
-start_time <- Sys.time()
-pred <- parallel_predict_forest_df(forest, test)
-time1 <- difftime(Sys.time(),start_time,units = "secs")
-start_time <- Sys.time()
-pred1 <- parallel_predict_forest_average_apply(forest,test)
-time2 <- difftime(Sys.time(),start_time,units = "secs")
+pred <- predict_forest_df(forest,test)
+
 ### Results Preparation to bring into equal format
 # Calculate Uplift for each T
 pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
 pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
 
 pred[ , "Outcome"] <- test[, response]
 # get the actual assignment from test data
-pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+pred[ , "New Assignment"] <- predictions_to_treatment(test, treatment_list, control)
 
 write.csv(pred, 'Predictions/fores_Old.csv', row.names = FALSE)
 
@@ -147,129 +144,196 @@ p
 
 
 
-start_time <- Sys.time() 
-pred1 <- predict.dt.as.df(pruned_tree,test)
-time1 <- difftime(Sys.time(),start_time,units = "secs")
+
+
+### Test Gain Methods
+
+#This method calculates the gain for a given split
+new_simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+  treatments <- c(treatment, control)
+  gain <- 0
+  #First check if there is data in each subset after the data is split. If not return -1.
+  if(test_type == 'categorical'){
+    data1 <- data[data[,test_col] == test_case,]
+    data2 <- data[data[,test_col] != test_case,]
+  } else{
+    data1 <- data[data[,test_col] < test_case,]
+    data2 <- data[data[,test_col] >= test_case,]
+  }
+  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
+    return(-1)
+  }
+  current_gain <- 0
+  for(t in treatment){
+    if(mean(data[data[,t]==1,target])>current_gain){
+      current_gain <- mean(data[data[,t]==1,target])
+    }
+  }
+  
+  #Here the gain is calculated
+  left_gain <- 0
+  right_gain <- 0
+  for(t in treatment){
+    left_gain <- max(left_gain,mean(data1[data1[,t]==1,target]))
+    right_gain <- max(right_gain,mean(data2[data2[,t]==1,target]))
+  }
+  gain <- max(left_gain,right_gain)
+  # gain <- (frac1*left_gain+frac2*right_gain)
+  for(t in treatments){
+    if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
+      gain <- -1
+    }
+  }
+  if(is.na(gain)){
+    gain = -1
+  }
+  if(gain <= current_gain){
+    gain = -1
+  }
+  return(gain)
+}
+
+
+
+new_simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+  treatments <- c(treatment, control)
+  gain <- 0
+  #First check if there is data in each subset after the data is split. If not return -1.
+  if(test_type == 'categorical'){
+    data1 <- data[data[,test_col] == test_case,]
+    data2 <- data[data[,test_col] != test_case,]
+  } else{
+    data1 <- data[data[,test_col] < test_case,]
+    data2 <- data[data[,test_col] >= test_case,]
+  }
+  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
+    return(-1)
+  }
+  frac1 <- nrow(data1)/nrow(data)
+  frac2 <- nrow(data2)/nrow(data)
+  
+  current_gain <- 0
+  for(x in 1:(length(treatments)-1)){
+    t <- treatments[x]
+    s <- treatments[x+1]
+    temp_gain <- (mean(data[data[,t] == 1,target])-mean(data[data[,s] == 1,target]))^2
+    current_gain <- current_gain + temp_gain
+  }
+  #The actual calculation of the gain
+  #Here for a test of a categorical cavariate
+  for(x in 1:(length(treatments)-1)){
+    t <- treatments[x]
+    s <- treatments[x+1]
+    temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
+      frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
+    gain <- gain + temp_gain
+  }
+  #Make sure that there are data points of each treatment in each subset of the data
+  # for(t in treatments){
+  #   if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
+  #     gain <- 0
+  #   }
+  # }
+  if(is.na(gain)){
+    gain = -1
+  }
+  if(gain <= current_gain){
+    gain = -1
+  }
+  return(gain)
+}
+
+new_simple_pruning_helper <- function(node,treatments,control){
+  #Check if we are already at the root
+  if(node[['type']] == 'root'){
+    return(node)
+  }
+  
+  #The rows of the validation set, that ended up in the left and right leaf
+  temp_left_bool <- node[['left']][['val_samples']]
+  temp_right_bool <- node[['right']][['val_samples']]
+  
+  if(temp_left_bool == 0 || temp_right_bool == 0){
+    node[['type']] <- 'leaf'
+    node[['left']] <- NULL
+    node[['right']] <- NULL
+    node[['split']] <- NULL
+    return(node)
+  }
+  
+  left_distance <- max(node[['left']][['val_predictions']])
+  right_distance <- max(node[['right']][['val_predictions']])
+  
+  root_distance <- max(node[['val_predictions']])
+  
+  
+  if(is.nan(left_distance) || is.nan(right_distance)|| is.nan(root_distance) || 
+     (max(left_distance,right_distance) <= root_distance)){
+    node[['type']] <- 'leaf'
+    node[['left']] <- NULL
+    node[['right']] <- NULL
+    node[['split']] <- NULL
+    return(node)
+  } else{
+    return(node)
+  }
+}
+
+
+
+
+
+
+
+
+pred["predicted_treatment"] <- predictions_to_treatment(pred, treatment_list, control)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Benchmark old prediction vs new prediction
+
 start_time <- Sys.time()
-pred2 <- predict.dt_apply(pruned_tree,test)
-time2 <- difftime(Sys.time(),start_time,units = "secs")
+forest_pred <- parallel_predict_forest_df(forest, test)
+forest_time1 <- difftime(Sys.time(),start_time,units = "secs")
+start_time <- Sys.time()
+forest_pred1 <- parallel_predict_forest_average_apply(forest,test)
+forest_time2 <- difftime(Sys.time(),start_time,units = "secs")
 
-sum(pred1==pred2)
-
-predict.dt_apply <- function(tree,new_data){
-  type_list <- sapply(new_data, class)
-  names(type_list) = colnames(new_data)
-  temp_function <- function(x,node){
-    type = 'root'
-    while(type != 'leaf'){
-      split = node[['split']]
-      if(type_list[[names(split)]] == 'factor'){
-        if(x[names(split)] == split[[1]]){
-          node = node[['left']]
-          type = node[['type']]
-        } else{
-          node = node[['right']]
-          type = node[['type']]
-        }
-      } else{
-        if(as.numeric(x[names(split)]) < split[[1]]){
-          node = node[['left']]
-          type = node[['type']]
-        } else{
-          node = node[['right']]
-          type = node[['type']]
-        }
-      }
-    }
-    return(node[["results"]])
-  }
-  results <- data.frame(t(apply(new_data,1,temp_function,node=tree)))
-  results <- split(results, seq(nrow(results)))
-  return(results)
+if(sum(forest_pred==forest_pred1)==nrow(test)*3){
+  print("New and old predictions are identical.")
+  print(paste(c("The old time was:",forest_time1,"and the new time was:",forest_time2),collapse = " "))
+  print(paste(c("The difference was:", as.double(forest_time1)-as.double(forest_time2),"seconds"),collapse = " "))
+  paste(c("The new method takes ",round(as.double(forest_time2)/as.double(forest_time1),4)*100,
+          "% of the time."),collapse = "")
 }
 
-predict.dt.as.df_apply <- function(tree,new_data){
-  type_list <- sapply(new_data, class)
-  names(type_list) = colnames(new_data)
-  temp_function <- function(x,node){
-    type = 'root'
-    while(type != 'leaf'){
-      split = node[['split']]
-      if(type_list[[names(split)]] == 'factor'){
-        if(x[names(split)] == split[[1]]){
-          node = node[['left']]
-          type = node[['type']]
-        } else{
-          node = node[['right']]
-          type = node[['type']]
-        }
-      } else{
-        if(as.numeric(x[names(split)]) < split[[1]]){
-          node = node[['left']]
-          type = node[['type']]
-        } else{
-          node = node[['right']]
-          type = node[['type']]
-        }
-      }
-    }
-    return(node[["results"]])
-  }
-  results <- data.frame(t(apply(new_data,1,temp_function,node=tree)))
-  return(results)
-}
 
-parallel_predict_forest_average_apply <- function(forest,test_data){
-  predictions <- list()
-  numCores <- detectCores()
-  cl <- makePSOCKcluster(numCores-1)
-  registerDoParallel(cl)
-  predictions <- foreach(x = 1:length(forest)) %dopar%{
-    source('DecisionTreeImplementation.R')
-    tree <- forest[[x]]
-    new_data <- test_data
-    type_list <- sapply(new_data, class)
-    names(type_list) = colnames(new_data)
-    temp_function <- function(x,node){
-      type = 'root'
-      while(type != 'leaf'){
-        split = node[['split']]
-        if(type_list[[names(split)]] == 'factor'){
-          if(x[names(split)] == split[[1]]){
-            node = node[['left']]
-            type = node[['type']]
-          } else{
-            node = node[['right']]
-            type = node[['type']]
-          }
-        } else{
-          if(as.numeric(x[names(split)]) < split[[1]]){
-            node = node[['left']]
-            type = node[['type']]
-          } else{
-            node = node[['right']]
-            type = node[['type']]
-          }
-        }
-      }
-      return(node[["results"]])
-    }
-    results <- data.frame(t(apply(new_data,1,temp_function,node=tree)))
-    return(results)
-  }
-  stopCluster(cl)
-  final_predictions <- predictions[[1]]
-  for(x in 2:length(predictions)){
-    final_predictions <- final_predictions+predictions[[x]]
-  }
-  final_predictions <- final_predictions/length(predictions)
-  return(final_predictions)
-}
+start_time <- Sys.time() 
+tree_pred1 <- predict.dt.as.df(pruned_tree,test)
+tree_time1 <- difftime(Sys.time(),start_time,units = "secs")
+start_time <- Sys.time()
+tree_pred2 <- predict.dt.as.df_apply(pruned_tree,test)
+tree_time2 <- difftime(Sys.time(),start_time,units = "secs")
 
-for(x in 1:10){
-  temp_df <- predict.dt.as.df_apply(forest[[x]],test)
-  temp_df2 <- predict.dt.as.df(forest[[x]],test)
-  if((sum(temp_df==predictions[[x]])==57600) && (sum(temp_df2==predictions[[x]])==57600)){
-    print("Same")
-  }
+if(sum(tree_pred1==tree_pred2)==nrow(test)*3){
+  print("New and old predictions are identical.")
+  print(paste(c("The old time was:",tree_time1,"and the new time was:",tree_time2),collapse = " "))
+  print(paste(c("The difference was:", as.double(tree_time1)-as.double(tree_time2),"seconds"),collapse = " "))
+  paste(c("The new method takes ",round(as.double(tree_time2)/as.double(tree_time1),4)*100,
+          "% of the time."),collapse = "")
 }

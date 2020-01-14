@@ -423,9 +423,10 @@ build_forest_rzp <- function(train_data, val_data,treatment_list,response,contro
 
 parallel_build_forest_rzp <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
                                   pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
-                                  g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10){
+                                  g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10,
+                                  remain_cores = 1){
   numCores <- detectCores()
-  cl <- makePSOCKcluster(numCores-1)
+  cl <- makePSOCKcluster(numCores-remain_cores)
   registerDoParallel(cl)
   retain_cols <- c(treatment_list,control,response)
   sample_cols <- setdiff(colnames(train_data),retain_cols)

@@ -2,18 +2,15 @@
 
 #Prediction---- 
 #Tree  
-predict.dt.as.df <- function(tree, new_data){
+predict.dt.as.df <- function(tree,new_data){
   type_list <- sapply(new_data, class)
   names(type_list) = colnames(new_data)
-  results = data.frame()
-  for(x in 1:nrow(new_data)){
-    d = new_data[x,]
+  temp_function <- function(x,node){
     type = 'root'
-    node = tree
     while(type != 'leaf'){
       split = node[['split']]
       if(type_list[[names(split)]] == 'factor'){
-        if(d[names(split)] == split[[1]]){
+        if(x[names(split)] == split[[1]]){
           node = node[['left']]
           type = node[['type']]
         } else{
@@ -21,7 +18,7 @@ predict.dt.as.df <- function(tree, new_data){
           type = node[['type']]
         }
       } else{
-        if(d[names(split)] < split[[1]]){
+        if(as.numeric(x[names(split)]) < split[[1]]){
           node = node[['left']]
           type = node[['type']]
         } else{
@@ -30,200 +27,29 @@ predict.dt.as.df <- function(tree, new_data){
         }
       }
     }
-    results <- rbind(results , node[['results']])
-    
-    # in first round colnames need to be set T names
-    if(x == 1){
-      colnames(results) <- names(node[['results']])
-    }
-    
+    return(node[["results"]])
   }
-  
+  results <- data.frame(t(apply(new_data,1,temp_function,node=tree)))
   return(results)
 }
 
-predict.dt <- function(tree,new_data){
-  type_list <- sapply(new_data, class)
-  names(type_list) = colnames(new_data)
-  results = list()
-  for(x in 1:nrow(new_data)){
-    d = new_data[x,]
-    type = 'root'
-    node = tree
-    while(type != 'leaf'){
-      split = node[['split']]
-      if(type_list[[names(split)]] == 'factor'){
-        if(d[names(split)] == split[[1]]){
-          node = node[['left']]
-          type = node[['type']]
-        } else{
-          node = node[['right']]
-          type = node[['type']]
-        }
-      } else{
-        if(d[names(split)] < split[[1]]){
-          node = node[['left']]
-          type = node[['type']]
-        } else{
-          node = node[['right']]
-          type = node[['type']]
-        }
-      }
-    }
-    results[[x]] <- node[['results']]
-  }
-  return(results)
-}
-
-predictions_to_df <- function(predictions){
-  results <- data.frame()
-  for(x in 1:length(predictions)){
-    results <- rbind(results, predictions[[x]])
-  }
-  colnames(results) <- names(predictions[[1]])
-  return(results)
-}
 
 #Takes predictions as input and returns just the name of the best treatment for each prediction
 
-predictions_to_treatment <- function(pred){
-  lapply(pred, predictions_to_treatment_helper)
-}
-
-predictions_to_treatment_helper <- function(x){
-  names(x[match(max(x),x)])
+predictions_to_treatment <- function(pred,treatment_list,control){
+  colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
 }
 
 
 #Forest
+
+#Majority Vote
 predict_forest_majority <- function(forest,test_data){
   predictions <- predictions_to_treatment(predict.dt(forest[[1]],test_data))
   for(x in 2:length(forest)){
     predictions <- cbind(predictions,predictions_to_treatment(predict.dt(forest[[x]],test_data)))
   }
   return(apply(data.frame(predictions), MARGIN = 1, FUN = forest_predictions_helper))
-}
-
-predict_forest_average <- function(forest,test_data){
-  predictions <- list()
-  for(x in 1:length(forest)){
-    predictions[[x]] <- predict.dt(forest[[x]],test_data)
-  }
-  final_predictions <- list()
-  for(x in 1:nrow(test_data)){
-    temp <- unlist(predictions[[1]][x])
-    for(y in 2:length(predictions)){
-      temp <- temp + unlist(predictions[[y]][x])
-    }
-    temp <- temp/length(predictions)
-    final_predictions[[x]] <- temp
-  }
-  return(final_predictions)
-}
-parallel_predict_forest_average <- function(forest,test_data){
-  predictions <- list()
-  numCores <- detectCores()
-  cl <- makePSOCKcluster(numCores-1)
-  registerDoParallel(cl)
-  predictions <- foreach(x = 1:length(forest)) %dopar%{
-    source('DecisionTreeImplementation.R')
-    tree <- forest[[x]]
-    new_data <- test_data
-    type_list <- sapply(new_data, class)
-    names(type_list) = colnames(new_data)
-    results = list()
-    for(y in 1:nrow(new_data)){
-      d = new_data[y,]
-      type = tree[['type']]
-      node = tree
-      while(type != 'leaf'){
-        split = node[['split']]
-        if(type_list[[names(split)]] == 'factor'){
-          if(d[names(split)] == split[[1]]){
-            node = node[['left']]
-            type = node[['type']]
-          } else{
-            node = node[['right']]
-            type = node[['type']]
-          }
-        } else{
-          if(d[names(split)] < split[[1]]){
-            node = node[['left']]
-            type = node[['type']]
-          } else{
-            node = node[['right']]
-            type = node[['type']]
-          }
-        }
-      }
-      results[[y]] <- node[['results']]
-    }
-    return(results)
-  }
-  stopCluster(cl)
-  final_predictions <- list()
-  for(x in 1:nrow(test_data)){
-    temp <- unlist(predictions[[1]][x])
-    for(y in 2:length(predictions)){
-      temp <- temp + unlist(predictions[[y]][x])
-    }
-    temp <- temp/length(predictions)
-    final_predictions[[x]] <- temp
-  }
-  return(final_predictions)
-}
-
-predictio_helper <- function(d, type_list, tree){
-  type = tree[['type']]
-  node = tree
-  while(type != 'leaf'){
-    split = node[['split']]
-    if(type_list[[names(split)]] == 'factor'){
-      if(d[names(split)] == split[[1]]){
-        node = node[['left']]
-        type = node[['type']]
-      } else{
-        node = node[['right']]
-        type = node[['type']]
-      }
-    } else{
-      if(d[names(split)] < split[[1]]){
-        node = node[['left']]
-        type = node[['type']]
-      } else{
-        node = node[['right']]
-        type = node[['type']]
-      }
-    }
-  }
-  return(node[['results']])
-}
-
-new_parallel_predict_forest_average <- function(forest,test_data){
-  predictions <- list()
-  numCores <- detectCores()-1
-  cl <- makePSOCKcluster(numCores)
-  registerDoParallel(cl)
-  predictions <- foreach(x = 1:length(forest)) %dopar%{
-    source('DecisionTreeImplementation.R')
-    new_data <- test_data
-    type_list <- sapply(new_data, class)
-    names(type_list) = colnames(new_data)
-    temp_list <- split(new_data, seq(nrow(new_data)))
-    results <- lapply(temp_list, function(d) predictio_helper(d, type_list = type_list, tree = forest[[x]]))
-    return(results)
-  }
-  stopCluster(cl)
-  final_predictions <- list()
-  for(x in 1:nrow(test_data)){
-    temp <- unlist(predictions[[1]][x])
-    for(y in 2:length(predictions)){
-      temp <- temp + unlist(predictions[[y]][x])
-    }
-    temp <- temp/length(predictions)
-    final_predictions[[x]] <- temp
-  }
-  return(final_predictions)
 }
 
 forest_predictions_helper <- function(preds){
@@ -235,11 +61,78 @@ forest_predictions_helper <- function(preds){
   }
 }
 
-predict_forest_df <- function(forest,test_data){
-  temp_pred <- predict_forest_average(forest,test_data)
-  return(predictions_to_df(temp_pred))
+
+#Average
+#Sequentially
+predict_forest_average <- function(forest,test_data){
+  predictions <- list()
+  for(x in 1:length(forest)){
+    predictions[[x]] <- predict.dt.as.df(forest[[x]],test_data)
+  }
+  final_predictions <- predictions[[1]]
+  for(x in 2:length(predictions)){
+    final_predictions <- final_predictions+predictions[[x]]
+  }
+  final_predictions <- final_predictions/length(predictions)
+  return(final_predictions)
 }
-parallel_predict_forest_df <- function(forest,test_data){
-  temp_pred <- parallel_predict_forest_average(forest,test_data)
-  return(predictions_to_df(temp_pred))
+
+#Parallel
+parallel_predict_forest_average <- function(forest,test_data,remain_cores = 1){
+  predictions <- list()
+  numCores <- detectCores()
+  cl <- makePSOCKcluster(numCores-remain_cores)
+  registerDoParallel(cl)
+  predictions <- foreach(x = 1:length(forest)) %dopar%{
+    source('DecisionTreeImplementation.R')
+    tree <- forest[[x]]
+    new_data <- test_data
+    type_list <- sapply(new_data, class)
+    names(type_list) = colnames(new_data)
+    temp_function <- function(x,node){
+      type = 'root'
+      while(type != 'leaf'){
+        split = node[['split']]
+        if(type_list[[names(split)]] == 'factor'){
+          if(x[names(split)] == split[[1]]){
+            node = node[['left']]
+            type = node[['type']]
+          } else{
+            node = node[['right']]
+            type = node[['type']]
+          }
+        } else{
+          if(as.numeric(x[names(split)]) < split[[1]]){
+            node = node[['left']]
+            type = node[['type']]
+          } else{
+            node = node[['right']]
+            type = node[['type']]
+          }
+        }
+      }
+      return(node[["results"]])
+    }
+    results <- data.frame(t(apply(new_data,1,temp_function,node=tree)))
+    return(results)
+  }
+  stopCluster(cl)
+  final_predictions <- predictions[[1]]
+  for(x in 2:length(predictions)){
+    final_predictions <- final_predictions+predictions[[x]]
+  }
+  final_predictions <- final_predictions/length(predictions)
+  return(final_predictions)
+}
+
+
+
+
+
+predict_forest_df <- function(forest,test_data, parallel_pred = TRUE, remain_cores = 1){
+  if(parallel_pred){
+    return(parallel_predict_forest_average(forest,test_data,remain_cores))
+  } else{
+    return(predict_forest_average(forest,test_data))
+  }
 }
