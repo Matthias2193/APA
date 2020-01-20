@@ -418,7 +418,7 @@ test <- email[idx, ]
 p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
 
 val <- train[p_idx,]
-train <- train[-p_idx,]
+train_val <- train[-p_idx,]
 
 treatment_list <- c('men_treatment','women_treatment')
 test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
@@ -477,7 +477,7 @@ perc_matched_causal_forest <- perc_matched(causal_forest_pred)
 ```{r, eval=FALSE}
 ## Raw tree still 
 
-raw_tree <- build_tree(train,0,100,treatment_list,response,control,test_list)
+raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list)
 
 pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
 
@@ -511,7 +511,7 @@ perc_matched_simple <- perc_matched(pred)
 
 ### Forest
 ```{r fit_tree, eval=F}
-forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 3,n_features = 3, pruning = F)
+forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3, pruning = F)
 
 # add to the result df the outcome, assignment and calculate uplift for each T
 pred <- predict_forest_df(forest, test)
@@ -529,6 +529,7 @@ pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
 write.csv(pred, 'Predictions/simple forest spend.csv', row.names = FALSE)
 ```
 
+
 ```{r}
 pred <- read.csv('Predictions/simple forest spend.csv')
 
@@ -537,6 +538,38 @@ exp_outcome_simple_forest <- new_expected_outcome(pred,response,control,treatmen
 exp_inc_outcome_simple_forest <- new_expected_quantile_response(response,control,treatment_list,pred)
 overall_matched_simple_forest <- sum(pred$Treatment==pred$Assignment)/nrow(pred)
 perc_matched_simple_forest <- perc_matched(pred)
+```
+
+
+
+```{r fit_tree, eval=F}
+forest <- parallel_build_random_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3, pruning = F)
+
+# add to the result df the outcome, assignment and calculate uplift for each T
+pred <- predict_forest_df(forest, test)
+
+### Results Preparation to bring into equal format
+# Calculate Uplift for each T
+pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+
+pred[ , "Outcome"] <- test[, response]
+# get the actual assignment from test data
+pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+
+write.csv(pred, 'Predictions/random forest spend.csv', row.names = FALSE)
+```
+
+
+```{r}
+pred <- read.csv('Predictions/random forest spend.csv')
+
+# Expected Response per targeted customers
+exp_outcome_random_forest <- new_expected_outcome(pred,response,control,treatment_list)
+exp_inc_outcome_random_forest <- new_expected_quantile_response(response,control,treatment_list,pred)
+overall_matched_random_forest <- sum(pred$Treatment==pred$Assignment)/nrow(pred)
+perc_matched_random_forest <- perc_matched(pred)
 ```
 
 
@@ -570,13 +603,13 @@ naive_predictions$Assignment <- colnames(test)[apply(test[, 10:12], 1, which.max
 naive_predictions$Outcome <- test[,response]
 exp_outcome_naive_men <- new_expected_outcome(naive_predictions,response,control,treatment_list)
 exp_inc_outcome_naive_men <- new_expected_quantile_response(response,control,treatment_list,naive_predictions)
-
-naive_predictions <- data.frame(cbind(rep("women_treatment",nrow(test)),sample(nrow(test),replace = T)))
-colnames(naive_predictions) <- c("Treatment","random_uplift")
-naive_predictions$Assignment <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
-naive_predictions$Outcome <- test[,response]
-exp_outcome_naive_women <- new_expected_outcome(naive_predictions,response,control,treatment_list)
-exp_inc_outcome_naive_women <- new_expected_quantile_response(response,control,treatment_list,naive_predictions)
+# 
+# naive_predictions <- data.frame(cbind(rep("women_treatment",nrow(test)),sample(nrow(test),replace = T)))
+# colnames(naive_predictions) <- c("Treatment","random_uplift")
+# naive_predictions$Assignment <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+# naive_predictions$Outcome <- test[,response]
+# exp_outcome_naive_women <- new_expected_outcome(naive_predictions,response,control,treatment_list)
+# exp_inc_outcome_naive_women <- new_expected_quantile_response(response,control,treatment_list,naive_predictions)
 
 ```
 
@@ -584,7 +617,7 @@ exp_inc_outcome_naive_women <- new_expected_quantile_response(response,control,t
 
 ### Model Comparison
 ```{r fig.height=9, fig.width=16}
-temp_df = data.frame(models=c("C_Forest","C_Tree","Simple_Tree","Simple_Forest","Naive Men", "Naive Women","SMA-DT","SMA-RF"),values = c(exp_outcome_c_forest,exp_outcome_c_tree,exp_outcome_simple,exp_outcome_simple_forest,exp_outcome_naive_men,exp_outcome_naive_women,exp_outcome_sma_dt,exp_outcome_sma_rf))
+temp_df = data.frame(models=c("C_Forest","Simple_Tree","Simple_Forest","Naive Men", "Random Forest","SMA-DT","SMA-RF"),values = c(exp_outcome_c_forest,exp_outcome_simple,exp_outcome_simple_forest,exp_outcome_naive_men,exp_outcome_random_forest,exp_outcome_sma_dt,exp_outcome_sma_rf))
 
 p<-ggplot(data=temp_df, aes(x=reorder(models, values), y=values)) +
   geom_bar(stat="identity") +
@@ -598,8 +631,8 @@ p
 
 ```{r fig.height=9, fig.width=16}
 temp_vec <- rep(seq(0,1,0.1),6)
-name_vec <- c(rep("C_Forest",11),rep("C_Tree",11),rep("Simple_Tree",11),rep("Simple_Forest",11),rep("Naive Men",11),rep("Naive Women",11),rep("SMA-DT",11),rep("SMA-RF",11))
-temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_c_tree,exp_inc_outcome_simple,exp_inc_outcome_simple_forest,exp_inc_outcome_naive_men,exp_inc_outcome_naive_women,exp_inc_outcome_sma_dt,exp_inc_outcome_sma_rf))
+name_vec <- c(rep("C_Forest",11),rep("Simple_Tree",11),rep("Simple_Forest",11),rep("Naive Men",11),rep("Random Forest",11),rep("SMA-DT",11),rep("SMA-RF",11))
+temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_simple,exp_inc_outcome_simple_forest,exp_inc_outcome_naive_men,exp_inc_outcome_random_forest,exp_inc_outcome_sma_dt,exp_inc_outcome_sma_rf))
 temp_df <- data.frame(cbind(temp_vec,temp_results,name_vec))
 colnames(temp_df) <- c("Percentile","Expected_Outcome","Model")
 temp_df$Expected_Outcome <- as.numeric(as.character(temp_df$Expected_Outcome))

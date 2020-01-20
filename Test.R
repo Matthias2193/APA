@@ -1,6 +1,5 @@
 #Test Script
 
-
 library(ggplot2)
 library(caret)
 library(dplyr)
@@ -14,7 +13,7 @@ source('RzepakowskiTree.R')
 source('Evaluation Methods.R')
 
 
-set.seed(2193)
+set.seed(1234)
 
 #Data import
 email <- read.csv('Data/Email.csv')
@@ -30,102 +29,220 @@ email$visit <- email$conversion <- email$segment <- NULL
 
 response <- 'spend'
 control <- "control"
+treatment_list <- c('men_treatment','women_treatment')
+
+#email$spend <- email$spend/max(email$spend)
 
 idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
+folds <- createFolds(email$spend, k = 5, list = TRUE, returnTrain = FALSE)
+for(f in 4:5){
+  train <- email[-folds[[f]], ]
+  
+  test <- email[folds[[f]], ]
+  
+  # Partition training data for pruning
+  p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
+  
+  val <- train[p_idx,]
+  train_val <- train[-p_idx,]
+  
+  
+  test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
+                                     "newbie","channel")],TRUE, max_cases = 10)
+  start_time <- Sys.time()
+  for(c in c("simple","frac","max")){
+    print(c)
+    # Single Tree
+    raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
+    pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control,criterion = c)
+    
+    # add to the result df the outcome, assignment and calculate uplift for each T
+    pred <- predict.dt.as.df(pruned_tree, test)
+    
+    
+    ### Results Preparation to bring into equal format
+    # Calculate Uplift for each T
+    pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+    pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+    pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
+    
+    pred[ , "Outcome"] <- test[, response]
+    # get the actual assignment from test data
+    pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
+    
+    write.csv(pred, paste("Predictions/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+    
+    
+    #Forest
+    forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
+                                    pruning = F, criterion = c)
 
-train <- email[-idx, ]
+    # add to the result df the outcome, assignment and calculate uplift for each T
+    pred <- predict_forest_df(forest,test)
 
-test <- email[idx, ]
+    ### Results Preparation to bring into equal format
+    # Calculate Uplift for each T
+    pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+    pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+    pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
 
-# Partition training data for pruning
-p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
+    pred[ , "Outcome"] <- test[, response]
+    # get the actual assignment from test data
+    pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
 
-val <- train[p_idx,]
-train <- train[-p_idx,]
+    write.csv(pred, paste("Predictions/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
 
-treatment_list <- c('men_treatment','women_treatment')
-test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
-                                   "newbie","channel")],TRUE, max_cases = 10)
+    #Random Forest
+    forest <- parallel_build_random_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
+                                           pruning = F, criterion = c)
 
+    # add to the result df the outcome, assignment and calculate uplift for each T
+    pred <- predict_forest_df(forest,test)
 
+    ### Results Preparation to bring into equal format
+    # Calculate Uplift for each T
+    pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+    pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+    pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
 
-# Single Tree
-start_time <- Sys.time()
-raw_tree <- build_tree(train,0,100,treatment_list,response,control,test_list)
-new_tree_time <- difftime(Sys.time(),start_time,units = "secs")
-pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
+    pred[ , "Outcome"] <- test[, response]
+    # get the actual assignment from test data
+    pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
 
-# add to the result df the outcome, assignment and calculate uplift for each T
-pred <- predict.dt.as.df_apply(pruned_tree, test)
-
-
-### Results Preparation to bring into equal format
-# Calculate Uplift for each T
-pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
-pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
-
-pred[ , "Outcome"] <- test[, response]
-# get the actual assignment from test data
-pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
-
-
-write.csv(pred, 'Predictions/tree_Old.csv', row.names = FALSE)
-
-pred <- read.csv('Predictions/tree_Old.csv')
-exp_tree_old <- new_expected_outcome(pred,response,control,treatment_list)
-exp_inc_tree_old <- new_expected_quantile_response(response,control,treatment_list,pred)
+    write.csv(pred, paste("Predictions/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+  }
+}
 
 
+for(f in 1:5){  
+  train <- email[-folds[[f]], ]
+  
+  test <- email[folds[[f]], ]
+  #Load original predictions
+  pred <- read.csv(paste("Predictions/tree_simple",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_tree_simple",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/forest_simple",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_forest_simple",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/random_forest_simple",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_random_forest_simple",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  #Load max predictions
+  pred <- read.csv(paste("Predictions/tree_max",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_tree_max",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/forest_max",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_forest_max",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/random_forest_max",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_random_forest_max",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  #Load frac pred
+  pred <- read.csv(paste("Predictions/tree_frac",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_tree_frac",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/forest_frac",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_forest_frac",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/random_forest_frac",as.character(f),".csv",sep = ""))
+  assign(paste("exp_inc_random_forest_frac",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  end_time <- Sys.time()
+}  
 
-#Forest
-forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3, pruning = F)
+  
+for(c in c("simple","max","frac")){
+  temp_matrix <- matrix(cbind(eval(as.name(paste("exp_inc_tree_",c,"1",sep = ""))),
+                              eval(as.name(paste("exp_inc_tree_",c,"2",sep = ""))),
+                              eval(as.name(paste("exp_inc_tree_",c,"3",sep = ""))),
+                              eval(as.name(paste("exp_inc_tree_",c,"4",sep = ""))),
+                              eval(as.name(paste("exp_inc_tree_",c,"5",sep = "")))),nrow = 11, ncol = 5)
+  matplot(temp_matrix, type = c("b"),pch=1,col = 1:5, ylab = "Expected Outcome per Person",
+          xlab = "Percent Treated", main = paste("Expected Outcome for different Folds: Tree ",c, sep = "")) #plot
+  legend("topleft", legend = 1:5, col=1:5, pch=1)
+  
+  temp_matrix <- matrix(cbind(eval(as.name(paste("exp_inc_forest_",c,"1",sep = ""))),
+                              eval(as.name(paste("exp_inc_forest_",c,"2",sep = ""))),
+                              eval(as.name(paste("exp_inc_forest_",c,"3",sep = ""))),
+                              eval(as.name(paste("exp_inc_forest_",c,"4",sep = ""))),
+                              eval(as.name(paste("exp_inc_forest_",c,"5",sep = "")))),nrow = 11, ncol = 5)
+  matplot(temp_matrix, type = c("b"),pch=1,col = 1:5, ylab = "Expected Outcome per Person",
+          xlab = "Percent Treated", main = paste("Expected Outcome for different Folds: Forest ",c, sep = "")) #plot
+  legend("topleft", legend = 1:5, col=1:5, pch=1)
+  
+  temp_matrix <- matrix(cbind(eval(as.name(paste("exp_inc_random_forest_",c,"1",sep = ""))),
+                              eval(as.name(paste("exp_inc_random_forest_",c,"2",sep = ""))),
+                              eval(as.name(paste("exp_inc_random_forest_",c,"3",sep = ""))),
+                              eval(as.name(paste("exp_inc_random_forest_",c,"4",sep = ""))),
+                              eval(as.name(paste("exp_inc_random_forest_",c,"5",sep = "")))),nrow = 11, ncol = 5)
+  matplot(temp_matrix, type = c("b"),pch=1,col = 1:5, ylab = "Expected Outcome per Person",
+          xlab = "Percent Treated", main = paste("Expected Outcome for different Folds: Random Forest ",c, sep = "")) #plot
+  legend("topleft", legend = 1:5, col=1:5, pch=1)
+}
 
-# add to the result df the outcome, assignment and calculate uplift for each T
-pred <- predict_forest_df(forest,test)
+for(c in c("simple","max","frac")){
+  mean_tree <- eval(as.name(paste("exp_inc_tree_",c,"1",sep = ""))) +
+    eval(as.name(paste("exp_inc_tree_",c,"2",sep = ""))) +
+    eval(as.name(paste("exp_inc_tree_",c,"3",sep = ""))) +
+    eval(as.name(paste("exp_inc_tree_",c,"4",sep = ""))) +
+    eval(as.name(paste("exp_inc_tree_",c,"5",sep = ""))) 
+  mean_tree <- mean_tree/5
+  
+  mean_forest <- eval(as.name(paste("exp_inc_forest_",c,"1",sep = ""))) +
+    eval(as.name(paste("exp_inc_forest_",c,"2",sep = ""))) +
+    eval(as.name(paste("exp_inc_forest_",c,"3",sep = ""))) +
+    eval(as.name(paste("exp_inc_forest_",c,"4",sep = ""))) +
+    eval(as.name(paste("exp_inc_forest_",c,"5",sep = ""))) 
+  mean_forest <- mean_forest/5
+  
+  mean_random_forest <- eval(as.name(paste("exp_inc_random_forest_",c,"1",sep = ""))) +
+    eval(as.name(paste("exp_inc_random_forest_",c,"2",sep = ""))) +
+    eval(as.name(paste("exp_inc_random_forest_",c,"3",sep = ""))) +
+    eval(as.name(paste("exp_inc_random_forest_",c,"4",sep = ""))) +
+    eval(as.name(paste("exp_inc_random_forest_",c,"5",sep = ""))) 
+  mean_random_forest <- mean_random_forest/5
+  
+  temp_matrix <- matrix(cbind(mean_tree,mean_forest,mean_random_forest),nrow=11,ncol=3)
+  matplot(temp_matrix, type = c("b"),pch=1,col = 1:3, ylab = "Expected Outcome per Person",
+          xlab = "Percent Treated", main = paste("Expected Outcome Comparison ",c, sep = "")) #plot
+  legend("topleft", legend = c("Tree","Forest","Random Forest"), col=1:3, pch=1)
+}
 
-### Results Preparation to bring into equal format
-# Calculate Uplift for each T
-pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
-pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
+  
+  
+  
+  
+  
+  
+  
+temp_matrix <- matrix(cbind(exp_inc_tree_frac1,exp_inc_tree_frac2,exp_inc_tree_frac3,exp_inc_tree_frac4,
+                            exp_inc_tree_frac5),nrow = 11, ncol = 5)
+matplot(temp_matrix, type = c("b"),pch=1,col = 1:5, ylab = "Expected Outcome per Person",
+        xlab = "Percent Treated", main = "Expected Outcome for different Folds") #plot
+legend("topleft", legend = 1:5, col=1:5, pch=1)
 
-pred[ , "Outcome"] <- test[, response]
-# get the actual assignment from test data
-pred[ , "New Assignment"] <- predictions_to_treatment(test, treatment_list, control)
+temp_matrix <- matrix(cbind(exp_inc_tree_max1,exp_inc_tree_max2,exp_inc_tree_max3,exp_inc_tree_max4,
+                            exp_inc_tree_max5),nrow = 11, ncol = 5)
+matplot(temp_matrix, type = c("b"),pch=1,col = 1:4) #plot
+legend("topleft", legend = 1:5, col=1:5, pch=1)
 
-write.csv(pred, 'Predictions/fores_Old.csv', row.names = FALSE)
-
-pred <- read.csv('Predictions/fores_Old.csv')
-exp_forest_old <- new_expected_outcome(pred,response,control,treatment_list)
-exp_inc_forest_old <- new_expected_quantile_response(response,control,treatment_list,pred)
-
-
-
-#Load original predictions
-pred <- read.csv('Predictions/tree_Old.csv')
-exp_tree_old <- new_expected_outcome(pred,response,control,treatment_list)
-exp_inc_tree_old <- new_expected_quantile_response(response,control,treatment_list,pred)
-pred <- read.csv('Predictions/fores_Old.csv')
-exp_forest_old <- new_expected_outcome(pred,response,control,treatment_list)
-exp_inc_forest_old <- new_expected_quantile_response(response,control,treatment_list,pred)
+temp_matrix <- matrix(cbind(exp_inc_tree_simple1,exp_inc_tree_simple2,exp_inc_tree_simple3,exp_inc_tree_simple4,
+                            exp_inc_tree_simple5),nrow = 11, ncol = 5)
+matplot(temp_matrix, type = c("b"),pch=1,col = 1:4) #plot
+legend("topleft", legend = 1:5, col=1:5, pch=1)
 
 
 
 
-temp_df = data.frame(models=c("C_Forest","C_Tree","Simple_Tree","Simple_Forest","Naive Men", "Naive Women","SMA-DT","SMA-RF"),values = c(exp_outcome_c_forest,exp_outcome_c_tree,exp_outcome_simple,exp_outcome_simple_forest,exp_outcome_naive_men,exp_outcome_naive_women,exp_outcome_sma_dt,exp_outcome_sma_rf))
 
-p<-ggplot(data=temp_df, aes(x=reorder(models, values), y=values)) +
-  geom_bar(stat="identity") +
-  labs(
-    x = "Models",
-    y = "Expected Outcome"
-  )
-p
-
-temp_vec <- rep(seq(0,1,0.1),6)
-name_vec <- c(rep("C_Forest",11),rep("C_Tree",11),rep("Simple_Tree",11),rep("Simple_Forest",11),rep("Naive Men",11),rep("Naive Women",11),rep("SMA-DT",11),rep("SMA-RF",11))
-temp_results <- cbind(c(exp_inc_outcome_c_forest,exp_inc_outcome_c_tree,exp_inc_outcome_simple,exp_inc_outcome_simple_forest,exp_inc_outcome_naive_men,exp_inc_outcome_naive_women,exp_inc_outcome_sma_dt,exp_inc_outcome_sma_rf))
+temp_vec <- rep(seq(0,1,0.1),8)
+name_vec <- c(rep("Simple Forest",11),rep("Simple Random Forest",11),
+              rep("Max Tree",11), rep("Max Forest",11),rep("Max Random Forest",11),
+              rep("Frac Tree",11),rep("Frac Forest",11),rep("Frac Random Forest",11))
+temp_results <- cbind(c(exp_inc_forest_simple,exp_inc_random_forest_simple,
+                        exp_inc_tree_max,exp_inc_forest_max,exp_inc_random_forest_max,
+                        exp_inc_tree_frac,exp_inc_forest_frac,exp_inc_random_forest_frac))
 temp_df <- data.frame(cbind(temp_vec,temp_results,name_vec))
 colnames(temp_df) <- c("Percentile","Expected_Outcome","Model")
 temp_df$Expected_Outcome <- as.numeric(as.character(temp_df$Expected_Outcome))
@@ -142,152 +259,7 @@ p <-  melt(temp_df, id.vars = c("Percentile","Model")) %>% ggplot(aes(x = Percen
   theme_light()
 p
 
-
-
-
-
-### Test Gain Methods
-
-#This method calculates the gain for a given split
-new_simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
-  treatments <- c(treatment, control)
-  gain <- 0
-  #First check if there is data in each subset after the data is split. If not return -1.
-  if(test_type == 'categorical'){
-    data1 <- data[data[,test_col] == test_case,]
-    data2 <- data[data[,test_col] != test_case,]
-  } else{
-    data1 <- data[data[,test_col] < test_case,]
-    data2 <- data[data[,test_col] >= test_case,]
-  }
-  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
-    return(-1)
-  }
-  current_gain <- 0
-  for(t in treatment){
-    if(mean(data[data[,t]==1,target])>current_gain){
-      current_gain <- mean(data[data[,t]==1,target])
-    }
-  }
-  
-  #Here the gain is calculated
-  left_gain <- 0
-  right_gain <- 0
-  for(t in treatment){
-    left_gain <- max(left_gain,mean(data1[data1[,t]==1,target]))
-    right_gain <- max(right_gain,mean(data2[data2[,t]==1,target]))
-  }
-  gain <- max(left_gain,right_gain)
-  # gain <- (frac1*left_gain+frac2*right_gain)
-  for(t in treatments){
-    if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-      gain <- -1
-    }
-  }
-  if(is.na(gain)){
-    gain = -1
-  }
-  if(gain <= current_gain){
-    gain = -1
-  }
-  return(gain)
-}
-
-
-
-new_simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
-  treatments <- c(treatment, control)
-  gain <- 0
-  #First check if there is data in each subset after the data is split. If not return -1.
-  if(test_type == 'categorical'){
-    data1 <- data[data[,test_col] == test_case,]
-    data2 <- data[data[,test_col] != test_case,]
-  } else{
-    data1 <- data[data[,test_col] < test_case,]
-    data2 <- data[data[,test_col] >= test_case,]
-  }
-  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
-    return(-1)
-  }
-  frac1 <- nrow(data1)/nrow(data)
-  frac2 <- nrow(data2)/nrow(data)
-  
-  current_gain <- 0
-  for(x in 1:(length(treatments)-1)){
-    t <- treatments[x]
-    s <- treatments[x+1]
-    temp_gain <- (mean(data[data[,t] == 1,target])-mean(data[data[,s] == 1,target]))^2
-    current_gain <- current_gain + temp_gain
-  }
-  #The actual calculation of the gain
-  #Here for a test of a categorical cavariate
-  for(x in 1:(length(treatments)-1)){
-    t <- treatments[x]
-    s <- treatments[x+1]
-    temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-      frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
-    gain <- gain + temp_gain
-  }
-  #Make sure that there are data points of each treatment in each subset of the data
-  # for(t in treatments){
-  #   if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-  #     gain <- 0
-  #   }
-  # }
-  if(is.na(gain)){
-    gain = -1
-  }
-  if(gain <= current_gain){
-    gain = -1
-  }
-  return(gain)
-}
-
-new_simple_pruning_helper <- function(node,treatments,control){
-  #Check if we are already at the root
-  if(node[['type']] == 'root'){
-    return(node)
-  }
-  
-  #The rows of the validation set, that ended up in the left and right leaf
-  temp_left_bool <- node[['left']][['val_samples']]
-  temp_right_bool <- node[['right']][['val_samples']]
-  
-  if(temp_left_bool == 0 || temp_right_bool == 0){
-    node[['type']] <- 'leaf'
-    node[['left']] <- NULL
-    node[['right']] <- NULL
-    node[['split']] <- NULL
-    return(node)
-  }
-  
-  left_distance <- max(node[['left']][['val_predictions']])
-  right_distance <- max(node[['right']][['val_predictions']])
-  
-  root_distance <- max(node[['val_predictions']])
-  
-  
-  if(is.nan(left_distance) || is.nan(right_distance)|| is.nan(root_distance) || 
-     (max(left_distance,right_distance) <= root_distance)){
-    node[['type']] <- 'leaf'
-    node[['left']] <- NULL
-    node[['right']] <- NULL
-    node[['split']] <- NULL
-    return(node)
-  } else{
-    return(node)
-  }
-}
-
-
-
-
-
-
-
-
-pred["predicted_treatment"] <- predictions_to_treatment(pred, treatment_list, control)
-
+assign("testassign",1)
 
 
 
