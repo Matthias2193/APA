@@ -39,7 +39,21 @@ predict.dt.as.df <- function(tree,new_data){
 predictions_to_treatment <- function(pred,treatment_list,control){
   colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
 }
+new_predictions_to_treatment <- function(pred,treatment_list,control){
+  results <- colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
+  for(c in treatment_list){
+    if(exists(temp_bool)){
+      temp_bool <- temp_bool & pred[,c] == 0
+    } else{
+      temp_bool <- pred[,c] == 0
+    }
+  }
+  if(sum(temp_bool) > 0){
+    results[temp_bool] <- control
+  }
+}
 
+FALSE + TRUE
 
 #Forest
 
