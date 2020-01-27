@@ -33,7 +33,7 @@ set_up_tests <- function(x,reduce_cases,max_cases = 10){
         s <- s+1
       }
       final_list <- unique(final_list)
-      if((length(final_list)>1000)&& reduce_cases){
+      if((length(final_list)>max_cases)&& reduce_cases){
         final_list <- round(final_list)
       }
       if((length(final_list)>max_cases)&& reduce_cases){
@@ -184,7 +184,7 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
     sample_cols <- setdiff(colnames(data),retain_cols)
     temp_cols <- sample(sample_cols,n_features,replace = F)
     chosen_cols <- c(temp_cols,retain_cols)
-    test_list<- set_up_tests(data[,chosen_cols],TRUE)
+    test_list<- set_up_tests(data[,temp_cols],TRUE)
   }
   
   node <- list()
@@ -256,7 +256,7 @@ build_forest <- function(train_data, val_data,treatment_list,response,control,n_
   for(x in 1:n_trees){
     temp_cols <- sample(sample_cols,n_features,replace = F)
     chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
+    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
     temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
                              test_list = test_list,target = response,control = control,
                              max_depth = max_depth,criterion)
@@ -283,7 +283,7 @@ parallel_build_forest <- function(train_data, val_data,treatment_list,response,c
     set.seed(x)
     temp_cols <- sample(sample_cols,n_features,replace = F)
     chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
+    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
     temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
                             test_list = test_list,target = response,control = control,
                             max_depth = max_depth,criterion = criterion)
@@ -322,8 +322,9 @@ build_random_forest <- function(train_data, val_data,treatment_list,response,con
 
 
 
+
 parallel_build_random_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                                         pruning,max_depth = 10,remain_cores = 1,criterion = "simple"){
+                                         max_depth = 10,remain_cores = 1,criterion = "simple"){
   numCores <- detectCores()
   cl <- makePSOCKcluster(numCores-remain_cores)
   registerDoParallel(cl)
@@ -335,18 +336,10 @@ parallel_build_random_forest <- function(train_data, val_data,treatment_list,res
                             test_list = test_list,target = response,control = control,
                             max_depth = max_depth,random = TRUE,n_features,criterion)
     return(temp_tree)
-    if(pruning){
-      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
-                                           test_list, response,control = control)
-      return(temp_prune_tree)
-    } else{
-      return(temp_tree)
-    }
   }
   stopCluster(cl)
   return(trees)
 }
-
 
 #Pruning ----
 #Takes a tree and prunes it with the help of a validation set.
