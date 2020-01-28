@@ -1,4 +1,3 @@
-
 library(ggplot2)
 library(caret)
 library(dplyr)
@@ -13,7 +12,7 @@ source('Separate Model Approach.R')
 source('CausalTree.R')
 source('Causal Forest.R')
 source('RzepakowskiTree.R')
-
+source("ContextualTreatmentSelection.R")
 set.seed(1234)
 
 #Data import
@@ -122,6 +121,24 @@ pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
 
 write.csv(pred, 'Predictions/scaled random forest spend old.csv', row.names = FALSE)
 
+
+# CTS
+cts_forest <- build_cts(response, control, treatment_list, train, 10, nrow(train), 3, 0.15, 100, parallel = TRUE,
+                        remain_cores = 1)
+
+pred <- predict_forest_df(cts_forest, test)
+
+### Results Preparation to bring into equal format
+# Calculate Uplift for each T
+pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+
+pred[ , "Outcome"] <- test[, response]
+# get the actual assignment from test data
+pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+
+write.csv(pred, 'Predictions/cts spend.csv', row.names = FALSE)
 
 
 

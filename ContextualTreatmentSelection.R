@@ -1,13 +1,24 @@
+library(dplyr)
+library(foreach)
+library(doParallel)
+source("DecisionTreeImplementation.R")
 build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_reg, min_split, parallel = TRUE,
                       remain_cores = 1){
-  if(prallel){
+  if(parallel){
     numCores <- detectCores()
     cl <- makePSOCKcluster(numCores-remain_cores)
     registerDoParallel(cl)
-    trees <- foreach(x=1:n_trees) %dopar% {
+    trees <- foreach(x=1:ntree) %dopar% {
       source('ContextualTreatmentSelection.R')
-      set.seed(rnorm(1))
-      temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
+      set.seed(x)
+      for(t in c(treatments,control)){
+        if(t == treatments[1]){
+          temp_train_data <- sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data)))
+        } else{
+          temp_train_data <- rbind(temp_train_data,sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data))))
+        }
+        
+      }
       return(build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg, 
                                   min_split, parent_predictions = NA))
     }
@@ -16,9 +27,15 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
   }
   else{
     trees <- list()
-    for(x in 1:n_trees){
-      set.seed(rnorm(1))
-      temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
+    for(x in 1:ntree){
+      for (t in c(treatments,control)){
+        if(t == treatments[1]){
+          temp_train_data <- sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data)))
+        } else{
+          temp_train_data <- rbind(temp_train_data,sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data))))
+        }
+        
+      }
       trees[[x]] <- build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg, 
                                    min_split, parent_predictions = NA)
       
@@ -27,21 +44,9 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
   }
 }
 
-
-data <- train
-treatments <- treatment_list
-m_try <- 3
-n_reg <- 0.1
-min_split <- 50
-parent_predictions <- NA
-
-new_tree <- build_cts_tree(response,control,treatment_list,train,3,0.15,50)
-
 build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, min_split, 
-                           parent_predictions = NA){
-  
-  set.seed(rnorm(1))
-  retain_cols <- c(treatment_list,control,response)
+                           min_gain = 0, parent_predictions = NA,depth = 0){
+  retain_cols <- c(treatments,control,response)
   sample_cols <- setdiff(colnames(data),retain_cols)
   temp_cols <- sample(sample_cols,m_try,replace = F)
   chosen_cols <- c(temp_cols,retain_cols)
@@ -68,7 +73,7 @@ build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, mi
         results <- c(results, parent_predictions[[t]])
       } else{
         results <- c(results, 
-                     (sum(data[data[,t] == 1,response])+parent_predictions[[t]]*n_reg)/(nrow(data[,t==1])+n_reg))
+                     (sum(data[data[,t] == 1,response])+parent_predictions[[t]]*n_reg)/(sum(data[,t] == 1)+n_reg))
       }
     }
   }
@@ -94,7 +99,7 @@ build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, mi
   }
   
   temp_split <- select_cts_split(node[["results"]], data, treatments, response, control, n_reg, min_split, 
-                                   test_list)
+                                   test_list, min_gain)
   
   if(temp_split == -1){
     node[["type"]] <- "leaf"
@@ -105,22 +110,20 @@ build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, mi
   node[['split']] <- temp_split
   if(names(temp_split) %in% names(test_list$categorical)){
     node[['left']] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)]==temp_split[[1]],], 
-                                     m_try, n_reg, min_split, node[["results"]])
+                                     m_try, n_reg, min_split, min_gain, node[["results"]],depth = depth + 1)
     node[['right']] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)]!=temp_split[[1]],], 
-                                      m_try, n_reg, min_split, node[["results"]])
-  }
-  else{
+                                      m_try, n_reg, min_split, min_gain, node[["results"]],depth = depth + 1)
+  } else{
     node[['left']] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)]<temp_split[[1]],], 
-                                     m_try, n_reg, min_split, node[["results"]])
+                                     m_try, n_reg, min_split, min_gain, node[["results"]],depth = depth + 1)
     node[['right']] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)]>=temp_split[[1]],], 
-                                      m_try, n_reg, min_split, node[["results"]])
+                                      m_try, n_reg, min_split, min_gain, node[["results"]],depth = depth + 1)
   }
   return(node)
 }
 
-
 select_cts_split <- function(parent_predictions, data, treatments, response, control, n_reg, min_split, 
-                             test_list){
+                             test_list, min_gain){
   gain_list <- c()
   name_list <- c()
   if(length(test_list$categorical)>0){
@@ -150,7 +153,7 @@ select_cts_split <- function(parent_predictions, data, treatments, response, con
   if(is.na(max(gain_list))){
     return(-1)
   }
-  if(max(gain_list) > 0){
+  if(max(gain_list) > min_gain){
     temp_string <- name_list[match(max(gain_list),gain_list)]
     temp_result <- strsplit(temp_string,split='@@', fixed=TRUE)
     options(warn=-1)
@@ -165,8 +168,7 @@ select_cts_split <- function(parent_predictions, data, treatments, response, con
       names(result) <- temp_result[[1]][1]
       return(result)
     }
-  }
-  else{
+  } else{
     return(-1)
   }
 }
@@ -187,7 +189,7 @@ cts_gain <- function(test_case, treatments, control, response, data, test_type, 
   p_right <- nrow(data_right)/nrow(data)
   for(t in c(treatments,control)){
     n_left <- nrow(data_left[data_left[,t] == 1,])
-    n_right <- nrow(data_right[data_left[,t] == 1,])
+    n_right <- nrow(data_right[data_right[,t] == 1,])
     if(n_left < min_split){
       exp_left <- parent_predictions[[t]]
     } else{
@@ -202,4 +204,21 @@ cts_gain <- function(test_case, treatments, control, response, data, test_type, 
     max_right <- max(max_right, exp_right)
   }
   return(p_left * max_left + p_right * max_right - max_root)
+}
+
+check_split <- function(tree){
+  if(tree[["type"]] == "leaf"){
+    #print("Reached End")
+  } else if((tree[["left"]][["n_samples"]] + tree[["right"]][["n_samples"]]) == tree[["n_samples"]]){
+    if(tree[["left"]][["n_samples"]] == 0){
+      print("Left no samples")
+    } else if(tree[["right"]][["n_samples"]] == 0){
+      print("Right no samples")
+    }
+    check_split(tree[["left"]])
+    check_split(tree[["right"]])
+  } else{
+    print("Subsamples don't sum up!")
+    break
+  }
 }

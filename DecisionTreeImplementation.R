@@ -179,7 +179,6 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   #Create current node
   
   if(random){
-    set.seed(rnorm(1))
     retain_cols <- c(treatment_list,control,target)
     sample_cols <- setdiff(colnames(data),retain_cols)
     temp_cols <- sample(sample_cols,n_features,replace = F)
@@ -304,7 +303,7 @@ build_random_forest <- function(train_data, val_data,treatment_list,response,con
                                 pruning,max_depth = 10, criterion = "simple"){
   trees <- list()
   for(x in 1:n_trees){
-    set.seed(rnorm(1))
+    #set.seed(rnorm(1))
     temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
     temp_tree <- build_tree(data = temp_train_data,0,treatment_list = treatment_list, 
                             test_list = test_list,target = response,control = control,
@@ -330,7 +329,7 @@ parallel_build_random_forest <- function(train_data, val_data,treatment_list,res
   registerDoParallel(cl)
   trees <- foreach(x=1:n_trees) %dopar% {
     source('DecisionTreeImplementation.R')
-    set.seed(rnorm(1))
+    #set.seed(rnorm(1))
     temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
     temp_tree <- build_tree(data = temp_train_data,0,treatment_list = treatment_list, 
                             test_list = test_list,target = response,control = control,
