@@ -35,9 +35,11 @@ set_up_tests <- function(x,reduce_cases,max_cases = 10){
       final_list <- unique(final_list)
       if((length(final_list)>max_cases)&& reduce_cases){
         final_list <- round(final_list)
+        final_list <- unique(final_list)
       }
       if((length(final_list)>max_cases)&& reduce_cases){
         final_list <- quantile(x[,n],seq(0,1,1/max_cases))
+        final_list <- round(final_list,2)
       }
       numerical_splits[[n]] <- final_list
     }
@@ -177,7 +179,6 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
     return(final_node(data,treatment_list,target,control))
   }
   #Create current node
-  
   if(random){
     retain_cols <- c(treatment_list,control,target)
     sample_cols <- setdiff(colnames(data),retain_cols)
@@ -212,16 +213,23 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   node[['split']] <- temp_split
   #Split the data and create two new subtrees, each using one subset of the data
   if(names(temp_split) %in% names(test_list$categorical)){
-    node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
-                                 treatment_list,target,control,test_list,random,n_features)
-    node[['right']] <- build_tree(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,max_depth,
-                                  treatment_list,target,control,test_list,random,n_features,criterion)
-  }
-  else{
-    node[['left']] <- build_tree(data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,max_depth,
-                                 treatment_list,target,control,test_list,random,n_features)
-    node[['right']] <- build_tree(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,max_depth,
-                                  treatment_list,target,control,test_list,random,n_features,criterion)
+    node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
+                                 max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                                 control = control,test_list = test_list,random = random, n_features = n_features,
+                                 criterion = criterion)
+    node[['right']] <- build_tree(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,
+                                  max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                                  control = control,test_list = test_list,random = random, n_features = n_features,
+                                  criterion = criterion)
+  } else{
+    node[['left']] <- build_tree(data = data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,
+                                 max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                                 control = control,test_list = test_list,random = random, n_features = n_features,
+                                 criterion = criterion)
+    node[['right']] <- build_tree(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,
+                                  max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                                  control = control,test_list = test_list,random = random, n_features = n_features,
+                                  criterion = criterion)
   }
   return(node)
 }
@@ -229,13 +237,17 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
 #Used to creat a leaf
 final_node <- function(data,treatment_list,target,control){
   treatment_names <- c(treatment_list,control)
-  effects <- c()
-  for(t in treatment_names){
-    temp_effect <- mean(data[data[t]==1,target])
-    if(is.na(temp_effect)){
-      effects <- c(effects,0)
-    } else{
-      effects <- c(effects,temp_effect)
+  if(nrow(data) == 0){
+    effects <- rep(0,length(treatment_names))
+  } else{
+    effects <- c()
+    for(t in treatment_names){
+      temp_effect <- mean(data[data[t]==1,target])
+      if(is.na(temp_effect)){
+        effects <- c(effects,0)
+      } else{
+        effects <- c(effects,temp_effect)
+      }
     }
   }
   names(effects) <- treatment_names
@@ -299,22 +311,17 @@ parallel_build_forest <- function(train_data, val_data,treatment_list,response,c
   return(trees)
 }
 
-build_random_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                                pruning,max_depth = 10, criterion = "simple"){
+build_random_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
+                                max_depth = 100, criterion = "simple"){
   trees <- list()
   for(x in 1:n_trees){
-    #set.seed(rnorm(1))
+    print(x)
+    set.seed(x)
     temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
     temp_tree <- build_tree(data = temp_train_data,0,treatment_list = treatment_list, 
                             test_list = test_list,target = response,control = control,
                             max_depth = max_depth,random = TRUE,n_features,criterion)
-    if(pruning){
-      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
-      trees[[x]] <- temp_prune_tree
-    } else{
-      trees[[x]] <- temp_tree
-    }
-    
+    trees[[x]] <- temp_tree
   }
   return(trees)
 }
@@ -322,14 +329,14 @@ build_random_forest <- function(train_data, val_data,treatment_list,response,con
 
 
 
-parallel_build_random_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                                         max_depth = 10,remain_cores = 1,criterion = "simple"){
+parallel_build_random_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
+                                         max_depth = 100,remain_cores = 1,criterion = "simple"){
   numCores <- detectCores()
   cl <- makePSOCKcluster(numCores-remain_cores)
   registerDoParallel(cl)
   trees <- foreach(x=1:n_trees) %dopar% {
     source('DecisionTreeImplementation.R')
-    #set.seed(rnorm(1))
+    set.seed(x)
     temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
     temp_tree <- build_tree(data = temp_train_data,0,treatment_list = treatment_list, 
                             test_list = test_list,target = response,control = control,

@@ -11,9 +11,10 @@ library(reshape2)
 source('DecisionTreeImplementation.R')
 source('RzepakowskiTree.R')
 source('Evaluation Methods.R')
-source('CausalTree.R')
-source('Causal Forest.R')
+# source('CausalTree.R')
+# source('Causal Forest.R')
 source('Separate Model Approach.R')
+source('ContextualTreatmentSelection.R')
 
 
 set.seed(1234)
@@ -39,7 +40,8 @@ treatment_list <- c('men_treatment','women_treatment')
 
 idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
 folds <- createFolds(email$spend, k = 5, list = TRUE, returnTrain = FALSE)
-for(f in 4:5){
+
+for(f in 1:1){
   train <- email[-folds[[f]], ]
   
   test <- email[folds[[f]], ]
@@ -54,7 +56,7 @@ for(f in 4:5){
   
   
   start_time <- Sys.time()
-  for(c in c("simple","frac","max")){
+  for(c in c("simple","max","frac")){
     print(c)
     # Single Tree
     raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
@@ -97,8 +99,8 @@ for(f in 4:5){
     write.csv(pred, paste("Predictions/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
 
     #Random Forest
-    forest <- parallel_build_random_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
-                                           pruning = F, criterion = c)
+    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3, 
+                                           criterion = c)
 
     # add to the result df the outcome, assignment and calculate uplift for each T
     pred <- predict_forest_df(forest,test)
@@ -115,7 +117,38 @@ for(f in 4:5){
 
     write.csv(pred, paste("Predictions/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
+  end_time <- Sys.time()
+  print(difftime(end_time,start_time,units = "mins"))
 }
+
+
+# for(f in 1:5){
+#   train <- email[-folds[[f]], ]
+#   
+#   test <- email[folds[[f]], ]
+#   
+#   test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
+#                                      "newbie","channel")],TRUE, max_cases = 10)
+#   
+#   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response)
+#   
+#   causal_forest_pred[ , "uplift_men_treatment"] <- causal_forest_pred[ , 1] - causal_forest_pred[ , 3]
+#   causal_forest_pred[ , "uplift_women_treatment"] <- causal_forest_pred[ , 2] - causal_forest_pred[ , 3]
+#   causal_forest_pred[ , "Treatment"] <- colnames(causal_forest_pred)[apply(causal_forest_pred[, 1:3], 1, which.max)]
+#   
+#   causal_forest_pred[ , "Outcome"] <- test[, response]
+#   # get the actual assignment from test data
+#   causal_forest_pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+#   
+#   write.csv(causal_forest_pred, paste("Predictions/causal forest spend pred",as.character(f),".csv",sep = ""),
+#             row.names = FALSE)
+#   causal_forest_pred <- read.csv(paste("Predictions/causal forest spend pred",as.character(f),".csv",sep = ""))
+#   if(sum(causal_forest_pred$men_treatment == 0 & causal_forest_pred$women_treatment == 0)>0){
+#     causal_forest_pred[causal_forest_pred$uplift_men_treatment==0 & causal_forest_pred$uplift_women_treatment ==0,]$Treatment <- control
+#   }
+#   assign(paste("new_exp_inc_outcome_c_forest",as.character(f),sep = ""),
+#          new_expected_quantile_response(response,control,treatment_list,causal_forest_pred))
+# }
 
 for(f in 1:5){
   train <- email[-folds[[f]], ]
@@ -125,44 +158,29 @@ for(f in 1:5){
   test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
                                      "newbie","channel")],TRUE, max_cases = 10)
   
-  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response)
-  
-  causal_forest_pred[ , "uplift_men_treatment"] <- causal_forest_pred[ , 1] - causal_forest_pred[ , 3]
-  causal_forest_pred[ , "uplift_women_treatment"] <- causal_forest_pred[ , 2] - causal_forest_pred[ , 3]
-  causal_forest_pred[ , "Treatment"] <- colnames(causal_forest_pred)[apply(causal_forest_pred[, 1:3], 1, which.max)]
-  
-  causal_forest_pred[ , "Outcome"] <- test[, response]
-  # get the actual assignment from test data
-  causal_forest_pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
-  
-  write.csv(causal_forest_pred, paste("Predictions/causal forest spend pred",as.character(f),".csv",sep = ""),
-            row.names = FALSE)
-  causal_forest_pred <- read.csv(paste("Predictions/causal forest spend pred",as.character(f),".csv",sep = ""))
-  if(sum(causal_forest_pred$men_treatment == 0 & causal_forest_pred$women_treatment == 0)>0){
-    causal_forest_pred[causal_forest_pred$uplift_men_treatment==0 & causal_forest_pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
-  assign(paste("new_exp_inc_outcome_c_forest",as.character(f),sep = ""),
-         new_expected_quantile_response(response,control,treatment_list,causal_forest_pred))
-}
-
-for(f in 1:5){
-  train <- email[-folds[[f]], ]
-  
-  test <- email[folds[[f]], ]
-  
-  test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
-                                     "newbie","channel")],TRUE, max_cases = 10)
-  
+  #Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
-  
-  write.csv(pred_sma_rf, paste("Predictions/sma rf",as.character(f),".csv",sep = ""),
-            row.names = FALSE)
-  pred_sma_rf <- read.csv(paste("Predictions/sma rf",as.character(f),".csv",sep = ""))
   if(sum(pred_sma_rf$men_treatment == 0 & pred_sma_rf$women_treatment == 0)>0){
     pred_sma_rf[pred_sma_rf$uplift_men_treatment==0 & pred_sma_rf$uplift_women_treatment ==0,]$Treatment <- control
   }
-  assign(paste("new_exp_inc_sma_rf",as.character(f),sep = ""),
-         new_expected_quantile_response(response,control,treatment_list,pred_sma_rf))
+  write.csv(pred_sma_rf, paste("Predictions/sma rf",as.character(f),".csv",sep = ""),
+            row.names = FALSE)
+  
+  # CTS
+  cts_forest <- build_cts(response, control, treatment_list, train, 100, nrow(train), 3, 0.15, 100, parallel = TRUE,
+                          remain_cores = 1)
+  
+  pred <- predict_forest_df(cts_forest, test)
+  
+  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+  pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
+  
+  pred[ , "Outcome"] <- test[, response]
+  # get the actual assignment from test data
+  pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
+  
+  write.csv(pred, paste("Predictions/cts_",as.character(f),".csv",sep = ""), row.names = FALSE)
 }
 
 
@@ -211,72 +229,78 @@ for(f in 1:5){
   assign(paste("new_exp_inc_random_forest_max",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred))
   #Load frac pred
-  pred <- read.csv(paste("Predictions/tree_frac",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
-  assign(paste("new_exp_inc_tree_frac",as.character(f),sep = ""),
-         new_expected_quantile_response(response,control,treatment_list,pred))
-  pred <- read.csv(paste("Predictions/forest_frac",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
-  assign(paste("new_exp_inc_forest_frac",as.character(f),sep = ""),
-         new_expected_quantile_response(response,control,treatment_list,pred))
-  pred <- read.csv(paste("Predictions/random_forest_frac",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
-  assign(paste("new_exp_inc_random_forest_frac",as.character(f),sep = ""),
-         new_expected_quantile_response(response,control,treatment_list,pred))
-  
+  # pred <- read.csv(paste("Predictions/tree_frac",as.character(f),".csv",sep = ""))
+  # if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
+  #   pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
+  # }
+  # assign(paste("new_exp_inc_tree_frac",as.character(f),sep = ""),
+  #        new_expected_quantile_response(response,control,treatment_list,pred))
+  # pred <- read.csv(paste("Predictions/forest_frac",as.character(f),".csv",sep = ""))
+  # if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
+  #   pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
+  # }
+  # assign(paste("new_exp_inc_forest_frac",as.character(f),sep = ""),
+  #        new_expected_quantile_response(response,control,treatment_list,pred))
+  # pred <- read.csv(paste("Predictions/random_forest_frac",as.character(f),".csv",sep = ""))
+  # if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
+  #   pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
+  # }
+  # assign(paste("new_exp_inc_random_forest_frac",as.character(f),sep = ""),
+  #        new_expected_quantile_response(response,control,treatment_list,pred))
+
   pred_sma_rf <- read.csv(paste("Predictions/sma rf",as.character(f),".csv",sep = ""))
   if(sum(pred_sma_rf$men_treatment == 0 & pred_sma_rf$women_treatment == 0)>0){
     pred_sma_rf[pred_sma_rf$uplift_men_treatment==0 & pred_sma_rf$uplift_women_treatment ==0,]$Treatment <- control
   }
   assign(paste("new_exp_inc_sma_rf",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred_sma_rf))
-  
-  causal_forest_pred <- read.csv(paste("Predictions/causal forest spend pred",as.character(f),".csv",sep = ""))
-  if(sum(causal_forest_pred$men_treatment == 0 & causal_forest_pred$women_treatment == 0)>0){
-    causal_forest_pred[causal_forest_pred$uplift_men_treatment==0 & causal_forest_pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
-  assign(paste("new_exp_inc_outcome_c_forest",as.character(f),sep = ""),
-         new_expected_quantile_response(response,control,treatment_list,causal_forest_pred))
 
+  # causal_forest_pred <- read.csv(paste("Predictions/causal forest spend pred",as.character(f),".csv",sep = ""))
+  # if(sum(causal_forest_pred$men_treatment == 0 & causal_forest_pred$women_treatment == 0)>0){
+  #   causal_forest_pred[causal_forest_pred$uplift_men_treatment==0 & causal_forest_pred$uplift_women_treatment ==0,]$Treatment <- control
+  # }
+  # assign(paste("new_exp_inc_outcome_c_forest",as.character(f),sep = ""),
+  #        new_expected_quantile_response(response,control,treatment_list,causal_forest_pred))
+  # 
+  pred <- read.csv(paste("Predictions/cts_",as.character(f),".csv",sep = ""))
+  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
+    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
+  }
+  assign(paste("exp_inc_cts",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
 }  
 
   
 for(c in c("simple","max","frac")){
-  temp_matrix <- matrix(cbind(eval(as.name(paste("exp_inc_tree_",c,"1",sep = ""))),
-                              eval(as.name(paste("exp_inc_tree_",c,"2",sep = ""))),
-                              eval(as.name(paste("exp_inc_tree_",c,"3",sep = ""))),
-                              eval(as.name(paste("exp_inc_tree_",c,"4",sep = ""))),
-                              eval(as.name(paste("exp_inc_tree_",c,"5",sep = "")))),nrow = 11, ncol = 5)
+  temp_matrix <- matrix(cbind(eval(as.name(paste("new_exp_inc_tree_",c,"1",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_tree_",c,"2",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_tree_",c,"3",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_tree_",c,"4",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_tree_",c,"5",sep = "")))),nrow = 11, ncol = 5)
   matplot(temp_matrix, type = c("b"),pch=1,col = 1:5, ylab = "Expected Outcome per Person",
           xlab = "Percent Treated", main = paste("Expected Outcome for different Folds: Tree ",c, sep = "")) #plot
   legend("topleft", legend = 1:5, col=1:5, pch=1)
   
-  temp_matrix <- matrix(cbind(eval(as.name(paste("exp_inc_forest_",c,"1",sep = ""))),
-                              eval(as.name(paste("exp_inc_forest_",c,"2",sep = ""))),
-                              eval(as.name(paste("exp_inc_forest_",c,"3",sep = ""))),
-                              eval(as.name(paste("exp_inc_forest_",c,"4",sep = ""))),
-                              eval(as.name(paste("exp_inc_forest_",c,"5",sep = "")))),nrow = 11, ncol = 5)
+  temp_matrix <- matrix(cbind(eval(as.name(paste("new_exp_inc_forest_",c,"1",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_forest_",c,"2",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_forest_",c,"3",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_forest_",c,"4",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_forest_",c,"5",sep = "")))),nrow = 11, ncol = 5)
   matplot(temp_matrix, type = c("b"),pch=1,col = 1:5, ylab = "Expected Outcome per Person",
           xlab = "Percent Treated", main = paste("Expected Outcome for different Folds: Forest ",c, sep = "")) #plot
   legend("topleft", legend = 1:5, col=1:5, pch=1)
   
-  temp_matrix <- matrix(cbind(eval(as.name(paste("exp_inc_random_forest_",c,"1",sep = ""))),
-                              eval(as.name(paste("exp_inc_random_forest_",c,"2",sep = ""))),
-                              eval(as.name(paste("exp_inc_random_forest_",c,"3",sep = ""))),
-                              eval(as.name(paste("exp_inc_random_forest_",c,"4",sep = ""))),
-                              eval(as.name(paste("exp_inc_random_forest_",c,"5",sep = "")))),nrow = 11, ncol = 5)
+  temp_matrix <- matrix(cbind(eval(as.name(paste("new_exp_inc_random_forest_",c,"1",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_random_forest_",c,"2",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_random_forest_",c,"3",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_random_forest_",c,"4",sep = ""))),
+                              eval(as.name(paste("new_exp_inc_random_forest_",c,"5",sep = "")))),nrow = 11, ncol = 5)
   matplot(temp_matrix, type = c("b"),pch=1,col = 1:5, ylab = "Expected Outcome per Person",
           xlab = "Percent Treated", main = paste("Expected Outcome for different Folds: Random Forest ",c, sep = "")) #plot
   legend("topleft", legend = 1:5, col=1:5, pch=1)
 }
 
-for(c in c("simple","max","frac")){
+for(c in c("simple","max")){
   mean_tree <- eval(as.name(paste("new_exp_inc_tree_",c,"1",sep = ""))) +
     eval(as.name(paste("new_exp_inc_tree_",c,"2",sep = ""))) +
     eval(as.name(paste("new_exp_inc_tree_",c,"3",sep = ""))) +
@@ -298,25 +322,39 @@ for(c in c("simple","max","frac")){
     eval(as.name(paste("new_exp_inc_random_forest_",c,"5",sep = ""))) 
   mean_random_forest <- mean_random_forest/5
   
-  mean_causal_forest <- eval(as.name(paste("new_exp_inc_outcome_c_forest","1",sep = ""))) +
-    eval(as.name(paste("new_exp_inc_outcome_c_forest","2",sep = ""))) +
-    eval(as.name(paste("new_exp_inc_outcome_c_forest","3",sep = ""))) +
-    eval(as.name(paste("new_exp_inc_outcome_c_forest","4",sep = ""))) +
-    eval(as.name(paste("new_exp_inc_outcome_c_forest","5",sep = ""))) 
-  mean_causal_forest <- mean_causal_forest/5
-  
+  # mean_causal_forest <- eval(as.name(paste("new_exp_inc_outcome_c_forest","1",sep = ""))) +
+  #   eval(as.name(paste("new_exp_inc_outcome_c_forest","2",sep = ""))) +
+  #   eval(as.name(paste("new_exp_inc_outcome_c_forest","3",sep = ""))) +
+  #   eval(as.name(paste("new_exp_inc_outcome_c_forest","4",sep = ""))) +
+  #   eval(as.name(paste("new_exp_inc_outcome_c_forest","5",sep = ""))) 
+  # mean_causal_forest <- mean_causal_forest/5
+  # 
   mean_sma_rf <- eval(as.name(paste("new_exp_inc_sma_rf","1",sep = ""))) +
     eval(as.name(paste("new_exp_inc_sma_rf","2",sep = ""))) +
     eval(as.name(paste("new_exp_inc_sma_rf","3",sep = ""))) +
     eval(as.name(paste("new_exp_inc_sma_rf","4",sep = ""))) +
-    eval(as.name(paste("new_exp_inc_sma_rf","5",sep = ""))) 
+    eval(as.name(paste("new_exp_inc_sma_rf","5",sep = "")))
   mean_sma_rf <- mean_sma_rf/5
   
-  temp_matrix <- matrix(cbind(mean_tree,mean_forest,mean_random_forest,mean_causal_forest,mean_sma_rf),
+  mean_cts <- eval(as.name(paste("exp_inc_cts","1",sep = ""))) +
+    eval(as.name(paste("exp_inc_cts","2",sep = ""))) +
+    eval(as.name(paste("exp_inc_cts","3",sep = ""))) +
+    eval(as.name(paste("exp_inc_cts","4",sep = ""))) +
+    eval(as.name(paste("exp_inc_cts","5",sep = "")))
+  mean_cts <- mean_cts/5
+  
+  # temp_matrix <- matrix(cbind(mean_tree,mean_forest,mean_random_forest),
+  #                       nrow=11,ncol=3)
+  # matplot(temp_matrix, type = c("b"),pch=1,col = 1:3, ylab = "Expected Outcome per Person",
+  #         xlab = "Percent Treated", main = paste("Expected Outcome Comparison ",c, sep = "")) #plot
+  # legend("bottomright", legend = c("Tree","Forest","Random Forest"), col=1:3, pch=1,
+  #        cex = 0.75)
+  
+  temp_matrix <- matrix(cbind(mean_tree,mean_forest,mean_random_forest,mean_cts,mean_sma_rf),
                         nrow=11,ncol=5)
   matplot(temp_matrix, type = c("b"),pch=1,col = 1:5, ylab = "Expected Outcome per Person",
           xlab = "Percent Treated", main = paste("Expected Outcome Comparison ",c, sep = "")) #plot
-  legend("bottomright", legend = c("Tree","Forest","Random Forest","C-Forest","SMA-RF"), col=1:5, pch=1,
+  legend("bottomright", legend = c("Tree","Forest","Random Forest","CTS","SMA-RF"), col=1:5, pch=1,
          cex = 0.75)
 }
 
@@ -443,3 +481,117 @@ if(sum(tree_pred1==tree_pred2)==nrow(test)*3){
   paste(c("The new method takes ",round(as.double(tree_time2)/as.double(tree_time1),4)*100,
           "% of the time."),collapse = "")
 }
+
+
+
+
+
+
+
+
+
+
+
+repeat_fct <- function(){
+  if(depth == max_depth){
+    return(final_node(data,treatment_list,target,control))
+  }
+  #Create current node
+  if(random){
+    retain_cols <- c(treatment_list,control,target)
+    sample_cols <- setdiff(colnames(data),retain_cols)
+    temp_cols <- sample(sample_cols,n_features,replace = F)
+    chosen_cols <- c(temp_cols,retain_cols)
+    test_list<- set_up_tests(data[,temp_cols],TRUE)
+  }
+  
+  node <- list()
+  #Select split with maximum gain
+  temp_split <- select_split(test_list = test_list, treatment = treatment_list, control, target,data,criterion)
+  #Return a leaf, if there is no split with gain > 0
+  if(temp_split == -1){
+    return(final_node(data,treatment_list,target,control))
+  }
+  #Construct current node
+  node[['type']] = 'node'
+  if(depth == 0){
+    node[['type']] <- 'root'
+  }
+  #Number of training samples in current node
+  node[['n_samples']] <- nrow(data)
+  #The estimated effects for an observation in the current node, used for pruning
+  treatment_names <- c(treatment_list,control)
+  effects <- c()
+  for(t in treatment_names){
+    effects <- c(effects,mean(data[data[t]==1,target]))
+  }
+  names(effects) <- treatment_names
+  node[['results']] <- effects
+  #The current split
+  node[['split']] <- temp_split
+  return(temp_split)
+}
+
+
+depth <- 0
+max_depth <- 10
+ramndom <- TRUE
+target <- response
+node <- list()
+n_features <- 3
+criterion <- "max"
+set.seed(1)
+data <- train[sample(nrow(train),nrow(train),replace = TRUE),]
+temp_split <- repeat_fct()
+node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
+                             max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                             control = control,test_list = test_list,random = random, n_features = n_features,
+                             criterion = criterion)
+data <- data[data[names(temp_split)]!=temp_split[[1]],]
+temp_split <- repeat_fct() 
+node[['left']] <- build_tree(data = data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
+                             max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                             control = control,test_list = test_list,random = random, n_features = n_features,
+                             criterion = criterion)
+data <- data[data[names(temp_split)]!=temp_split[[1]],]
+temp_split <- repeat_fct()
+data <- data[data[names(temp_split)]<temp_split[[1]],]
+temp_split <- repeat_fct()
+data <- data[data[names(temp_split)]<temp_split[[1]],]
+temp_split <- repeat_fct()
+data <- data[data[names(temp_split)]==temp_split[[1]],]
+temp_split <- repeat_fct()
+data <- data[data[names(temp_split)]==temp_split[[1]],]
+temp_split <- repeat_fct()
+node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
+                             max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                             control = control,test_list = test_list,random = random, n_features = n_features,
+                             criterion = criterion)
+data <- data[data[names(temp_split)]!=temp_split[[1]],]
+temp_split <- repeat_fct()
+data <- data[data[names(temp_split)]==temp_split[[1]],]
+temp_split <- repeat_fct()
+data <- data[data[names(temp_split)]<temp_split[[1]],]
+
+
+
+if(names(temp_split) %in% names(test_list$categorical)){
+  node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
+                               max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                               control = control,test_list = test_list,random = random, n_features = n_features,
+                               criterion = criterion)
+  node[['right']] <- build_tree(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,
+                                max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                                control = control,test_list = test_list,random = random, n_features = n_features,
+                                criterion = criterion)
+} else{
+  node[['left']] <- build_tree(data = data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,
+                               max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                               control = control,test_list = test_list,random = random, n_features = n_features,
+                               criterion = criterion)
+  node[['right']] <- build_tree(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,
+                                max_depth = max_depth,treatment_list =  treatment_list,target = target,
+                                control = control,test_list = test_list,random = random, n_features = n_features,
+                                criterion = criterion)
+}
+

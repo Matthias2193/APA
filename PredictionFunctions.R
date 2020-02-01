@@ -6,7 +6,7 @@ predict.dt.as.df <- function(tree,new_data){
   type_list <- sapply(new_data, class)
   names(type_list) = colnames(new_data)
   temp_function <- function(x,node){
-    type = 'root'
+    type = node[['type']]
     while(type != 'leaf'){
       split = node[['split']]
       if(type_list[[names(split)]] == 'factor'){
@@ -39,6 +39,7 @@ predict.dt.as.df <- function(tree,new_data){
 predictions_to_treatment <- function(pred,treatment_list,control){
   colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
 }
+
 new_predictions_to_treatment <- function(pred,treatment_list,control){
   results <- colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
   for(c in treatment_list){
@@ -104,7 +105,7 @@ parallel_predict_forest_average <- function(forest,test_data,remain_cores = 1){
     type_list <- sapply(new_data, class)
     names(type_list) = colnames(new_data)
     temp_function <- function(x,node){
-      type = 'root'
+      type = node[["type"]]
       while(type != 'leaf'){
         split = node[['split']]
         if(type_list[[names(split)]] == 'factor'){

@@ -49,11 +49,11 @@ dt_models <- function(train_data, response, prediction_method,treatments,control
       }
       # Regression prediction
     } else if(prediction_method == "anova"){
-      if(!exists("predictions")){
+      if(t == treatments[1]){
         predictions <- data.frame(predict(dt, test_data))
         colnames(predictions) <- c(t)
       } else{
-        predictions[ , t] <- as.numeric(predict(dt, test_data) )
+        predictions[ , t] <- as.numeric(predict(dt, test_data))
       }
     }
     

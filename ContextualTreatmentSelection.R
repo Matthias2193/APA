@@ -21,6 +21,7 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
       }
       return(build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg, 
                                   min_split, parent_predictions = NA))
+      print(paste(as.character(x),"completed!",sep = " "))
     }
     stopCluster(cl)
     return(trees)
@@ -46,6 +47,12 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
 
 build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, min_split, 
                            min_gain = 0, parent_predictions = NA,depth = 0){
+  node <- list()
+  if(nrow(data) == 0){
+    node[["type"]] <- "leaf"
+    node[["results"]] <- parent_predictions
+    return(node)
+  }
   retain_cols <- c(treatments,control,response)
   sample_cols <- setdiff(colnames(data),retain_cols)
   temp_cols <- sample(sample_cols,m_try,replace = F)
