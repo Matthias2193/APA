@@ -172,6 +172,9 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
 #test_list: a list of possible splits created by the 'set_up_tests' function
 #criterion: 1 for Rzp-tree, 2 for simple tree
 #alpha, l and g are parameters according to Rzepakowski paper (only necessare if criterion = 1)
+
+
+
 build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list,random = FALSE,
                        n_features = 0,criterion = "simple"){
   #Return leaf if current depth is max depth
@@ -318,9 +321,9 @@ build_random_forest <- function(train_data,treatment_list,response,control,n_tre
     print(x)
     set.seed(x)
     temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
-    temp_tree <- build_tree(data = temp_train_data,0,treatment_list = treatment_list, 
-                            test_list = test_list,target = response,control = control,
-                            max_depth = max_depth,random = TRUE,n_features,criterion)
+    temp_tree <- build_tree(data = temp_train_data, depth = 0, max_depth = max_depth, treatment_list = treatment_list, 
+                            target = response, control = control, test_list = test_list,
+                            random = TRUE,n_features = n_features,criterion = criterion)
     trees[[x]] <- temp_tree
   }
   return(trees)

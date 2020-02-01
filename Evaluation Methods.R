@@ -4,21 +4,21 @@
 
 # As described in Zhao et al. 2017
 
-new_expected_outcome <- function(pred,response,control,treatment_list){
+expected_outcome <- function(pred,response,control,treatment_list){
   N <- nrow(pred)
   for (t in c(treatment_list, control)) {
     assign(paste(t,"prob",sep="_"),sum(pred$Assignment == t)/N)
   }
-  results <- 0
-  for(counter in 1:N){
-    if(pred[counter,]$Assignment==pred[counter,]$Treatment){
-      results <- results + as.numeric(pred[counter,]$Outcome/
-                                        eval(as.name(paste(pred[counter,]$Treatment,"prob",sep = "_"))))
+  temp_function <- function(x){
+    if(x["Assignment"]==x["Treatment"]){
+      return(as.numeric(x["Outcome"])/eval(as.name(paste(x["Treatment"],"prob",sep = "_"))))
+    } else{
+      return(0)
     }
   }
+  results <- sum(apply(pred,1,temp_function))
   return(results/N)
 }
-
 
 
 ## Modified Uplift Curve by Zhao
@@ -32,17 +32,15 @@ new_expected_quantile_response <- function(response,control,treatment_list,predi
   sorted_predictions$temp_pred <- sorted_predictions$Treatment
   n_tenth <- round(nrow(predictions)/10)
   sorted_predictions$Treatment <- control
-  deciles <- c(new_expected_outcome(sorted_predictions,response,control,treatment_list))
+  deciles <- c(expected_outcome(sorted_predictions,response,control,treatment_list))
   for (x in 1:9) {
     sorted_predictions$Treatment <- sorted_predictions$temp_pred
     sorted_predictions$Treatment[(x*n_tenth):nrow(sorted_predictions)] <- control
-    deciles <- c(deciles,new_expected_outcome(sorted_predictions,response,control,treatment_list))
+    deciles <- c(deciles,expected_outcome(sorted_predictions,response,control,treatment_list))
   }
   sorted_predictions$Treatment <- sorted_predictions$temp_pred
-  deciles <- c(deciles,new_expected_outcome(sorted_predictions,response,control,treatment_list))
+  deciles <- c(deciles,expected_outcome(sorted_predictions,response,control,treatment_list))
 }
-
-
 
 
 #Percent Matched
@@ -66,15 +64,24 @@ perc_matched <- function(predictions){
   return(deciles)
 }
 
-
-
-
-
-
+n_treated_decile <- function(pred,control){
+  pred$max_uplift <- apply(pred[ , grep("^uplift",colnames(pred))], 1 , max)
+  sorted_predictions <- pred[order(-pred$max_uplift),]
+  n_tenth <- round(nrow(pred)/10)
+  treated <- c(0)
+  for(x in 1:9){
+    temp_data <- sorted_predictions[1:(n_tenth*x),]
+    temp_data <- temp_data[temp_data$Assignment == temp_data$Treatment,]
+    treated <- c(treated,sum(temp_data$Assignment != control))
+  }
+  temp_data <- sorted_predictions[sorted_predictions$Assignment == sorted_predictions$Treatment,]
+  treated <- c(treated,sum(temp_data$Assignment != control))
+  return(treated)
+}
 
 
 # Old Evaluation Methods ----
-expected_outcome <- function(eval_data){
+old_expected_outcome <- function(eval_data){
   # Number of observations
   N <- nrow(eval_data)
   

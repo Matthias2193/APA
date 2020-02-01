@@ -41,7 +41,7 @@ treatment_list <- c('men_treatment','women_treatment')
 idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
 folds <- createFolds(email$spend, k = 5, list = TRUE, returnTrain = FALSE)
 
-for(f in 1:1){
+for(f in 2:5){
   train <- email[-folds[[f]], ]
   
   test <- email[folds[[f]], ]
@@ -76,7 +76,7 @@ for(f in 1:1){
     # get the actual assignment from test data
     pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
     
-    write.csv(pred, paste("Predictions/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+    write.csv(pred, paste("Predictions/Hillstrom/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
     
     
     #Forest
@@ -96,7 +96,7 @@ for(f in 1:1){
     # get the actual assignment from test data
     pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
 
-    write.csv(pred, paste("Predictions/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+    write.csv(pred, paste("Predictions/Hillstrom/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
 
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3, 
@@ -115,7 +115,7 @@ for(f in 1:1){
     # get the actual assignment from test data
     pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
 
-    write.csv(pred, paste("Predictions/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+    write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
@@ -160,10 +160,8 @@ for(f in 1:5){
   
   #Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
-  if(sum(pred_sma_rf$men_treatment == 0 & pred_sma_rf$women_treatment == 0)>0){
-    pred_sma_rf[pred_sma_rf$uplift_men_treatment==0 & pred_sma_rf$uplift_women_treatment ==0,]$Treatment <- control
-  }
-  write.csv(pred_sma_rf, paste("Predictions/sma rf",as.character(f),".csv",sep = ""),
+  
+  write.csv(pred_sma_rf, paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
   # CTS
@@ -180,7 +178,7 @@ for(f in 1:5){
   # get the actual assignment from test data
   pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
   
-  write.csv(pred, paste("Predictions/cts_",as.character(f),".csv",sep = ""), row.names = FALSE)
+  write.csv(pred, paste("Predictions/Hillstrom/cts_",as.character(f),".csv",sep = ""), row.names = FALSE)
 }
 
 
@@ -191,67 +189,37 @@ for(f in 1:5){
   
   test <- email[folds[[f]], ]
   #Load original predictions
-  pred <- read.csv(paste("Predictions/tree_simple",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
+  pred <- read.csv(paste("Predictions/Hillstrom/tree_simple",as.character(f),".csv",sep = ""))
   assign(paste("new_exp_inc_tree_simple",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred))
-  pred <- read.csv(paste("Predictions/forest_simple",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
+  pred <- read.csv(paste("Predictions/Hillstrom/forest_simple",as.character(f),".csv",sep = ""))
   assign(paste("new_exp_inc_forest_simple",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred))
-  pred <- read.csv(paste("Predictions/random_forest_simple",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
+  pred <- read.csv(paste("Predictions/Hillstrom/random_forest_simple",as.character(f),".csv",sep = ""))
   assign(paste("new_exp_inc_random_forest_simple",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred))
   #Load max predictions
-  pred <- read.csv(paste("Predictions/tree_max",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
+  pred <- read.csv(paste("Predictions/Hillstrom/tree_max",as.character(f),".csv",sep = ""))
   assign(paste("new_exp_inc_tree_max",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred))
-  pred <- read.csv(paste("Predictions/forest_max",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
+  pred <- read.csv(paste("Predictions/Hillstrom/forest_max",as.character(f),".csv",sep = ""))
   assign(paste("new_exp_inc_forest_max",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred))
-  pred <- read.csv(paste("Predictions/random_forest_max",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
+  pred <- read.csv(paste("Predictions/Hillstrom/random_forest_max",as.character(f),".csv",sep = ""))
   assign(paste("new_exp_inc_random_forest_max",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred))
   #Load frac pred
-  # pred <- read.csv(paste("Predictions/tree_frac",as.character(f),".csv",sep = ""))
-  # if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-  #   pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  # }
-  # assign(paste("new_exp_inc_tree_frac",as.character(f),sep = ""),
-  #        new_expected_quantile_response(response,control,treatment_list,pred))
-  # pred <- read.csv(paste("Predictions/forest_frac",as.character(f),".csv",sep = ""))
-  # if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-  #   pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  # }
-  # assign(paste("new_exp_inc_forest_frac",as.character(f),sep = ""),
-  #        new_expected_quantile_response(response,control,treatment_list,pred))
-  # pred <- read.csv(paste("Predictions/random_forest_frac",as.character(f),".csv",sep = ""))
-  # if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-  #   pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  # }
-  # assign(paste("new_exp_inc_random_forest_frac",as.character(f),sep = ""),
-  #        new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/Hillstrom/tree_frac",as.character(f),".csv",sep = ""))
+  assign(paste("new_exp_inc_tree_frac",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/Hillstrom/forest_frac",as.character(f),".csv",sep = ""))
+  assign(paste("new_exp_inc_forest_frac",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
+  pred <- read.csv(paste("Predictions/Hillstrom/random_forest_frac",as.character(f),".csv",sep = ""))
+  assign(paste("new_exp_inc_random_forest_frac",as.character(f),sep = ""),
+         new_expected_quantile_response(response,control,treatment_list,pred))
 
-  pred_sma_rf <- read.csv(paste("Predictions/sma rf",as.character(f),".csv",sep = ""))
-  if(sum(pred_sma_rf$men_treatment == 0 & pred_sma_rf$women_treatment == 0)>0){
-    pred_sma_rf[pred_sma_rf$uplift_men_treatment==0 & pred_sma_rf$uplift_women_treatment ==0,]$Treatment <- control
-  }
+  pred_sma_rf <- read.csv(paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""))
   assign(paste("new_exp_inc_sma_rf",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred_sma_rf))
 
@@ -262,10 +230,7 @@ for(f in 1:5){
   # assign(paste("new_exp_inc_outcome_c_forest",as.character(f),sep = ""),
   #        new_expected_quantile_response(response,control,treatment_list,causal_forest_pred))
   # 
-  pred <- read.csv(paste("Predictions/cts_",as.character(f),".csv",sep = ""))
-  if(sum(pred$men_treatment == 0 & pred$women_treatment == 0)>0){
-    pred[pred$uplift_men_treatment==0 & pred$uplift_women_treatment ==0,]$Treatment <- control
-  }
+  pred <- read.csv(paste("Predictions/Hillstrom/cts_",as.character(f),".csv",sep = ""))
   assign(paste("exp_inc_cts",as.character(f),sep = ""),
          new_expected_quantile_response(response,control,treatment_list,pred))
 }  
@@ -300,7 +265,7 @@ for(c in c("simple","max","frac")){
   legend("topleft", legend = 1:5, col=1:5, pch=1)
 }
 
-for(c in c("simple","max")){
+for(c in c("simple","max","frac")){
   mean_tree <- eval(as.name(paste("new_exp_inc_tree_",c,"1",sep = ""))) +
     eval(as.name(paste("new_exp_inc_tree_",c,"2",sep = ""))) +
     eval(as.name(paste("new_exp_inc_tree_",c,"3",sep = ""))) +

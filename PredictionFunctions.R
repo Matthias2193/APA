@@ -36,25 +36,27 @@ predict.dt.as.df <- function(tree,new_data){
 
 #Takes predictions as input and returns just the name of the best treatment for each prediction
 
-predictions_to_treatment <- function(pred,treatment_list,control){
+old_predictions_to_treatment <- function(pred,treatment_list,control){
   colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
 }
 
-new_predictions_to_treatment <- function(pred,treatment_list,control){
+predictions_to_treatment <- function(pred,treatment_list,control){
+  temp_list <- c()
   results <- colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
+  #If all uplifts are 0, we assign control
   for(c in treatment_list){
-    if(exists(temp_bool)){
-      temp_bool <- temp_bool & pred[,c] == 0
+    if(length(temp_list) == 0){
+      temp_list <- pred[c]
     } else{
-      temp_bool <- pred[,c] == 0
+      temp_list <- temp_list + pred[,c]
     }
   }
-  if(sum(temp_bool) > 0){
-    results[temp_bool] <- control
+  if(sum(temp_list == 0) > 0){
+    results[temp_list == 0] <- control
   }
+  return(results)
 }
 
-FALSE + TRUE
 
 #Forest
 
