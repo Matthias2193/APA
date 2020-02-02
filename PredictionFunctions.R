@@ -2,7 +2,7 @@
 
 #Prediction---- 
 #Tree  
-predict.dt.as.df <- function(tree,new_data){
+predict.dt.as.df <- function(tree,new_data,additional_info = TRUE){
   type_list <- sapply(new_data, class)
   names(type_list) = colnames(new_data)
   temp_function <- function(x,node){
@@ -30,7 +30,18 @@ predict.dt.as.df <- function(tree,new_data){
     return(node[["results"]])
   }
   results <- data.frame(t(apply(new_data,1,temp_function,node=tree)))
-  return(results)
+  if(additional_info){
+    colnames(results) <- c(treatment_list,control)
+    results[ , "Treatment"] <- predictions_to_treatment(results, treatment_list, control)
+    results[ , "Assignment"] <- predictions_to_treatment(new_data, treatment_list, control)
+    results[, "Outcome"] <- new_data[,response]
+    for (t in treatment_list) {
+      results[,paste("uplift",t,sep = "_")] <- results[t] - results[control]
+    }
+    return(results)
+  } else{
+    return(results)
+  }
 }
 
 
@@ -81,21 +92,32 @@ forest_predictions_helper <- function(preds){
 
 #Average
 #Sequentially
-predict_forest_average <- function(forest,test_data){
+predict_forest_average <- function(forest,test_data,additional_info = TRUE){
   predictions <- list()
   for(x in 1:length(forest)){
-    predictions[[x]] <- predict.dt.as.df(forest[[x]],test_data)
+    predictions[[x]] <- predict.dt.as.df(forest[[x]],test_data,additional_info = FALSE)
   }
   final_predictions <- predictions[[1]]
   for(x in 2:length(predictions)){
     final_predictions <- final_predictions+predictions[[x]]
   }
   final_predictions <- final_predictions/length(predictions)
-  return(final_predictions)
+  if(additional_info){
+    colnames(final_predictions) <- c(treatment_list,control)
+    final_predictions[ , "Treatment"] <- predictions_to_treatment(final_predictions, treatment_list, control)
+    final_predictions[ , "Assignment"] <- predictions_to_treatment(test_data, treatment_list, control)
+    final_predictions[, "Outcome"] <- new_data[,response]
+    for (t in treatment_list) {
+      final_predictions[,paste("uplift",t,sep = "_")] <- final_predictions[t] - final_predictions[control]
+    }
+    return(final_predictions)
+  } else{
+    return(final_predictions)
+  }
 }
 
 #Parallel
-parallel_predict_forest_average <- function(forest,test_data,remain_cores = 1){
+parallel_predict_forest_average <- function(forest,test_data,remain_cores = 1,additional_info = TRUE){
   predictions <- list()
   numCores <- detectCores()
   cl <- makePSOCKcluster(numCores-remain_cores)
@@ -139,17 +161,28 @@ parallel_predict_forest_average <- function(forest,test_data,remain_cores = 1){
     final_predictions <- final_predictions+predictions[[x]]
   }
   final_predictions <- final_predictions/length(predictions)
-  return(final_predictions)
+  if(additional_info){
+    colnames(final_predictions) <- c(treatment_list,control)
+    final_predictions[ , "Treatment"] <- predictions_to_treatment(final_predictions, treatment_list, control)
+    final_predictions[ , "Assignment"] <- predictions_to_treatment(test_data, treatment_list, control)
+    final_predictions[, "Outcome"] <- test_data[,response]
+    for (t in treatment_list) {
+      final_predictions[,paste("uplift",t,sep = "_")] <- final_predictions[t] - final_predictions[control]
+    }
+    return(final_predictions)
+  } else{
+    return(final_predictions)
+  }
 }
 
 
 
 
 
-predict_forest_df <- function(forest,test_data, parallel_pred = TRUE, remain_cores = 1){
+predict_forest_df <- function(forest,test_data, parallel_pred = TRUE, remain_cores = 1,additiona_info = TRUE){
   if(parallel_pred){
-    return(parallel_predict_forest_average(forest,test_data,remain_cores))
+    return(parallel_predict_forest_average(forest,test_data,remain_cores,additional_info = additiona_info))
   } else{
-    return(predict_forest_average(forest,test_data))
+    return(predict_forest_average(forest,test_data,additional_info = additiona_info))
   }
 }

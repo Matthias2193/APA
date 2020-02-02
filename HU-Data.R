@@ -125,93 +125,34 @@ for(f in 1:1){
     # Single Tree
     raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
     pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control,criterion = c)
-    
-    # add to the result df the outcome, assignment and calculate uplift for each T
     pred <- predict.dt.as.df(pruned_tree, test)
-    
-    
-    
-    ### Results Preparation to bring into equal format
-    # Calculate Uplift for each T
-    colnames(pred) <- c(treatment_list,control)
-    pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
-    pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-    pred[, "Outcome"] <- test[,response]
-    for (t in treatment_list) {
-      pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
-    }
-
-    
     write.csv(pred, paste("Predictions/HU-Data/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
     
     
     #Forest
     forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
                                     pruning = F, criterion = c)
-    
-    # add to the result df the outcome, assignment and calculate uplift for each T
     pred <- predict_forest_df(forest,test)
-    
-    ### Results Preparation to bring into equal format
-    # Calculate Uplift for each T
-    colnames(pred) <- c(treatment_list,control)
-    pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
-    pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-    pred[, "Outcome"] <- test[,response]
-    for (t in treatment_list) {
-      pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
-    }
+    write.csv(pred, paste("Predictions/HU-Data/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+
     
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3, 
                                            criterion = c)
-    
-    # add to the result df the outcome, assignment and calculate uplift for each T
     pred <- predict_forest_df(forest,test)
-    
-    ### Results Preparation to bring into equal format
-    # Calculate Uplift for each T
-    colnames(pred) <- c(treatment_list,control)
-    pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
-    pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-    pred[, "Outcome"] <- test[,response]
-    for (t in treatment_list) {
-      pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
-    }
-    
     write.csv(pred, paste("Predictions/HU-Data/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
   
   
   #Separate Model Approach
-  # pred <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
-  # 
-  # colnames(pred) <- c(treatment_list,control)
-  # pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
-  # pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-  # pred[, "Outcome"] <- test[,response]
-  # for (t in treatment_list) {
-  #   pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
-  # }
-  # 
-  # 
-  # write.csv(pred_sma_rf, paste("Predictions/HU-Data/sma rf",as.character(f),".csv",sep = ""),
-  #           row.names = FALSE)
+  pred <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
+  write.csv(pred_sma_rf, paste("Predictions/HU-Data/sma rf",as.character(f),".csv",sep = ""),
+            row.names = FALSE)
   
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 100, nrow(train), 5, 0.15, 100, parallel = TRUE,
                           remain_cores = 1)
-  
   pred <- predict_forest_df(cts_forest, test)
-  
-  colnames(pred) <- c(treatment_list,control)
-  pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
-  pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-  pred[, "Outcome"] <- test[,response]
-  for (t in treatment_list) {
-    pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
-  }
-  
   write.csv(pred, paste("Predictions/HU-Data/cts_",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))

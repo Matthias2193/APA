@@ -13,7 +13,7 @@ library(randomForest)
 ########################################
 
 dt_models <- function(train_data, response, prediction_method,treatments,control, test_data, model_type){  
-  assignment <- colnames(test_data)[apply(test_data[, 10:12], 1, which.max) + 9]
+  assignment <- predictions_to_treatment(test, treatment_list, control)
   outcome <- test_data[, response]
   
   for(t in c(treatments,control)){
@@ -59,13 +59,13 @@ dt_models <- function(train_data, response, prediction_method,treatments,control
     
   }
   
-  predictions[ , "uplift_men_treatment"] <- predictions[ , 1] - predictions[ , 3]
-  predictions[ , "uplift_women_treatment"] <- predictions[ , 2] - predictions[ , 3]
-  predictions[ , "Treatment"] <- colnames(predictions)[apply(predictions[, 1:3], 1, which.max)]
-  
-  predictions[ , "Outcome"] <- outcome
-  # get the actual assignment from test data
-  predictions[ , "Assignment"] <- assignment
+  colnames(predictions) <- c(treatment_list,control)
+  predictions[ , "Treatment"] <- predictions_to_treatment(predictions, treatment_list, control)
+  predictions[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
+  predictions[, "Outcome"] <- test[,response]
+  for (t in treatment_list) {
+    predictions[,paste("uplift",t,sep = "_")] <- predictions[t] - predictions[control]
+  }
   
   
   return(predictions)

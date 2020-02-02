@@ -2,11 +2,10 @@
 #'Decision trees for uplift modeling with single and multiple treatments'
 
 #Importing libraries
-set.seed(213)
 library(parallel)
 library(foreach)
 library(doParallel)
-source("PredictionFunctions.R")
+
 
 #Set up tests ----
 #Creates a list of possible splits.

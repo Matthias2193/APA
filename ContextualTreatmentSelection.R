@@ -13,12 +13,13 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
       set.seed(x)
       for(t in c(treatments,control)){
         if(t == treatments[1]){
-          temp_train_data <- sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data)),replace = TRUE)
+          temp_train_data <- sample_n(data[data[,t]==1,], round(B * (sum(data[,t]==1)/nrow(data)),0),replace = TRUE)
         } else{
-          temp_train_data <- rbind(temp_train_data,sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data))),replace = TRUE)
+          temp_train_data <- rbind(temp_train_data,sample_n(data[data[,t]==1,], 
+                                                            round(B * (sum(data[,t]==1)/nrow(data)),0),replace = TRUE))
         }
-        
       }
+      temp_train_data <- na.omit(temp_train_data)
       return(build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg, 
                                   min_split, parent_predictions = NA))
       print(paste(as.character(x),"completed!",sep = " "))
@@ -31,12 +32,13 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
     for(x in 1:ntree){
       for (t in c(treatments,control)){
         if(t == treatments[1]){
-          temp_train_data <- sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data)))
+          temp_train_data <- sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data)),replace = TRUE)
         } else{
-          temp_train_data <- rbind(temp_train_data,sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data))))
+          temp_train_data <- rbind(temp_train_data,sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data)),
+                                                            replace = TRUE))
         }
-        
       }
+      temp_train_data <- na.omit(temp_train_data)
       trees[[x]] <- build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg, 
                                    min_split, parent_predictions = NA)
       

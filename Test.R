@@ -16,78 +16,8 @@ source('Evaluation Methods.R')
 # source('Causal Forest.R')
 source('Separate Model Approach.R')
 source('ContextualTreatmentSelection.R')
-
-
-summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
-                      conf.interval=.95, .drop=TRUE) {
-  
-  
-  # New version of length which can handle NA's: if na.rm==T, don't count them
-  length2 <- function (x, na.rm=FALSE) {
-    if (na.rm) sum(!is.na(x))
-    else       length(x)
-  }
-  
-  # This does the summary. For each group's data frame, return a vector with
-  # N, mean, and sd
-  datac <- ddply(data, groupvars, .drop=.drop,
-                 .fun = function(xx, col) {
-                   c(N    = length2(xx[[col]], na.rm=na.rm),
-                     mean = mean   (xx[[col]], na.rm=na.rm),
-                     sd   = sd     (xx[[col]], na.rm=na.rm)
-                   )
-                 },
-                 measurevar
-  )
-  
-  # Rename the "mean" column    
-  datac <- rename(datac, c("mean" = measurevar))
-  
-  datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
-  
-  # Confidence interval multiplier for standard error
-  # Calculate t-statistic for confidence interval: 
-  # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
-  ciMult <- qt(conf.interval/2 + .5, datac$N-1)
-  datac$ci <- datac$se * ciMult
-  
-  return(datac)
-}
-
-visualize <- function(temp_data){
-  values <- c()
-  percentile <- c()
-  model <- c()
-  for(f in 1:nrow(temp_data)){
-    if(length(values) == 0){
-      values <- temp_data[f,1:11]
-      percentile <- colnames(temp_data)[1:11]
-      model <- rep(temp_data[f,12],11)
-    } else{
-      values <- c(values,temp_data[f,1:11])
-      percentile <- c(percentile, colnames(temp_data)[1:11])
-      model <- c(model,rep(temp_data[f,12],11))
-    }
-  }
-  temp_df <- data.frame(cbind(values,percentile,model))
-  rownames(temp_df) <- 1:nrow(temp_df)
-  colnames(temp_df) <- c("values","percentile","model")
-  for(c in 1:2){
-    temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
-  }
-  temp_df[,3] <- as.character(temp_df[,3])
-  tgc <- summarySE(temp_df, measurevar="values", groupvars=c("percentile","model"))
-  # new_tgc <- tgc[order(tgc$model),]
-  # rownames(new_tgc) <- 1:nrow(new_tgc)
-  pd <- position_dodge(0.1) # move them .05 to the left and right
-  print(ggplot(tgc, aes(x=percentile, y=values,color=model)) + 
-          geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
-          geom_line() +
-          geom_point() +
-          xlab("Percent assigned according to model prediction") +
-          ylab("Expected outcome per person") +
-          ggtitle(paste("Mean and confidence interval for ", model, sep = "")))
-}
+source('VisualizationHelper.R')
+source("PredictionFunctions.R")
 
 
 set.seed(1234)
@@ -138,60 +68,20 @@ for(f in 1:25){
     # Single Tree
     raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
     pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control,criterion = c)
-    
-    # add to the result df the outcome, assignment and calculate uplift for each T
     pred <- predict.dt.as.df(pruned_tree, test)
-    
-    
-    ### Results Preparation to bring into equal format
-    # Calculate Uplift for each T
-    pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
-    pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-    pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
-    
-    pred[ , "Outcome"] <- test[, response]
-    # get the actual assignment from test data
-    pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
-    
     write.csv(pred, paste("Predictions/Hillstrom/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
     
     
     #Forest
     forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
                                     pruning = F, criterion = c)
-
-    # add to the result df the outcome, assignment and calculate uplift for each T
     pred <- predict_forest_df(forest,test)
-
-    ### Results Preparation to bring into equal format
-    # Calculate Uplift for each T
-    pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
-    pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-    pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
-
-    pred[ , "Outcome"] <- test[, response]
-    # get the actual assignment from test data
-    pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
-
     write.csv(pred, paste("Predictions/Hillstrom/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
 
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3, 
                                            criterion = c)
-
-    # add to the result df the outcome, assignment and calculate uplift for each T
     pred <- predict_forest_df(forest,test)
-
-    ### Results Preparation to bring into equal format
-    # Calculate Uplift for each T
-    pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
-    pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-    pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
-
-    pred[ , "Outcome"] <- test[, response]
-    # get the actual assignment from test data
-    pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
-
     write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
   
@@ -207,15 +97,6 @@ for(f in 1:25){
                           remain_cores = 1)
   
   pred <- predict_forest_df(cts_forest, test)
-  
-  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
-  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-  pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
-  
-  pred[ , "Outcome"] <- test[, response]
-  # get the actual assignment from test data
-  pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
-  
   write.csv(pred, paste("Predictions/Hillstrom/cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
