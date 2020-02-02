@@ -38,13 +38,17 @@ treatment_list <- c('men_treatment','women_treatment')
 
 #email$spend <- email$spend/max(email$spend)
 
-idx <- createDataPartition(y = email[ , response], p=0.3, list = FALSE)
 folds <- createFolds(email$spend, k = 5, list = TRUE, returnTrain = FALSE)
 
-for(f in 2:5){
-  train <- email[-folds[[f]], ]
+original_email <- email
+
+for(f in 1:25){
   
-  test <- email[folds[[f]], ]
+  email <- original_email[sample(nrow(original_email),nrow(original_email),replace = TRUE),]
+  idx <- createDataPartition(y = email[ , response], p=0.2, list = FALSE)
+  train <- email[-idx, ]
+  
+  test <- email[idx, ]
   
   test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
                                      "newbie","channel")],TRUE, max_cases = 10)
@@ -117,6 +121,29 @@ for(f in 2:5){
 
     write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
+  
+  
+  #Separate Model Approach
+  pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
+  
+  write.csv(pred_sma_rf, paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""),
+            row.names = FALSE)
+  
+  # CTS
+  cts_forest <- build_cts(response, control, treatment_list, train, 100, nrow(train), 3, 0.15, 100, parallel = TRUE,
+                          remain_cores = 1)
+  
+  pred <- predict_forest_df(cts_forest, test)
+  
+  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+  pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
+  
+  pred[ , "Outcome"] <- test[, response]
+  # get the actual assignment from test data
+  pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
+  
+  write.csv(pred, paste("Predictions/Hillstrom/cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
 }
@@ -150,6 +177,7 @@ for(f in 2:5){
 #          new_expected_quantile_response(response,control,treatment_list,causal_forest_pred))
 # }
 
+
 for(f in 1:5){
   train <- email[-folds[[f]], ]
   
@@ -182,12 +210,46 @@ for(f in 1:5){
 }
 
 
+folder <- "Predictions/Hillstrom/"
+outcomes <- c()
+for(model in c("tree","forest","random_forest","cts","sma rf")){
+  if(sum(model == c("tree","forest","random_forest")) > 0){
+    for(c in c("simple","max","frac")){
+      for(f in 1:25){
+        pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
+        if(length(outcomes) == 0){
+          outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
+                        paste(model,"_",c,sep = ""))
+        } else{
+          outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
+                                       paste(model,"_",c,sep = "")))
+        }
+      }
+    }
+  } else{
+    for(f in 1:25){
+      pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
+      outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
+    }
+  }
+}
+outcome_df <- data.frame(outcomes)
+colnames(outcome_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
+rownames(outcome_df) <- 1:nrow(outcome_df)
+for(c in 1:11){
+  outcome_df[,c] <- as.numeric(as.character(outcome_df[,c]))
+}
+
+for(model in unique(outcome_df$Model)){
+  temp_matrix <- t(data.matrix(outcome_df[outcome_df$Model == model,1:11]))
+  matplot(temp_matrix, type = c("b"),pch=1,col = 1:25, ylab = "Expected Outcome per Person",
+          xlab = "Percent Treated", main = paste("Expected Outcome for different Folds: ",model, sep = "")) #plot
+}
 
 
-for(f in 1:5){  
-  train <- email[-folds[[f]], ]
+for(f in 1:25){ 
   
-  test <- email[folds[[f]], ]
+  
   #Load original predictions
   pred <- read.csv(paste("Predictions/Hillstrom/tree_simple",as.character(f),".csv",sep = ""))
   assign(paste("new_exp_inc_tree_simple",as.character(f),sep = ""),

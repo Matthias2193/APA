@@ -1,8 +1,9 @@
 source("DecisionTreeImplementation.R")
 source("RzepakowskiTree.R")
 source("Evaluation Methods.R")
-source("Causal Forest.R")
-source("CausalTree.R")
+source('ContextualTreatmentSelection.R')
+# source("Causal Forest.R")
+# source("CausalTree.R")
 library(caret)
 library(gbm)
 set.seed(1234)
@@ -54,12 +55,12 @@ tmp <- cor(tmp_data)
 tmp[upper.tri(tmp)] <- 0
 diag(tmp) <- 0
 tmp_data <- tmp_data[,!apply(tmp,2,function(x) any(x > 0.9))]
-new_hu_data <- cbind(hu_data[,1:8],tmp_data)
+new_hu_data <- cbind(hu_data[,7:8],tmp_data)
 new_hu_data$DeviceCategory <- hu_data$DeviceCategory
 
 control <- trainControl(method="repeatedcv", number=5, repeats=1)
 # train the model
-model <- train(checkoutAmount~., data=new_hu_data[,-(1:7)], method="gbm", trControl=control)
+model <- train(checkoutAmount~., data=new_hu_data[,-c(1)], method="gbm", trControl=control)
 # estimate variable importance
 importance <- varImp(model, scale=FALSE)
 
@@ -69,25 +70,21 @@ importance_df <- importance_df[importance_df$Overall > 0,]
 importance_df$Temp <- NULL
 importance$importance <- importance_df
 plot(importance)
-new_hu_data <- hu_data[,c(colnames(new_hu_data)[1:8],rownames(importance$importance)[1:26],"DeviceCategory")]
+new_hu_data <- hu_data[,c(colnames(new_hu_data)[1:2],rownames(importance$importance)[1:26],"DeviceCategory")]
 
 for(x in levels(new_hu_data$multi_treat)){
   new_hu_data[x] <- ifelse(new_hu_data$multi_treat == x ,1,0)
 }
-# for (x in colnames(hu_data[,16:160])) {
-#   print(x)
-#   print(max(hu_data[[x]]) == 1 && min(hu_data[[x]]) == 0)
-#   if(max(hu_data[[x]]) == 1 && min(hu_data[[x]]) == 0){
-#     hu_data[,x] <- as.factor(hu_data[,x])
-#   }
-# }
-# hu_data$ZipCode <- NULL
+
 
 # Model Building----
 response <- 'checkoutAmount'
 control <- '0'
 
 
+treatment_list <- levels(new_hu_data$multi_treat)[2:7]
+new_hu_data$multi_treat <- NULL
+feature_list <- setdiff(colnames(new_hu_data),c(treatment_list,control,response))
 # Split into test and train data
 idx <- createDataPartition(y = new_hu_data[ , response], p=0.2, list = FALSE)
 
@@ -99,97 +96,213 @@ test <- new_hu_data[idx, ]
 p_idx <- createDataPartition(y = train[ , response], p=0.2, list = FALSE)
 
 val <- train[p_idx,]
-val_train <- train[-p_idx,]
+train_val <- train[-p_idx,]
 
-treatment_list <- levels(hu_data$multi_treat)[2:7]
 n_treatments <- length(treatment_list)
-test_list <- set_up_tests(train[,colnames(train[,9:35])],TRUE,max_cases = 5)
+test_list <- set_up_tests(train[,colnames(train[,feature_list])],TRUE,max_cases = 10)
+folds <- createFolds(email$spend, k = 5, list = TRUE, returnTrain = FALSE)
+
+for(f in 1:1){
+  
+  # email <- original_email[sample(nrow(original_email),nrow(original_email),replace = TRUE),]
+  # idx <- createDataPartition(y = email[ , response], p=0.2, list = FALSE)
+  # train <- email[-idx, ]
+  # 
+  # test <- email[idx, ]
+  # 
+  # test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
+  #                                    "newbie","channel")],TRUE, max_cases = 10)
+  # # Partition training data for pruning
+  # p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
+  # 
+  # val <- train[p_idx,]
+  # train_val <- train[-p_idx,]
+  
+  
+  start_time <- Sys.time()
+  for(c in c("simple","max","frac")){
+    print(c)
+    # Single Tree
+    raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
+    pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control,criterion = c)
+    
+    # add to the result df the outcome, assignment and calculate uplift for each T
+    pred <- predict.dt.as.df(pruned_tree, test)
+    
+    
+    
+    ### Results Preparation to bring into equal format
+    # Calculate Uplift for each T
+    colnames(pred) <- c(treatment_list,control)
+    pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
+    pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+    pred[, "Outcome"] <- test[,response]
+    for (t in treatment_list) {
+      pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
+    }
+
+    
+    write.csv(pred, paste("Predictions/HU-Data/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+    
+    
+    #Forest
+    forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
+                                    pruning = F, criterion = c)
+    
+    # add to the result df the outcome, assignment and calculate uplift for each T
+    pred <- predict_forest_df(forest,test)
+    
+    ### Results Preparation to bring into equal format
+    # Calculate Uplift for each T
+    colnames(pred) <- c(treatment_list,control)
+    pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
+    pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+    pred[, "Outcome"] <- test[,response]
+    for (t in treatment_list) {
+      pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
+    }
+    
+    #Random Forest
+    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3, 
+                                           criterion = c)
+    
+    # add to the result df the outcome, assignment and calculate uplift for each T
+    pred <- predict_forest_df(forest,test)
+    
+    ### Results Preparation to bring into equal format
+    # Calculate Uplift for each T
+    colnames(pred) <- c(treatment_list,control)
+    pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
+    pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+    pred[, "Outcome"] <- test[,response]
+    for (t in treatment_list) {
+      pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
+    }
+    
+    write.csv(pred, paste("Predictions/HU-Data/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+  }
+  
+  
+  #Separate Model Approach
+  # pred <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
+  # 
+  # colnames(pred) <- c(treatment_list,control)
+  # pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
+  # pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+  # pred[, "Outcome"] <- test[,response]
+  # for (t in treatment_list) {
+  #   pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
+  # }
+  # 
+  # 
+  # write.csv(pred_sma_rf, paste("Predictions/HU-Data/sma rf",as.character(f),".csv",sep = ""),
+  #           row.names = FALSE)
+  
+  # CTS
+  cts_forest <- build_cts(response, control, treatment_list, train, 100, nrow(train), 5, 0.15, 100, parallel = TRUE,
+                          remain_cores = 1)
+  
+  pred <- predict_forest_df(cts_forest, test)
+  
+  colnames(pred) <- c(treatment_list,control)
+  pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
+  pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+  pred[, "Outcome"] <- test[,response]
+  for (t in treatment_list) {
+    pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
+  }
+  
+  write.csv(pred, paste("Predictions/HU-Data/cts_",as.character(f),".csv",sep = ""), row.names = FALSE)
+  end_time <- Sys.time()
+  print(difftime(end_time,start_time,units = "mins"))
+}
+
 
 #Single Tree
-raw_tree <- build_tree(val_train,0,5,treatment_list,response,control,test_list)
-pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
-tree_pred <-  predict.dt.as.df(pruned_tree, test)
-colnames(tree_pred) <- c(treatment_list,control)
-tree_pred[ , "Treatment"] <- colnames(tree_pred)[apply(tree_pred[, c(treatment_list,control)], 1, which.max)]
-tree_pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-tree_pred[, "Outcome"] <- test[,response]
-for (t in treatment_list) {
-  tree_pred[,paste("uplift",t,sep = "_")] <- tree_pred[t] - tree_pred[control]
-}
-
-exp_outcome_simple <- new_expected_outcome(tree_pred,response,control,treatment_list) 
-exp_inc_outcome_simple <- new_expected_quantile_response(response,control,treatment_list,tree_pred)
-  
-
-#CTS
-cts_forest <- build_cts(response, control, treatment_list, train[,-(1:7)], 10, nrow(train), 6, 0.15, 100, 
-                        parallel = TRUE, remain_cores = 1)
-
-pred <- predict_forest_df(cts_forest, test)
-
-colnames(pred) <- c(treatment_list,control)
-pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
-pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-pred[, "Outcome"] <- test[,response]
-for (t in treatment_list) {
-  pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
-}
-exp_outcome_cts <- new_expected_outcome(pred,response,control,treatment_list) 
-exp_inc_outcome_cts <- new_expected_quantile_response(response,control,treatment_list,pred)
-
-### Results Preparation to bring into equal format
-# Calculate Uplift for each T
-pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
-pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
-
-pred[ , "Outcome"] <- test[, response]
-# get the actual assignment from test data
-pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
-
-write.csv(pred, 'Predictions/cts spend.csv', row.names = FALSE)
-
-
-
-#Forest
-forest <- parallel_build_forest(train,val,treatment_list,response,'0',n_trees = 4,n_features = 15, 
-                                pruning = F,max_depth = 5)
-forest_pred <- predict_forest_df(forest, test)
-colnames(forest_pred) <- c(treatment_list,control)
-forest_pred[ , "Treatment"] <- colnames(forest_pred)[apply(forest_pred[, c(treatment_list,control)], 1, which.max)]
-forest_pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-forest_pred[, "Outcome"] <- test[,response]
-for (t in treatment_list) {
-  forest_pred[,paste("uplift",t,sep = "_")] <- forest_pred[t] - forest_pred[control]
-}
-
-exp_outcome_simple_forest <- new_expected_outcome(forest_pred,response,control,treatment_list) 
-exp_inc_outcome_simple_forest <- new_expected_quantile_response(response,control,treatment_list,forest_pred)
-
-#Random Forest
-random_forest <- parallel_build_random_forest(train,val,treatment_list,response,'0',n_trees = 4,n_features = 15, 
-                                pruning = F,max_depth = 5)
-random_forest_pred <- predict_forest_df(random_forest, test)
-colnames(random_forest_pred) <- c(treatment_list,control)
-random_forest_pred[ , "Treatment"] <- colnames(random_forest_pred)[apply(random_forest_pred[, c(treatment_list,control)], 1, which.max)]
-random_forest_pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
-random_forest_pred[, "Outcome"] <- test[,response]
-for (t in treatment_list) {
-  random_forest_pred[,paste("uplift",t,sep = "_")] <- random_forest_pred[t] - random_forest_pred[control]
-}
-
-exp_outcome_random_forest <- new_expected_outcome(random_forest_pred,response,control,treatment_list) 
-exp_inc_outcome_random_forest <- new_expected_quantile_response(response,control,treatment_list,random_forest_pred)
-
-
-#Causal Tree
-causal_tree_pred <- newcausalTreePredicitons(train,test,treatment_list,response,control)
-
-#Causal Forest
-causal_forest_pred <- newCausalForestPredicitons(train, test, treatment_list, response,control)
-causal_forest_pred[ , "Treatment"] <- colnames(causal_forest_pred)[apply(causal_forest_pred[, treatment_list], 1, which.max)]
-for (t in treatment_list) {
-  causal_forest_pred[,paste("uplift",t,sep = "_")] <- causal_forest_pred[t] - causal_forest_pred[control]
-}
-exp_outcome_causal_forest <- new_expected_outcome(test,response,control,treatment_list,causal_forest_pred$Treatment)
-exp_inc_outcome_causal_forest <- new_expected_quantile_response(test,response,control,treatment_list,causal_forest_pred)
+# raw_tree <- build_tree(val_train,0,5,treatment_list,response,control,test_list)
+# pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control)
+# tree_pred <-  predict.dt.as.df(pruned_tree, test)
+# colnames(tree_pred) <- c(treatment_list,control)
+# tree_pred[ , "Treatment"] <- colnames(tree_pred)[apply(tree_pred[, c(treatment_list,control)], 1, which.max)]
+# tree_pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+# tree_pred[, "Outcome"] <- test[,response]
+# for (t in treatment_list) {
+#   tree_pred[,paste("uplift",t,sep = "_")] <- tree_pred[t] - tree_pred[control]
+# }
+# 
+# exp_outcome_simple <- new_expected_outcome(tree_pred,response,control,treatment_list) 
+# exp_inc_outcome_simple <- new_expected_quantile_response(response,control,treatment_list,tree_pred)
+#   
+# 
+# #CTS
+# cts_forest <- build_cts(response, control, treatment_list, train[,-(1:7)], 10, nrow(train), 6, 0.15, 100, 
+#                         parallel = TRUE, remain_cores = 1)
+# 
+# pred <- predict_forest_df(cts_forest, test)
+# 
+# colnames(pred) <- c(treatment_list,control)
+# pred[ , "Treatment"] <- colnames(pred)[apply(pred[, c(treatment_list,control)], 1, which.max)]
+# pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+# pred[, "Outcome"] <- test[,response]
+# for (t in treatment_list) {
+#   pred[,paste("uplift",t,sep = "_")] <- pred[t] - pred[control]
+# }
+# exp_outcome_cts <- new_expected_outcome(pred,response,control,treatment_list) 
+# exp_inc_outcome_cts <- new_expected_quantile_response(response,control,treatment_list,pred)
+# 
+# ### Results Preparation to bring into equal format
+# # Calculate Uplift for each T
+# pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
+# pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
+# pred[ , "Treatment"] <- colnames(pred)[apply(pred[, 1:3], 1, which.max)]
+# 
+# pred[ , "Outcome"] <- test[, response]
+# # get the actual assignment from test data
+# pred[ , "Assignment"] <- colnames(test)[apply(test[, 10:12], 1, which.max) + 9]
+# 
+# write.csv(pred, 'Predictions/cts spend.csv', row.names = FALSE)
+# 
+# 
+# 
+# #Forest
+# forest <- parallel_build_forest(train,val,treatment_list,response,'0',n_trees = 4,n_features = 15, 
+#                                 pruning = F,max_depth = 5)
+# forest_pred <- predict_forest_df(forest, test)
+# colnames(forest_pred) <- c(treatment_list,control)
+# forest_pred[ , "Treatment"] <- colnames(forest_pred)[apply(forest_pred[, c(treatment_list,control)], 1, which.max)]
+# forest_pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+# forest_pred[, "Outcome"] <- test[,response]
+# for (t in treatment_list) {
+#   forest_pred[,paste("uplift",t,sep = "_")] <- forest_pred[t] - forest_pred[control]
+# }
+# 
+# exp_outcome_simple_forest <- new_expected_outcome(forest_pred,response,control,treatment_list) 
+# exp_inc_outcome_simple_forest <- new_expected_quantile_response(response,control,treatment_list,forest_pred)
+# 
+# #Random Forest
+# random_forest <- parallel_build_random_forest(train,val,treatment_list,response,'0',n_trees = 4,n_features = 15, 
+#                                 pruning = F,max_depth = 5)
+# random_forest_pred <- predict_forest_df(random_forest, test)
+# colnames(random_forest_pred) <- c(treatment_list,control)
+# random_forest_pred[ , "Treatment"] <- colnames(random_forest_pred)[apply(random_forest_pred[, c(treatment_list,control)], 1, which.max)]
+# random_forest_pred[ , "Assignment"] <- colnames(test[, c(treatment_list,control)])[apply(test[, c(treatment_list,control)], 1, which.max)]
+# random_forest_pred[, "Outcome"] <- test[,response]
+# for (t in treatment_list) {
+#   random_forest_pred[,paste("uplift",t,sep = "_")] <- random_forest_pred[t] - random_forest_pred[control]
+# }
+# 
+# exp_outcome_random_forest <- new_expected_outcome(random_forest_pred,response,control,treatment_list) 
+# exp_inc_outcome_random_forest <- new_expected_quantile_response(response,control,treatment_list,random_forest_pred)
+# 
+# 
+# #Causal Tree
+# causal_tree_pred <- newcausalTreePredicitons(train,test,treatment_list,response,control)
+# 
+# #Causal Forest
+# causal_forest_pred <- newCausalForestPredicitons(train, test, treatment_list, response,control)
+# causal_forest_pred[ , "Treatment"] <- colnames(causal_forest_pred)[apply(causal_forest_pred[, treatment_list], 1, which.max)]
+# for (t in treatment_list) {
+#   causal_forest_pred[,paste("uplift",t,sep = "_")] <- causal_forest_pred[t] - causal_forest_pred[control]
+# }
+# exp_outcome_causal_forest <- new_expected_outcome(test,response,control,treatment_list,causal_forest_pred$Treatment)
+# exp_inc_outcome_causal_forest <- new_expected_quantile_response(test,response,control,treatment_list,causal_forest_pred)

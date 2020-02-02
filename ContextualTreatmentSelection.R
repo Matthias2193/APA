@@ -13,9 +13,9 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
       set.seed(x)
       for(t in c(treatments,control)){
         if(t == treatments[1]){
-          temp_train_data <- sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data)))
+          temp_train_data <- sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data)),replace = TRUE)
         } else{
-          temp_train_data <- rbind(temp_train_data,sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data))))
+          temp_train_data <- rbind(temp_train_data,sample_n(data[data[,t]==1,], B * (sum(data[,t]==1)/nrow(data))),replace = TRUE)
         }
         
       }
