@@ -1,3 +1,5 @@
+library("DiagrammeR")
+
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
   
@@ -67,4 +69,80 @@ visualize <- function(temp_data){
           xlab("Percent assigned according to Model Prediction") +
           ylab("Expected Outcome per Person") +
           ggtitle("Mean and Confidence Interval for Expected Outcome"))
+}
+
+
+
+get_plot_params <- function(tree,counter = 0){
+  type_list <- c(tree[["type"]])
+  split_list <- c(tree[["split"]])
+  n_sample_list <- c(tree[["n_samples"]])
+  results_list <- c(tree[["results"]])
+  counter_list <- c(counter)
+  connection_list <- c()
+  if(!is.null(tree[["left"]])){
+    temp_list <- get_plot_params(tree[["left"]], counter = counter + 1)
+    type_list <- c(type_list,temp_list[[1]])
+    split_list <- c(split_list,temp_list[[2]])
+    n_sample_list <- c(n_sample_list,temp_list[[3]])
+    results_list <- c(results_list,temp_list[[4]])
+    counter_list <- c(counter_list,temp_list[[5]])
+    connection_list <- c(paste(as.character(counter), "->", as.character(temp_list[[5]][1]), sep = " "))
+    if (length(temp_list) > 5) {
+      connection_list <- c(connection_list, temp_list[[6]])
+    }
+    
+  }
+  if(!is.null(tree[["right"]])){
+    temp_list <- get_plot_params(tree[["right"]], counter = max(counter_list) + 1)
+    type_list <- c(type_list,temp_list[[1]])
+    split_list <- c(split_list,temp_list[[2]])
+    n_sample_list <- c(n_sample_list,temp_list[[3]])
+    results_list <- c(results_list,temp_list[[4]])
+    counter_list <- c(counter_list,temp_list[[5]])
+    connection_list <- c(connection_list,paste(as.character(counter), "->", as.character(temp_list[[5]][1]), sep = " "))
+    if (length(temp_list) > 5) {
+      connection_list <- c(connection_list, temp_list[[6]])
+    }
+    
+  }
+  result_list <- list()
+  result_list[[1]] <- type_list
+  result_list[[2]] <- split_list
+  result_list[[3]] <- n_sample_list
+  result_list[[4]] <- results_list
+  result_list[[5]] <- counter_list
+  result_list[[6]] <- connection_list
+  return(result_list)
+}
+
+visualize_tree <- function(tree){
+  plot_list <- get_plot_params(raw_tree)
+  plot_string <- "digraph flowchart {  \n node [fontname = Helvetica, shape = rectangle]"
+  
+  label = ""
+  split_counter <- 1
+  for(x in 1:length(plot_list[[1]])){
+    if(!(plot_list[[1]][x]) == "leaf"){
+      label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n", 
+                                 "Split", names(plot_list[[2]][split_counter]), as.character(plot_list[[2]][[split_counter]]), "\n", 
+                                 "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
+                                 names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
+                                 names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
+                                 names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
+                                 "'] \n", sep = " "), sep = "")
+      split_counter <- split_counter + 1
+    } else{
+      label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n",
+                                 "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
+                                 names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
+                                 names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
+                                 names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
+                                 "'] \n", sep = " "), sep = "")
+    }
+    
+  }
+  links <- paste(plot_list[[6]], collapse = "; \n ")
+  
+  grViz(paste(plot_string,label,links,"}",sep = "\n"))
 }
