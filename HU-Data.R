@@ -1,11 +1,15 @@
-source("DecisionTreeImplementation.R")
-source("RzepakowskiTree.R")
-source("Evaluation Methods.R")
-source('ContextualTreatmentSelection.R')
-source('Separate Model Approach.R')
-source("VisualizationHelper.R")
-# source("Causal Forest.R")
-# source("CausalTree.R")
+
+source('ModelImplementations/DecisionTreeImplementation.R')
+source('ModelImplementations/RzepakowskiTree.R')
+source('Evaluation Methods.R')
+source('ModelImplementations/CausalTree.R')
+source('ModelImplementations/Causal Forest.R')
+source('ModelImplementations/Separate Model Approach.R')
+source('ModelImplementations/ContextualTreatmentSelection.R')
+source('ModelImplementations/VisualizationHelper.R')
+source("ModelImplementations/PredictionFunctions.R")
+
+
 library(caret)
 library(gbm)
 set.seed(1234)

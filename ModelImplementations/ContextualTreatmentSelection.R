@@ -1,7 +1,7 @@
 library(dplyr)
 library(foreach)
 library(doParallel)
-source("DecisionTreeImplementation.R")
+source("ModelImplementations/DecisionTreeImplementation.R")
 build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_reg, min_split, parallel = TRUE,
                       remain_cores = 1){
   if(parallel){
@@ -9,7 +9,7 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
     cl <- makePSOCKcluster(numCores-remain_cores)
     registerDoParallel(cl)
     trees <- foreach(x=1:ntree) %dopar% {
-      source('ContextualTreatmentSelection.R')
+      source('ModelImplementations/ContextualTreatmentSelection.R')
       set.seed(x)
       for(t in c(treatments,control)){
         if(t == treatments[1]){

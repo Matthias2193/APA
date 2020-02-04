@@ -12,8 +12,8 @@ library(reshape2)
 source('DecisionTreeImplementation.R')
 source('RzepakowskiTree.R')
 source('Evaluation Methods.R')
-# source('CausalTree.R')
-# source('Causal Forest.R')
+source('CausalTree.R')
+source('Causal Forest.R')
 source('Separate Model Approach.R')
 source('ContextualTreatmentSelection.R')
 source('VisualizationHelper.R')
@@ -85,8 +85,16 @@ for(f in 1:25){
   #   write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   # }
   
+  start_time <- Sys.time()
+  # Causal Forest
+  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response)
   
-  #Separate Model Approach
+  # Causal Tree
+  causal_pred <- causalTreePredicitons(train, test, treatment_list, response)
+  
+  print(difftime(Sys.time(),start_time,units = "mins"))
+  
+  # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
   
   write.csv(pred_sma_rf, paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""),
