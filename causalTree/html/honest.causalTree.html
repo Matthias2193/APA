@@ -1,0 +1,115 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><title>R: Causal Effect Regression and Estimation Trees: One-step...</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="R.css" />
+</head><body>
+
+<table width="100%" summary="page for honest.causalTree {causalTree}"><tr><td>honest.causalTree {causalTree}</td><td style="text-align: right;">R Documentation</td></tr></table>
+
+<h2>
+Causal Effect Regression and Estimation Trees: One-step honest estimation
+</h2>
+
+<h3>Description</h3>
+
+<p>Fit a <code>causalTree</code> model to get an honest causal tree, with tree structure built on training sample (including cross-validation) and leaf estimates taken from estimation sample. Return an <code>rpart</code> object.
+</p>
+
+
+<h3>Usage</h3>
+
+<pre>
+honest.causalTree(formula, data, weights, treatment, subset, 
+                  est_data, est_weights, est_treatment, est_subset,
+                  na.action = na.causalTree, split.Rule, split.Honest, 
+                  HonestSampleSize, split.Bucket, bucketNum = 5,
+                  bucketMax = 100, cv.option, cv.Honest, minsize = 2L, 
+                  model = FALSE, x = FALSE, y = TRUE, 
+                  propensity, control, split.alpha = 0.5, cv.alpha = 0.5, 
+                  cost, ...)
+</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>est_data</code></td>
+<td>
+<p>data frame to be used for leaf estimates; the estimation sample. Must contain the variables used in training the tree.</p>
+</td></tr> 
+<tr valign="top"><td><code>est_weights</code></td>
+<td>
+<p>optional case weights for estimation sample</p>
+</td></tr>
+<tr valign="top"><td><code>est_treatment</code></td>
+<td>
+<p>treatment vector for estimation sample.  Must be same length as estimation data. A vector indicates the treatment status of the data, 1 represents treated and 0 represents control.  Only binary treatment
+supported in this version. </p>
+</td></tr>
+<tr valign="top"><td><code>est_subset</code></td>
+<td>
+<p>optional expression saying that only a subset of the
+rows of the estimation data should be used in the fit of the re-estimated tree.</p>
+</td></tr>
+<tr valign="top"><td><code>...</code></td>
+<td>
+<p>All other arguments follow <code><a href="causalTree.html">causalTree</a> documentation</code></p>
+</td></tr>
+</table>
+
+
+<h3>Value</h3>
+
+<p>An object of class <code>rpart</code>.  See <code><a href="../../rpart/html/rpart.object.html">rpart.object</a></code>.
+</p>
+
+
+<h3>References</h3>
+
+<p>Breiman L., Friedman J. H., Olshen R. A., and Stone, C. J. (1984)
+<em>Classification and Regression Trees.</em>
+Wadsworth.
+</p>
+<p>Athey, S and G Imbens (2016)  <em>Recursive Partitioning for Heterogeneous Causal Effects</em>.  http://arxiv.org/abs/1504.01132
+</p>
+
+
+<h3>See Also</h3>
+
+<p><code><a href="causalTree.html">causalTree</a></code>,
+<code><a href="estimate.causalTree.html">estimate.causalTree</a></code>, <code><a href="../../rpart/html/rpart.object.html">rpart.object</a></code>,
+<code><a href="../../rpart/html/summary.rpart.html">summary.rpart</a></code>, <code><a href="../../rpart.plot/html/rpart.plot.html">rpart.plot</a></code>
+</p>
+
+
+<h3>Examples</h3>
+
+<pre>
+n &lt;- nrow(simulation.1)
+
+trIdx &lt;- which(simulation.1$treatment == 1)
+
+conIdx &lt;- which(simulation.1$treatment == 0)
+
+train_idx &lt;- c(sample(trIdx, length(trIdx) / 2), sample(conIdx, length(conIdx) / 2))
+
+train_data &lt;- simulation.1[train_idx, ]
+
+est_data &lt;- simulation.1[-train_idx, ]
+
+honestTree &lt;- honest.causalTree(y ~ x1 + x2 + x3 + x4, data = train_data,
+                                treatment = train_data$treatment, 
+                                est_data = est_data, 
+                                est_treatment = est_data$treatment, 
+                                split.Rule = "CT", split.Honest = T, 
+                                HonestSampleSize = nrow(est_data), 
+                                split.Bucket = T, cv.option = "CT")
+                                
+opcp &lt;-  honestTree$cptable[,1][which.min(honestTree$cptable[,4])]
+
+opTree &lt;- prune(honestTree, opcp)
+
+rpart.plot(opTree)
+</pre>
+
+<hr /><div style="text-align: center;">[Package <em>causalTree</em> version 0.0 <a href="00Index.html">Index</a>]</div>
+</body></html>
