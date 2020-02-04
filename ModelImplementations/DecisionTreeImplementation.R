@@ -1,5 +1,4 @@
-#This script contains the implementation of the decision tree following the paper 
-#'Decision trees for uplift modeling with single and multiple treatments'
+#This script contains the implementation of a new decision tree for uplift modeling.
 
 #Importing libraries
 library(parallel)
@@ -55,7 +54,8 @@ set_up_tests <- function(x,reduce_cases,max_cases = 10){
 
 #Split selection ----
 #For each possible split the gain is calculated. The split with the highest gain is returned. If no split has a
-#gain > 0, then -1 is returned indicating that no split is beneficial
+#gain > 0, then -1 is returned indicating that no split is beneficial.
+#Curretnly there are three criterions supported to calculate the gain. More explanation further down.
 select_split <- function(test_list,treatment,control,target,temp_data,criterion){
   gain_list <- c()
   name_list <- c()
@@ -118,6 +118,12 @@ select_split <- function(test_list,treatment,control,target,temp_data,criterion)
   }
 }
 
+
+
+#Simple
+#The first of 3 possible ways to calculate the "gain". This option tries to maximize the difference in expected
+#outcome between the treatments and control and between treatments.
+#Doesn't take into accout current results or number of samples in each node after the split.
 simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
   treatments <- c(treatment, control)
   gain <- 0
@@ -154,8 +160,96 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
 }
 
 
+#Frac
+#Similar to "Simple" but makes sure the difference in outcome after the split is bigger than before. Also takes into
+#account the number of samples in each node after the split.
+frac_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+  treatments <- c(treatment, control)
+  gain <- 0
+  #First check if there is data in each subset after the data is split. If not return -1.
+  if(test_type == 'categorical'){
+    data1 <- data[data[,test_col] == test_case,]
+    data2 <- data[data[,test_col] != test_case,]
+  } else{
+    data1 <- data[data[,test_col] < test_case,]
+    data2 <- data[data[,test_col] >= test_case,]
+  }
+  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
+    return(-1)
+  }
+  frac1 <- nrow(data1)/nrow(data)
+  frac2 <- nrow(data2)/nrow(data)
+  
+  current_gain <- 0
+  for(x in 1:(length(treatments)-1)){
+    t <- treatments[x]
+    s <- treatments[x+1]
+    temp_gain <- (mean(data[data[,t] == 1,target])-mean(data[data[,s] == 1,target]))^2
+    current_gain <- current_gain + temp_gain
+  }
+  #The actual calculation of the gain
+  #Here for a test of a categorical cavariate
+  for(x in 1:(length(treatments)-1)){
+    t <- treatments[x]
+    s <- treatments[x+1]
+    temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
+      frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
+    gain <- gain + temp_gain
+  }
+  if(is.na(gain)){
+    gain = -1
+  }
+  if(gain <= current_gain){
+    gain = -1
+  }
+  return(gain)
+}
 
-
+#Max
+#Simply tries to maximize the maximum expected outcome for all treatments and control.
+max_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+  treatments <- c(treatment, control)
+  gain <- 0
+  #First check if there is data in each subset after the data is split. If not return -1.
+  if(test_type == 'categorical'){
+    data1 <- data[data[,test_col] == test_case,]
+    data2 <- data[data[,test_col] != test_case,]
+  } else{
+    data1 <- data[data[,test_col] < test_case,]
+    data2 <- data[data[,test_col] >= test_case,]
+  }
+  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
+    return(-1)
+  }
+  current_gain <- 0
+  for(t in treatment){
+    if(mean(data[data[,t]==1,target])>current_gain){
+      current_gain <- mean(data[data[,t]==1,target])
+    }
+  }
+  
+  #Here the gain is calculated
+  left_gain <- 0
+  right_gain <- 0
+  for(t in treatment){
+    left_gain <- max(left_gain,mean(data1[data1[,t]==1,target]))
+    right_gain <- max(right_gain,mean(data2[data2[,t]==1,target]))
+  }
+  gain <- max(left_gain,right_gain)
+  # gain <- (frac1*left_gain+frac2*right_gain)
+  for(t in treatments){
+    if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
+      gain <- -1
+    }
+  }
+  if(is.na(gain)){
+    gain = -1
+  }
+  if(gain <= current_gain){
+    gain = -1
+  }
+  return(gain)
+}
 
 
 
@@ -169,11 +263,6 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
 #target: the name of the response variable
 #control: the name of the control 'treatment'
 #test_list: a list of possible splits created by the 'set_up_tests' function
-#criterion: 1 for Rzp-tree, 2 for simple tree
-#alpha, l and g are parameters according to Rzepakowski paper (only necessare if criterion = 1)
-
-
-
 build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list,random = FALSE,
                        n_features = 0,criterion = "simple"){
   #Return leaf if current depth is max depth
@@ -484,57 +573,6 @@ simple_pruning_helper <- function(node,treatments,control){
   }
 }
 
-
-
-
-#Test
-
-#Max
-
-max_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
-  treatments <- c(treatment, control)
-  gain <- 0
-  #First check if there is data in each subset after the data is split. If not return -1.
-  if(test_type == 'categorical'){
-    data1 <- data[data[,test_col] == test_case,]
-    data2 <- data[data[,test_col] != test_case,]
-  } else{
-    data1 <- data[data[,test_col] < test_case,]
-    data2 <- data[data[,test_col] >= test_case,]
-  }
-  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
-    return(-1)
-  }
-  current_gain <- 0
-  for(t in treatment){
-    if(mean(data[data[,t]==1,target])>current_gain){
-      current_gain <- mean(data[data[,t]==1,target])
-    }
-  }
-  
-  #Here the gain is calculated
-  left_gain <- 0
-  right_gain <- 0
-  for(t in treatment){
-    left_gain <- max(left_gain,mean(data1[data1[,t]==1,target]))
-    right_gain <- max(right_gain,mean(data2[data2[,t]==1,target]))
-  }
-  gain <- max(left_gain,right_gain)
-  # gain <- (frac1*left_gain+frac2*right_gain)
-  for(t in treatments){
-    if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-      gain <- -1
-    }
-  }
-  if(is.na(gain)){
-    gain = -1
-  }
-  if(gain <= current_gain){
-    gain = -1
-  }
-  return(gain)
-}
-
 max_pruning_helper <- function(node,treatments,control){
   #Check if we are already at the root
   if(node[['type']] == 'root'){
@@ -573,46 +611,3 @@ max_pruning_helper <- function(node,treatments,control){
 
 
 
-
-#Frac
-frac_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
-  treatments <- c(treatment, control)
-  gain <- 0
-  #First check if there is data in each subset after the data is split. If not return -1.
-  if(test_type == 'categorical'){
-    data1 <- data[data[,test_col] == test_case,]
-    data2 <- data[data[,test_col] != test_case,]
-  } else{
-    data1 <- data[data[,test_col] < test_case,]
-    data2 <- data[data[,test_col] >= test_case,]
-  }
-  if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
-    return(-1)
-  }
-  frac1 <- nrow(data1)/nrow(data)
-  frac2 <- nrow(data2)/nrow(data)
-  
-  current_gain <- 0
-  for(x in 1:(length(treatments)-1)){
-    t <- treatments[x]
-    s <- treatments[x+1]
-    temp_gain <- (mean(data[data[,t] == 1,target])-mean(data[data[,s] == 1,target]))^2
-    current_gain <- current_gain + temp_gain
-  }
-  #The actual calculation of the gain
-  #Here for a test of a categorical cavariate
-  for(x in 1:(length(treatments)-1)){
-    t <- treatments[x]
-    s <- treatments[x+1]
-    temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-      frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
-    gain <- gain + temp_gain
-  }
-  if(is.na(gain)){
-    gain = -1
-  }
-  if(gain <= current_gain){
-    gain = -1
-  }
-  return(gain)
-}

@@ -85,18 +85,18 @@ for(f in 1:25){
     write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
   
-  start_time <- Sys.time()
   # Causal Forest
-  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response)
+  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control)
+  write.csv(causal_forest_pred, paste("Predictions/Hillstrom/causal_forest",as.character(f),".csv",sep = ""),
+            row.names = FALSE)
   
   # Causal Tree
-  causal_pred <- causalTreePredicitons(train, test, treatment_list, response)
-  
-  print(difftime(Sys.time(),start_time,units = "mins"))
+  causal_pred <- causalTreePredicitons(train, test, treatment_list, response, control)
+  write.csv(causal_pred, paste("Predictions/Hillstrom/causal_tree",as.character(f),".csv",sep = ""),
+            row.names = FALSE)
   
   # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
-  
   write.csv(pred_sma_rf, paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
