@@ -90,20 +90,20 @@ for(f in 1:25){
   write.csv(causal_forest_pred, paste("Predictions/Hillstrom/causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
-  # Causal Tree
+  Causal Tree
   causal_pred <- causalTreePredicitons(train, test, treatment_list, response, control)
   write.csv(causal_pred, paste("Predictions/Hillstrom/causal_tree",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-  
+
   # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
   write.csv(pred_sma_rf, paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-  
+
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 100, nrow(train), 3, 0.15, 100, parallel = TRUE,
                           remain_cores = 1)
-  
+
   pred <- predict_forest_df(cts_forest, test)
   write.csv(pred, paste("Predictions/Hillstrom/cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
@@ -111,41 +111,10 @@ for(f in 1:25){
 }
 
 
-for(f in 1:5){
-  train <- email[-folds[[f]], ]
-  
-  test <- email[folds[[f]], ]
-  
-  test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
-                                     "newbie","channel")],TRUE, max_cases = 10)
-  
-  #Separate Model Approach
-  pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
-  
-  write.csv(pred_sma_rf, paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""),
-            row.names = FALSE)
-  
-  # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 100, nrow(train), 3, 0.15, 100, parallel = TRUE,
-                          remain_cores = 1)
-  
-  pred <- predict_forest_df(cts_forest, test)
-  
-  pred[ , "uplift_men_treatment"] <- pred[ , 1] - pred[ , 3]
-  pred[ , "uplift_women_treatment"] <- pred[ , 2] - pred[ , 3]
-  pred[ , "Treatment"] <- predictions_to_treatment(pred, treatment_list, control)
-  
-  pred[ , "Outcome"] <- test[, response]
-  # get the actual assignment from test data
-  pred[ , "Assignment"] <- predictions_to_treatment(test, treatment_list, control)
-  
-  write.csv(pred, paste("Predictions/Hillstrom/cts_",as.character(f),".csv",sep = ""), row.names = FALSE)
-}
-
 start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
-for(model in c("tree","forest","random_forest","cts","sma rf")){
+for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","forest","random_forest")) > 0){
     for(c in c("simple","max","frac")){
       for(f in 1:25){

@@ -16,7 +16,7 @@ The those model, which can be found at (https://github.com/susanathey/causalTree
 This implementation follows the approach outlined by Yan Zhao, Xiao Fang and David Simchi-Levi in their paper "Uplift Modeling with Multiple Treatments and General Response Types" (https://arxiv.org/pdf/1705.08492.pdf). 
 <br>
 
-#Example
+# Example
 An example of the code applied to the Hillstrom data set (https://blog.minethatdata.com/2008/03/minethatdata-e-mail-analytics-and-data.html) can be found in "Hillstrom Evaluation Spend.R"
 <br>
 <br>
