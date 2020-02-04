@@ -63,27 +63,27 @@ for(f in 1:25){
   
   
   start_time <- Sys.time()
-  for(c in c("simple","max","frac")){
-    print(c)
-    # Single Tree
-    raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
-    pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control,criterion = c)
-    pred <- predict.dt.as.df(pruned_tree, test)
-    write.csv(pred, paste("Predictions/Hillstrom/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
-    
-    
-    #Forest
-    forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
-                                    pruning = F, criterion = c)
-    pred <- predict_forest_df(forest,test)
-    write.csv(pred, paste("Predictions/Hillstrom/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
-
-    #Random Forest
-    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3, 
-                                           criterion = c)
-    pred <- predict_forest_df(forest,test)
-    write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
-  }
+  # for(c in c("simple","max","frac")){
+  #   print(c)
+  #   # Single Tree
+  #   raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
+  #   pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control,criterion = c)
+  #   pred <- predict.dt.as.df(pruned_tree, test)
+  #   write.csv(pred, paste("Predictions/Hillstrom/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+  #   
+  #   
+  #   #Forest
+  #   forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
+  #                                   pruning = F, criterion = c)
+  #   pred <- predict_forest_df(forest,test)
+  #   write.csv(pred, paste("Predictions/Hillstrom/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+  # 
+  #   #Random Forest
+  #   forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3, 
+  #                                          criterion = c)
+  #   pred <- predict_forest_df(forest,test)
+  #   write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+  # }
   
   
   #Separate Model Approach
@@ -163,7 +163,7 @@ for(f in 1:5){
   write.csv(pred, paste("Predictions/Hillstrom/cts_",as.character(f),".csv",sep = ""), row.names = FALSE)
 }
 
-
+start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
 for(model in c("tree","forest","random_forest","cts","sma rf")){
@@ -194,6 +194,7 @@ for(c in 1:11){
   outcome_df[,c] <- as.numeric(as.character(outcome_df[,c]))
 }
 outcome_df[,12] <- as.character(outcome_df[,12])
+print(difftime(Sys.time(),start_time,units = "mins"))
 
 for(model in unique(outcome_df$Model)){
   temp_data <- outcome_df[outcome_df$Model == model,]
@@ -520,67 +521,3 @@ repeat_fct <- function(){
   node[['split']] <- temp_split
   return(temp_split)
 }
-
-
-depth <- 0
-max_depth <- 10
-ramndom <- TRUE
-target <- response
-node <- list()
-n_features <- 3
-criterion <- "max"
-set.seed(1)
-data <- train[sample(nrow(train),nrow(train),replace = TRUE),]
-temp_split <- repeat_fct()
-node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
-                             max_depth = max_depth,treatment_list =  treatment_list,target = target,
-                             control = control,test_list = test_list,random = random, n_features = n_features,
-                             criterion = criterion)
-data <- data[data[names(temp_split)]!=temp_split[[1]],]
-temp_split <- repeat_fct() 
-node[['left']] <- build_tree(data = data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
-                             max_depth = max_depth,treatment_list =  treatment_list,target = target,
-                             control = control,test_list = test_list,random = random, n_features = n_features,
-                             criterion = criterion)
-data <- data[data[names(temp_split)]!=temp_split[[1]],]
-temp_split <- repeat_fct()
-data <- data[data[names(temp_split)]<temp_split[[1]],]
-temp_split <- repeat_fct()
-data <- data[data[names(temp_split)]<temp_split[[1]],]
-temp_split <- repeat_fct()
-data <- data[data[names(temp_split)]==temp_split[[1]],]
-temp_split <- repeat_fct()
-data <- data[data[names(temp_split)]==temp_split[[1]],]
-temp_split <- repeat_fct()
-node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
-                             max_depth = max_depth,treatment_list =  treatment_list,target = target,
-                             control = control,test_list = test_list,random = random, n_features = n_features,
-                             criterion = criterion)
-data <- data[data[names(temp_split)]!=temp_split[[1]],]
-temp_split <- repeat_fct()
-data <- data[data[names(temp_split)]==temp_split[[1]],]
-temp_split <- repeat_fct()
-data <- data[data[names(temp_split)]<temp_split[[1]],]
-
-
-
-if(names(temp_split) %in% names(test_list$categorical)){
-  node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
-                               max_depth = max_depth,treatment_list =  treatment_list,target = target,
-                               control = control,test_list = test_list,random = random, n_features = n_features,
-                               criterion = criterion)
-  node[['right']] <- build_tree(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,
-                                max_depth = max_depth,treatment_list =  treatment_list,target = target,
-                                control = control,test_list = test_list,random = random, n_features = n_features,
-                                criterion = criterion)
-} else{
-  node[['left']] <- build_tree(data = data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,
-                               max_depth = max_depth,treatment_list =  treatment_list,target = target,
-                               control = control,test_list = test_list,random = random, n_features = n_features,
-                               criterion = criterion)
-  node[['right']] <- build_tree(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,
-                                max_depth = max_depth,treatment_list =  treatment_list,target = target,
-                                control = control,test_list = test_list,random = random, n_features = n_features,
-                                criterion = criterion)
-}
-
