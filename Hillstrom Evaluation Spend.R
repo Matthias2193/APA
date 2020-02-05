@@ -45,7 +45,7 @@ folds <- createFolds(email$spend, k = 5, list = TRUE, returnTrain = FALSE)
 
 original_email <- email
 
-for(f in 1:25){
+for(f in 1:1){
   
   email <- original_email[sample(nrow(original_email),nrow(original_email),replace = TRUE),]
   idx <- createDataPartition(y = email[ , response], p=0.2, list = FALSE)
@@ -84,16 +84,16 @@ for(f in 1:25){
     pred <- predict_forest_df(forest,test)
     write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
-  
+
   # Causal Forest
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control)
   write.csv(causal_forest_pred, paste("Predictions/Hillstrom/causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
-  Causal Tree
-  causal_pred <- causalTreePredicitons(train, test, treatment_list, response, control)
-  write.csv(causal_pred, paste("Predictions/Hillstrom/causal_tree",as.character(f),".csv",sep = ""),
-            row.names = FALSE)
+  # Causal Tree
+  # causal_pred <- causalTreePredicitons(train, test, treatment_list, response, control)
+  # write.csv(causal_pred, paste("Predictions/Hillstrom/causal_tree",as.character(f),".csv",sep = ""),
+  #           row.names = FALSE)
 
   # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
@@ -114,10 +114,10 @@ for(f in 1:25){
 start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
-for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest")){
+for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest","causal_tree","causal_forest")){
   if(sum(model == c("tree","forest","random_forest")) > 0){
     for(c in c("simple","max","frac")){
-      for(f in 1:25){
+      for(f in 1:1){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
           outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
@@ -129,7 +129,7 @@ for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest")){
       }
     }
   } else{
-    for(f in 1:25){
+    for(f in 1:1){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
     }
@@ -143,6 +143,10 @@ for(c in 1:11){
 }
 outcome_df[,12] <- as.character(outcome_df[,12])
 print(difftime(Sys.time(),start_time,units = "mins"))
+
+
+source("HU-Data.R")
+
 
 for(model in unique(outcome_df$Model)){
   temp_data <- outcome_df[outcome_df$Model == model,]
