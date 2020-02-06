@@ -114,7 +114,7 @@ for(f in 1:1){
 start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
-for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest","causal_tree","causal_forest")){
+for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest","causal_forest")){
   if(sum(model == c("tree","forest","random_forest")) > 0){
     for(c in c("simple","max","frac")){
       for(f in 1:1){
