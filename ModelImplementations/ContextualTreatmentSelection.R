@@ -188,8 +188,8 @@ cts_gain <- function(test_case, treatments, control, response, data, test_type, 
   max_right <- 0
   max_root <- max(parent_predictions)
   if(test_type == "categorical"){
-    data_left <- data[data[,col_name]!= test_case,]
-    data_right <- data[data[,col_name] == test_case, ]
+    data_left <- data[data[,col_name] == test_case,]
+    data_right <- data[data[,col_name] != test_case, ]
   } else{
     data_left <- data[data[,col_name] < test_case,]
     data_right <- data[data[,col_name] >= test_case, ]
