@@ -123,7 +123,7 @@ parallel_predict_forest_average <- function(forest,test_data,remain_cores = 1,ad
   cl <- makePSOCKcluster(numCores-remain_cores)
   registerDoParallel(cl)
   predictions <- foreach(x = 1:length(forest)) %dopar%{
-    source('DecisionTreeImplementation.R')
+    source('ModelImplementations/DecisionTreeImplementation.R')
     tree <- forest[[x]]
     new_data <- test_data
     type_list <- sapply(new_data, class)

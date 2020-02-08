@@ -18,7 +18,7 @@ causalTreePredicitons <- function(train, test,treatment_list, response,control){
     
     tree <- causalTree(as.formula(paste(response, "~.")), data = train_data_new, treatment = train_data[,t], 
                        split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = T, split.Bucket = F, 
-                       val = 5, cp = 0, minsize = 20, propensity = 0.5)
+                       xval = 5, cp = 0, minsize = 20, propensity = 0.5)
 
     opcp <- tree$cptable[,1][which.min(tree$cptable[,3])]
     pruned_tree <- rpart::prune(tree, opcp)
