@@ -1,4 +1,81 @@
 library("DiagrammeR")
+library("gridExtra")
+#Methods used to plot incremental expected outcome
+visualize <- function(temp_data,summarize = TRUE,n_treated = NULL){
+  values <- c()
+  percentile <- c()
+  model <- c()
+  for(f in 1:nrow(temp_data)){
+    if(length(values) == 0){
+      values <- temp_data[f,1:11]
+      percentile <- colnames(temp_data)[1:11]
+      model <- rep(temp_data[f,12],11)
+    } else{
+      values <- c(values,temp_data[f,1:11])
+      percentile <- c(percentile, colnames(temp_data)[1:11])
+      model <- c(model,rep(temp_data[f,12],11))
+    }
+  }
+  temp_df <- data.frame(cbind(values,percentile,model))
+  rownames(temp_df) <- 1:nrow(temp_df)
+  colnames(temp_df) <- c("values","percentile","model")
+  for(c in 1:2){
+    temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
+  }
+  temp_df[,3] <- as.character(temp_df[,3])
+  if(is.null(n_treated)){
+    if(summarize){
+      tgc <- summarySE(temp_df, measurevar="values", groupvars=c("percentile","model"))
+      # new_tgc <- tgc[order(tgc$model),]
+      # rownames(new_tgc) <- 1:nrow(new_tgc)
+      pd <- position_dodge(0.1) # move them .05 to the left and right
+      print(ggplot(tgc, aes(x=percentile, y=values,color=model)) + 
+              geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
+              geom_line() +
+              geom_point() +
+              xlab("Percent assigned according to Model Prediction") +
+              ylab("Expected Outcome per Person") +
+              ggtitle("Mean and Confidence Interval for Expected Outcome"))
+    } else{
+      print(ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
+              #geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
+              geom_line() +
+              geom_point() +
+              xlab("Percent assigned according to Model Prediction") +
+              ylab("Expected Outcome per Person") +
+              ggtitle("Mean and Confidence Interval for Expected Outcome"))
+    }
+  } else{
+    if(summarize){
+      tgc <- summarySE(temp_df, measurevar="values", groupvars=c("percentile","model"))
+      # new_tgc <- tgc[order(tgc$model),]
+      # rownames(new_tgc) <- 1:nrow(new_tgc)
+      pd <- position_dodge(0.1) # move them .05 to the left and right
+      p1 <- ggplot(tgc, aes(x=percentile, y=values,color=model)) + 
+              geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
+              geom_line() +
+              geom_point() +
+              xlab("Percent assigned according to Model Prediction") +
+              ylab("Expected Outcome per Person") +
+              ggtitle("Mean and Confidence Interval for Expected Outcome") + 
+              theme(legend.position="none")
+    } else{
+      p1 <- ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
+              #geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
+              geom_line() +
+              geom_point() +
+              xlab("Percent assigned according to Model Prediction") +
+              ylab("Expected Outcome per Person") +
+              ggtitle("Mean and Confidence Interval for Expected Outcome") + 
+              theme(legend.position="none")
+    }
+    temp_df <- n_treated
+    p2 <- ggplot(data=n_treated, aes(x=Model, y=PercTreated,fill=Model)) +
+        geom_bar(stat="identity")  + theme(axis.text.x = element_blank()) 
+  }
+  grid.arrange(p1, p2, nrow = 2)
+}
+
 
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
@@ -36,39 +113,39 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
   return(datac)
 }
 
-visualize <- function(temp_data){
-  values <- c()
-  percentile <- c()
-  model <- c()
-  for(f in 1:nrow(temp_data)){
-    if(length(values) == 0){
-      values <- temp_data[f,1:11]
-      percentile <- colnames(temp_data)[1:11]
-      model <- rep(temp_data[f,12],11)
+
+
+
+#Methods used to plot a tree
+visualize_tree <- function(tree){
+  plot_list <- get_plot_params(raw_tree)
+  plot_string <- "digraph flowchart {  \n node [fontname = Helvetica, shape = rectangle]"
+  
+  label = ""
+  split_counter <- 1
+  for(x in 1:length(plot_list[[1]])){
+    if(!(plot_list[[1]][x]) == "leaf"){
+      label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n", 
+                                 "Split", names(plot_list[[2]][split_counter]), as.character(plot_list[[2]][[split_counter]]), "\n", 
+                                 "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
+                                 names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
+                                 names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
+                                 names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
+                                 "'] \n", sep = " "), sep = "")
+      split_counter <- split_counter + 1
     } else{
-      values <- c(values,temp_data[f,1:11])
-      percentile <- c(percentile, colnames(temp_data)[1:11])
-      model <- c(model,rep(temp_data[f,12],11))
+      label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n",
+                                 "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
+                                 names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
+                                 names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
+                                 names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
+                                 "'] \n", sep = " "), sep = "")
     }
+    
   }
-  temp_df <- data.frame(cbind(values,percentile,model))
-  rownames(temp_df) <- 1:nrow(temp_df)
-  colnames(temp_df) <- c("values","percentile","model")
-  for(c in 1:2){
-    temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
-  }
-  temp_df[,3] <- as.character(temp_df[,3])
-  tgc <- summarySE(temp_df, measurevar="values", groupvars=c("percentile","model"))
-  # new_tgc <- tgc[order(tgc$model),]
-  # rownames(new_tgc) <- 1:nrow(new_tgc)
-  pd <- position_dodge(0.1) # move them .05 to the left and right
-  print(ggplot(tgc, aes(x=percentile, y=values,color=model)) + 
-          geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
-          geom_line() +
-          geom_point() +
-          xlab("Percent assigned according to Model Prediction") +
-          ylab("Expected Outcome per Person") +
-          ggtitle("Mean and Confidence Interval for Expected Outcome"))
+  links <- paste(plot_list[[6]], collapse = "; \n ")
+  
+  grViz(paste(plot_string,label,links,"}",sep = "\n"))
 }
 
 
@@ -116,33 +193,3 @@ get_plot_params <- function(tree,counter = 0){
   return(result_list)
 }
 
-visualize_tree <- function(tree){
-  plot_list <- get_plot_params(raw_tree)
-  plot_string <- "digraph flowchart {  \n node [fontname = Helvetica, shape = rectangle]"
-  
-  label = ""
-  split_counter <- 1
-  for(x in 1:length(plot_list[[1]])){
-    if(!(plot_list[[1]][x]) == "leaf"){
-      label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n", 
-                                 "Split", names(plot_list[[2]][split_counter]), as.character(plot_list[[2]][[split_counter]]), "\n", 
-                                 "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
-                                 names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
-                                 names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
-                                 names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
-                                 "'] \n", sep = " "), sep = "")
-      split_counter <- split_counter + 1
-    } else{
-      label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n",
-                                 "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
-                                 names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
-                                 names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
-                                 names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
-                                 "'] \n", sep = " "), sep = "")
-    }
-    
-  }
-  links <- paste(plot_list[[6]], collapse = "; \n ")
-  
-  grViz(paste(plot_string,label,links,"}",sep = "\n"))
-}

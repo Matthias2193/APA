@@ -64,6 +64,10 @@ perc_matched <- function(predictions){
   return(deciles)
 }
 
+perc_treated <- function(pred, control){
+  return(sum(pred$Treatment != control)/nrow(pred))
+}
+
 n_treated_decile <- function(pred,control){
   pred$max_uplift <- apply(pred[ , grep("^uplift",colnames(pred))], 1 , max)
   sorted_predictions <- pred[order(-pred$max_uplift),]
@@ -71,11 +75,10 @@ n_treated_decile <- function(pred,control){
   treated <- c(0)
   for(x in 1:9){
     temp_data <- sorted_predictions[1:(n_tenth*x),]
-    temp_data <- temp_data[temp_data$Assignment == temp_data$Treatment,]
-    treated <- c(treated,sum(temp_data$Assignment != control))
+    treated <- c(treated,sum(temp_data$Treatment != control))
   }
-  temp_data <- sorted_predictions[sorted_predictions$Assignment == sorted_predictions$Treatment,]
-  treated <- c(treated,sum(temp_data$Assignment != control))
+  temp_data <- sorted_predictions
+  treated <- c(treated,sum(temp_data$Treatment != control))
   return(treated)
 }
 

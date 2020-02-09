@@ -114,38 +114,55 @@ for(f in 1:1){
 start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
-for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest","causal_forest")){
+p_treated <- c()
+n_treated_df <- c()
+n_predictions <- 1
+for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","forest","random_forest")) > 0){
     for(c in c("simple","max","frac")){
-      for(f in 1:1){
+      for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
           outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
                         paste(model,"_",c,sep = ""))
+          n_treated_df <- c(n_treated_decile(pred,control),paste(model,"_",c,sep = ""))
+          p_treated <- c(perc_treated(pred,control),paste(model,"_",c,sep = ""))
         } else{
           outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
                                        paste(model,"_",c,sep = "")))
+          n_treated_df <- rbind(n_treated_df,c(n_treated_decile(pred,control),paste(model,"_",c,sep = "")))
+          p_treated <- rbind(p_treated,c(perc_treated(pred,control),paste(model,"_",c,sep = "")))
         }
       }
     }
   } else{
-    for(f in 1:1){
+    for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
+      n_treated_df <- rbind(n_treated_df,c(n_treated_decile(pred,control),model))
+      p_treated <- rbind(p_treated,c(perc_treated(pred,control),model))
     }
   }
 }
 outcome_df <- data.frame(outcomes)
+n_treated_df <- data.frame(n_treated_df)
+perc_treated_df <- data.frame(p_treated)
 colnames(outcome_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
+colnames(n_treated_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
+colnames(perc_treated_df) <- c("PercTreated","Model")
 rownames(outcome_df) <- 1:nrow(outcome_df)
+rownames(n_treated_df) <- 1:nrow(n_treated_df)
+rownames(perc_treated_df) <- 1:nrow(perc_treated_df)
 for(c in 1:11){
   outcome_df[,c] <- as.numeric(as.character(outcome_df[,c]))
+  n_treated_df[,c] <- as.numeric(as.character(n_treated_df[,c]))
 }
 outcome_df[,12] <- as.character(outcome_df[,12])
+n_treated_df[,12] <- as.character(n_treated_df[,12])
+perc_treated_df[,1] <- as.numeric(as.character(perc_treated_df[,1]))
+perc_treated_df[,2] <- as.character(perc_treated_df[,2])
 print(difftime(Sys.time(),start_time,units = "mins"))
 
-
-source("HU-Data.R")
 
 
 for(model in unique(outcome_df$Model)){

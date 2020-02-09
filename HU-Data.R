@@ -167,18 +167,21 @@ for(f in 1:1){
 start_time <- Sys.time()
 folder <- "Predictions/HU-Data/"
 outcomes <- c()
+n_treated_df <- c()
 n_predictions <- 1
 for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","forest","random_forest")) > 0){
     for(c in c("simple","max","frac")){
-      for(f in 1:n_predictions){
+      for(f in 1:1){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
           outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
                         paste(model,"_",c,sep = ""))
+          n_treated_df <- c(n_treated_decile(pred,control),paste(model,"_",c,sep = ""))
         } else{
           outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
                                        paste(model,"_",c,sep = "")))
+          n_treated_df <- rbind(n_treated_df,c(n_treated_decile(pred,control)),paste(model,"_",c,sep = ""))
         }
       }
     }
@@ -186,12 +189,16 @@ for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest")){
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
+      n_treated_df <- rbind(n_treated_df,c(n_treated_decile(pred,control)),model)
     }
   }
 }
 outcome_df <- data.frame(outcomes)
+n_treated_df <- data.frame(n_treated_df)
 colnames(outcome_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
+colnames(n_treated_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
 rownames(outcome_df) <- 1:nrow(outcome_df)
+rownames(n_treated_df) <- 1:nrow(n_treated_df)
 for(c in 1:11){
   outcome_df[,c] <- as.numeric(as.character(outcome_df[,c]))
 }

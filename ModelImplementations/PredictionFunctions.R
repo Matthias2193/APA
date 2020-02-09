@@ -47,10 +47,6 @@ predict.dt.as.df <- function(tree,new_data,additional_info = TRUE){
 
 #Takes predictions as input and returns just the name of the best treatment for each prediction
 
-old_predictions_to_treatment <- function(pred,treatment_list,control){
-  colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
-}
-
 predictions_to_treatment <- function(pred,treatment_list,control){
   temp_list <- c()
   results <- colnames(pred[,c(treatment_list,control)])[apply(pred[,c(treatment_list,control)],1,which.max)]
