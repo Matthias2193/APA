@@ -1,7 +1,7 @@
 library("DiagrammeR")
 library("gridExtra")
 #Methods used to plot incremental expected outcome
-visualize <- function(temp_data,summarize = TRUE,n_treated = NULL){
+visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL){
   values <- c()
   percentile <- c()
   model <- c()
@@ -24,13 +24,13 @@ visualize <- function(temp_data,summarize = TRUE,n_treated = NULL){
   }
   temp_df[,3] <- as.character(temp_df[,3])
   if(is.null(n_treated)){
-    if(summarize){
-      tgc <- summarySE(temp_df, measurevar="values", groupvars=c("percentile","model"))
+    if(multiple_predictions){
+      tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
       # new_tgc <- tgc[order(tgc$model),]
       # rownames(new_tgc) <- 1:nrow(new_tgc)
       pd <- position_dodge(0.1) # move them .05 to the left and right
-      print(ggplot(tgc, aes(x=percentile, y=values,color=model)) + 
-              geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
+      print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+              geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), width=1) +
               geom_line() +
               geom_point() +
               xlab("Percent assigned according to Model Prediction") +
@@ -38,7 +38,6 @@ visualize <- function(temp_data,summarize = TRUE,n_treated = NULL){
               ggtitle("Mean and Confidence Interval for Expected Outcome"))
     } else{
       print(ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
-              #geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
               geom_line() +
               geom_point() +
               xlab("Percent assigned according to Model Prediction") +
@@ -46,41 +45,46 @@ visualize <- function(temp_data,summarize = TRUE,n_treated = NULL){
               ggtitle("Mean and Confidence Interval for Expected Outcome"))
     }
   } else{
-    if(summarize){
+    if(multiple_predictions){
       tgc <- summarySE(temp_df, measurevar="values", groupvars=c("percentile","model"))
-      # new_tgc <- tgc[order(tgc$model),]
-      # rownames(new_tgc) <- 1:nrow(new_tgc)
       pd <- position_dodge(0.1) # move them .05 to the left and right
-      p1 <- ggplot(tgc, aes(x=percentile, y=values,color=model)) + 
-              geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
+      p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+              geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), width=1) +
               geom_line() +
               geom_point() +
               xlab("Percent assigned according to Model Prediction") +
               ylab("Expected Outcome per Person") +
               ggtitle("Mean and Confidence Interval for Expected Outcome") + 
               theme(legend.position="none")
+      agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Model), FUN=mean)
+      ordered_values <- c()
+      for(m in  unique(n_treated$Model)){
+        ordered_values <- c(ordered_values, agg_df[agg_df$Group.1 == m,"x"])
+      }
+      temp_df <- data.frame(cbind(unique(n_treated$Model),ordered_values))
+      colnames(temp_df) <- c("Model","PercTreated")
+      p2 <- ggplot(data=temp_df, aes(x=Model, y=PercTreated,fill=Model)) +
+        geom_bar(stat="identity")  + theme(axis.text.x = element_blank()) 
     } else{
       p1 <- ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
-              #geom_errorbar(aes(ymin=values-ci, ymax=values+ci), width=1) +
               geom_line() +
               geom_point() +
               xlab("Percent assigned according to Model Prediction") +
               ylab("Expected Outcome per Person") +
               ggtitle("Mean and Confidence Interval for Expected Outcome") + 
               theme(legend.position="none")
-    }
-    temp_df <- n_treated
-    p2 <- ggplot(data=n_treated, aes(x=Model, y=PercTreated,fill=Model)) +
+      p2 <- ggplot(data=n_treated, aes(x=Model, y=PercTreated,fill=Model)) +
         geom_bar(stat="identity")  + theme(axis.text.x = element_blank()) 
+    }
+    grid.arrange(p1, p2, nrow = 1)
   }
-  grid.arrange(p1, p2, nrow = 2)
 }
 
 
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
   
-  
+
   # New version of length which can handle NA's: if na.rm==T, don't count them
   length2 <- function (x, na.rm=FALSE) {
     if (na.rm) sum(!is.na(x))
@@ -100,7 +104,7 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
   )
   
   # Rename the "mean" column    
-  datac <- rename(datac, c("mean" = measurevar))
+  #datac <- rename(datac, c("mean" = measurevar))
   
   datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
   
