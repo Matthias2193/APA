@@ -2,15 +2,26 @@ library(dplyr)
 library(foreach)
 library(doParallel)
 source("ModelImplementations/DecisionTreeImplementation.R")
+
+# The main method to build a cts forest.
+# There are 5 parameters which can be tuned to impact the mdoel performance:
+# ntree: The number of trees in the forest
+# B: The number of samples in each bootstrap sample. B should be smaller or equal to the number of samples in the original data set.
+# m_try: The number of covariates selected at each split.
+# min_split: The minimum number of observations for each treatment.
+# If parallel = TRUE the process will be parallalized using the number of cores available - remain_cores.
+# For further information about the algorithm please read the paper.
 build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_reg, min_split, parallel = TRUE,
                       remain_cores = 1){
   if(parallel){
+    #Set up the parallelization
     numCores <- detectCores()
     cl <- makePSOCKcluster(numCores-remain_cores)
     registerDoParallel(cl)
     trees <- foreach(x=1:ntree) %dopar% {
       source('ModelImplementations/ContextualTreatmentSelection.R')
       set.seed(x)
+      # In CTS we sample according to the treatment distribution in the train set instead of completely random.
       for(t in c(treatments,control)){
         if(t == treatments[1]){
           temp_train_data <- sample_n(data[data[,t]==1,], round(B * (sum(data[,t]==1)/nrow(data)),0),replace = TRUE)
@@ -20,6 +31,7 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
         }
       }
       temp_train_data <- na.omit(temp_train_data)
+      # Once the new training data is sampled the tree is build.
       return(build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg, 
                                   min_split, parent_predictions = NA))
       print(paste(as.character(x),"completed!",sep = " "))
