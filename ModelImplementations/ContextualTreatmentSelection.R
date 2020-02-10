@@ -59,25 +59,25 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
   }
 }
 
+
+#The main method to build a single tree for CTS
 build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, min_split, 
                            min_gain = 0, parent_predictions = NA,depth = 0){
-  node <- list()
-  if(nrow(data) == 0){
-    node[["type"]] <- "leaf"
-    node[["results"]] <- parent_predictions
-    return(node)
-  }
+  #We sample mtry covariates to use for the next split
   retain_cols <- c(treatments,control,response)
   sample_cols <- setdiff(colnames(data),retain_cols)
   temp_cols <- sample(sample_cols,m_try,replace = F)
   chosen_cols <- c(temp_cols,retain_cols)
   test_list<- set_up_tests(data[,temp_cols],TRUE)
   
+  
+  # We create the current node and add the current predictions and the number of samples for each treatment
   node <- list()
   results <- c()
-  #Select split with maximum gain
   n_treatment_samples <- c()
   if(is.na(parent_predictions)){
+    # If the are no predictions from the parent node we are in the root. In the root the predictions are simply
+    # the sample average.
     node[["type"]] <- "root"
     for(t in c(treatments,control)){
       results <- c(results, mean(data[data[,t] == 1,response]))
@@ -86,49 +86,61 @@ build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, mi
     names(results) <- c(treatments,control)
     node[["results"]] <- results
   } else{
+    # If there are parent predictions we calculate the predictions for the current node according to the paper.
     node[["type"]] <- "node"
     for(t in c(treatments,control)){
       n_samples <- nrow(data[data[,t] == 1,])
       n_treatment_samples <- c(n_treatment_samples,n_samples)
       if(n_samples < min_split){
+        # If the number of samples with treatment t is smaller than min_split we just take the parent prediction
+        # for treatment t.
         results <- c(results, parent_predictions[[t]])
       } else{
+        # Else with calculate the current prediction for treatment t according to the formula from the paper.
         results <- c(results, 
                      (sum(data[data[,t] == 1,response])+parent_predictions[[t]]*n_reg)/(sum(data[,t] == 1)+n_reg))
       }
     }
   }
+  # Once we calculated the the predictions we add the new information to the current node.
   names(results) <- c(treatments,control)
   names(n_treatment_samples) <- c(treatments,control)
   node[["results"]] <- results
   node[['n_samples']] <- nrow(data)
   node[['n_samplse_treatments']] <- n_treatment_samples
+  
+  # Next we check if we terminate the algorithm.
   terminate <- TRUE
+  # If there are fewer than min_split samples in the data set for each treatment we terminate.
   for(t in c(treatments,control)){
     if(sum(data[,t]==1) >= min_split){
       terminate = FALSE
     }
   }
-  
+  # If the response is the same for all samples we terminate.
   if(sum(data[,response] == data[1,response]) == nrow(data)){
     terminate = TRUE
   }
-  
+  # If either of the previous conditions is tree we simply change the type of the current node to "leaf" and 
+  # return it.
   if(terminate){
     node[["type"]] <- "leaf"
     return(node)
   }
   
+  # If we have not terminated we select the next split.
   temp_split <- select_cts_split(node[["results"]], data, treatments, response, control, n_reg, min_split, 
                                    test_list, min_gain)
   
+  # Return a leaf, if there is no split with gain > 0
   if(temp_split == -1){
     node[["type"]] <- "leaf"
     return(node)
   }
-  #Return a leaf, if there is no split with gain > 0
   
+  # If there is a split with gain > 0 the information is added to the node.
   node[['split']] <- temp_split
+  # The data is split according to the selected split and two new trees are grown.
   if(names(temp_split) %in% names(test_list$categorical)){
     node[['left']] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)]==temp_split[[1]],], 
                                      m_try, n_reg, min_split, min_gain, node[["results"]],depth = depth + 1)
@@ -143,6 +155,9 @@ build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, mi
   return(node)
 }
 
+
+# This function goes through all the possible splits and calculates the gain. Then it returns the split with 
+# the highest gain. If no split has a gain > 0 the the function returns -1.
 select_cts_split <- function(parent_predictions, data, treatments, response, control, n_reg, min_split, 
                              test_list, min_gain){
   gain_list <- c()
@@ -194,11 +209,15 @@ select_cts_split <- function(parent_predictions, data, treatments, response, con
   }
 }
 
+
+# This function calculates the gain for a given split.
 cts_gain <- function(test_case, treatments, control, response, data, test_type, col_name, parent_predictions, 
                      n_reg, min_split){
+  # Initialize the variables for the maximum outcomes. 
   max_left <- 0
   max_right <- 0
   max_root <- max(parent_predictions)
+  # Split the data according to the current split.
   if(test_type == "categorical"){
     data_left <- data[data[,col_name] == test_case,]
     data_right <- data[data[,col_name] != test_case, ]
@@ -206,24 +225,28 @@ cts_gain <- function(test_case, treatments, control, response, data, test_type, 
     data_left <- data[data[,col_name] < test_case,]
     data_right <- data[data[,col_name] >= test_case, ]
   }
+  # Calculate the percentage of samples in the left and right data set.
   p_left <- nrow(data_left)/nrow(data)
   p_right <- nrow(data_right)/nrow(data)
+  # For each treatment and control calculate the expected outcome. If the expected outcome is greater than the
+  # current max, it becomes the new max.
   for(t in c(treatments,control)){
     n_left <- nrow(data_left[data_left[,t] == 1,])
     n_right <- nrow(data_right[data_right[,t] == 1,])
     if(n_left < min_split){
       exp_left <- parent_predictions[[t]]
     } else{
-      exp_left <- (sum(data_left[data_left[,t] == 1,response])+parent_predictions[[t]]*n_reg)/(sum(data_left[,t] ==1)+n_reg)
+      exp_left <- (sum(data_left[data_left[,t] == 1,response])+parent_predictions[[t]]*n_reg)/(n_left+n_reg)
     }
     if(n_right < min_split){
       exp_right <- parent_predictions[[t]]
     } else{
-      exp_right <- (sum(data_right[data_right[,t] == 1,response])+parent_predictions[[t]]*n_reg)/(sum(data_right[,t]==1)+n_reg)
+      exp_right <- (sum(data_right[data_right[,t] == 1,response])+parent_predictions[[t]]*n_reg)/(n_right+n_reg)
     }
     max_left <- max(max_left, exp_left)
     max_right <- max(max_right, exp_right)
   }
+  # Return the calculated gain.
   return(p_left * max_left + p_right * max_right - max_root)
 }
 
