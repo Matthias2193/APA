@@ -21,7 +21,7 @@ source("ModelImplementations/PredictionFunctions.R")
 
 
 set.seed(1234)
-n_predictions <- 25
+n_predictions <- 10
 #Data import
 email <- read.csv('Data/Email.csv')
 
@@ -109,11 +109,13 @@ for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
         if(length(outcomes) == 0){
           outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
                         paste(model,"_",c,sep = ""))
-          p_treated <- c(perc_treated(pred,control),paste(model,"_",c,sep = ""))
+          p_treated <- cbind(perc_treated(pred,treatment_list),treatment_list,rep(paste(model,"_",c,sep = ""),
+                                                                   length(treatment_list)))
         } else{
           outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
                                        paste(model,"_",c,sep = "")))
-          p_treated <- rbind(p_treated,c(perc_treated(pred,control),paste(model,"_",c,sep = "")))
+          p_treated <- rbind(p_treated,cbind(perc_treated(pred,treatment_list),treatment_list,
+                                              rep(paste(model,"_",c,sep = ""),length(treatment_list))))
         }
       }
     }
@@ -121,14 +123,15 @@ for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
-      p_treated <- rbind(p_treated,c(perc_treated(pred,control),model))
+      p_treated <- rbind(p_treated, cbind(perc_treated(pred,treatment_list),treatment_list,
+                                          rep(model, length(treatment_list))))
     }
   }
 }
 outcome_df <- data.frame(outcomes)
 perc_treated_df <- data.frame(p_treated)
 colnames(outcome_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
-colnames(perc_treated_df) <- c("PercTreated","Model")
+colnames(perc_treated_df) <- c("PercTreated","Treatment","Model")
 rownames(outcome_df) <- 1:nrow(outcome_df)
 rownames(perc_treated_df) <- 1:nrow(perc_treated_df)
 for(c in 1:11){
@@ -146,7 +149,3 @@ for(model in unique(outcome_df$Model)){
   n_treated <- perc_treated_df[perc_treated_df$Model == model,]
   visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
 }
-
-
-
-

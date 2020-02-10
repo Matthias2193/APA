@@ -169,11 +169,13 @@ for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
         if(length(outcomes) == 0){
           outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
                         paste(model,"_",c,sep = ""))
-          p_treated <- c(perc_treated(pred,control),paste(model,"_",c,sep = ""))
+          p_treated <- cbind(perc_treated(pred,treatment_list),treatment_list,rep(paste(model,"_",c,sep = ""),
+                                                                                  length(treatment_list)))
         } else{
           outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
                                        paste(model,"_",c,sep = "")))
-          p_treated <- rbind(p_treated,c(perc_treated(pred,control),paste(model,"_",c,sep = "")))
+          p_treated <- rbind(p_treated,cbind(perc_treated(pred,treatment_list),treatment_list,
+                                             rep(paste(model,"_",c,sep = ""),length(treatment_list))))
         }
       }
     }
@@ -181,7 +183,8 @@ for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
-      p_treated <- rbind(p_treated,c(perc_treated(pred,control),model))
+      p_treated <- rbind(p_treated, cbind(perc_treated(pred,treatment_list),treatment_list,
+                                          rep(model, length(treatment_list))))
     }
   }
 }

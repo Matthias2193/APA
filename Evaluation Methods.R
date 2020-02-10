@@ -65,8 +65,12 @@ perc_matched <- function(predictions){
   return(deciles)
 }
 
-perc_treated <- function(pred, control){
-  return(sum(pred$Treatment != control)/nrow(pred))
+perc_treated <- function(pred, treatment_list){
+  perc <- c()
+  for(t in treatment_list){
+    perc <- c(perc, sum(pred$Treatment == t)/nrow(pred))
+  }
+  return(perc)
 }
 
 n_treated_decile <- function(pred,control){

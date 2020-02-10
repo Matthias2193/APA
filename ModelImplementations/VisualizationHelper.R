@@ -65,37 +65,35 @@ visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,err
           geom_point() +
           xlab("Percent assigned according to Model Prediction") +
           ylab("Expected Outcome per Person") +
-          ggtitle("Mean and Confidence Interval for Expected Outcome") + 
-          theme(legend.position="none")
+          ggtitle("Mean and Confidence Interval for Expected Outcome")
       } else{
         p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
           geom_line() +
           geom_point() +
           xlab("Percent assigned according to Model Prediction") +
           ylab("Expected Outcome per Person") +
-          ggtitle("Mean and Confidence Interval for Expected Outcome") + 
-          theme(legend.position="none")
+          ggtitle("Mean and Confidence Interval for Expected Outcome") 
       }
       
-      agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Model), FUN=mean)
-      ordered_values <- c()
-      for(m in  unique(n_treated$Model)){
-        ordered_values <- c(ordered_values, agg_df[agg_df$Group.1 == m,"x"])
-      }
-      temp_df <- data.frame(cbind(unique(n_treated$Model),ordered_values))
-      colnames(temp_df) <- c("Model","PercTreated")
-      p2 <- ggplot(data=temp_df, aes(x=Model, y=PercTreated,fill=Model)) +
-        geom_bar(stat="identity")  + theme(axis.text.x = element_blank()) 
+      agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Treatment,n_treated$Model), FUN=mean)
+      # ordered_values <- c()
+      # for(m in  unique(n_treated$Model)){
+      #   ordered_values <- rbind(ordered_values, agg_df[agg_df$Group.2 == m,])
+      # }
+      colnames(agg_df) <- c("Treatment","Model","PercTreated")
+      p2 <- ggplot(agg_df, aes(fill=Treatment, y=PercTreated, x=Model)) + 
+        geom_bar(position="stack", stat="identity") +
+        coord_flip()
     } else{
       p1 <- ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
               geom_line() +
               geom_point() +
               xlab("Percent assigned according to Model Prediction") +
               ylab("Expected Outcome per Person") +
-              ggtitle("Mean and Confidence Interval for Expected Outcome") + 
-              theme(legend.position="none")
-      p2 <- ggplot(data=n_treated, aes(x=Model, y=PercTreated,fill=Model)) +
-        geom_bar(stat="identity")  + theme(axis.text.x = element_blank()) 
+              ggtitle("Mean and Confidence Interval for Expected Outcome")
+      p2 <- ggplot(n_treated, aes(fill=Treatment, y=PercTreated, x=Model)) + 
+        geom_bar(position="stack", stat="identity") +
+        coord_flip()
     }
     grid.arrange(p1, p2, nrow = 1)
   }
