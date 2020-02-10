@@ -1,3 +1,6 @@
+# HU-Data Evaluation
+# This script runs with data which is not public. Please see Hillstrom Evaluation Spend.R for an example.
+
 library(ggplot2)
 library(caret)
 library(plyr)
@@ -21,10 +24,6 @@ set.seed(1234)
 #Preprocessing---- 
 if(!file.exists("Data/hu-data.csv")){
   hu_data <- read.csv("Data/explore_mt.csv",sep = ";")
-  # for(x in levels(hu_data$DeviceCategory)){
-  #   hu_data[x] <- ifelse(hu_data$DeviceCategory == x ,1,0)
-  # }
-  # hu_data$DeviceCategory <- NULL
   tempfunction <- function(x){
     templist <- strsplit(x,",")
     new_string <- ""
@@ -203,11 +202,18 @@ perc_treated_df[,2] <- as.character(perc_treated_df[,2])
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
-
-for(model in unique(outcome_df$Model)){
-  temp_data <- outcome_df[outcome_df$Model == model,]
-  n_treated <- perc_treated_df[perc_treated_df$Model == model,]
-  visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
+if(n_predictions > 1){
+  for(model in unique(outcome_df$Model)){
+    temp_data <- outcome_df[outcome_df$Model == model,]
+    n_treated <- perc_treated_df[perc_treated_df$Model == model,]
+    visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
+  }
+  visualize(temp_data = outcome_df, multiple_predictions = TRUE, n_treated = perc_treated_df)
+} else{
+  for(model in unique(outcome_df$Model)){
+    temp_data <- outcome_df[outcome_df$Model == model,]
+    n_treated <- perc_treated_df[perc_treated_df$Model == model,]
+    visualize(temp_data = temp_data, multiple_predictions = FALSE, n_treated = n_treated)
+  }
+  visualize(temp_data = outcome_df, multiple_predictions = FALSE, n_treated = perc_treated_df)
 }
-
-

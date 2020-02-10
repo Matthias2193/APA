@@ -22,8 +22,6 @@ expected_outcome <- function(pred,response,control,treatment_list){
 
 
 ## Modified Uplift Curve by Zhao
-# *Assumption* outcome for each treatment equals prediction of model
-
 new_expected_quantile_response <- function(response,control,treatment_list,predictions){
   predictions$max_uplift <- apply(predictions[ , grep("^uplift",colnames(predictions))], 1 , max)
   sorted_predictions <- predictions[order(-predictions$max_uplift),]

@@ -1,13 +1,17 @@
-#Test Script
+# This script evaluates several different models on the Hillstrom data set which is contained in this repository.
+# The models evaluated are Contextual Treatment Selection (CTS), Causal Forest, Separate Model Approach with 
+# Random Forest and a custom Tree/Random Forest with two different gain functions ("Simple" and "Frac). More 
+# information about the custom Tree and Random Forest can be found under ModelImplementations/DecisionTreeImplementation.R
+# The user can specify the parameter n_predictions. If it is set to one, each model is trained once on the 
+# original data set and then evaluated. If n_predictions is greater than 1, there will be n_predictions iterations.
+# For each iteration a bootstrap sample is taken as the new data and then the models are build. After the models
+# have been built and the predictions have been made, the predictions are evaluated and the results ploted.
 
 library(ggplot2)
 library(caret)
 library(plyr)
 library(dplyr)
 library(reshape2)
-####################################################
-# Uplift DT Rzepakowski et. al 2012
-####################################################
 
 source('ModelImplementations/DecisionTreeImplementation.R')
 source('ModelImplementations/RzepakowskiTree.R')
@@ -21,8 +25,8 @@ source("ModelImplementations/PredictionFunctions.R")
 
 
 set.seed(1234)
-n_predictions <- 10
-#Data import
+n_predictions <- 25
+#Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
 email$men_treatment <- ifelse(email$segment=='Mens E-Mail',1,0)
@@ -38,13 +42,15 @@ response <- 'spend'
 control <- "control"
 treatment_list <- c('men_treatment','women_treatment')
 
-folds <- createFolds(email$spend, k = 5, list = TRUE, returnTrain = FALSE)
-
 original_email <- email
 
+# The training and prediction part
 for(f in 1:n_predictions){
   
-  email <- original_email[sample(nrow(original_email),nrow(original_email),replace = TRUE),]
+  # If n_predictions is > 1 as bootstrap sample is created
+  if(n_predictions > 1){
+    email <- original_email[sample(nrow(original_email),nrow(original_email),replace = TRUE),]
+  }
   idx <- createDataPartition(y = email[ , response], p=0.2, list = FALSE)
   train <- email[-idx, ]
   
@@ -60,7 +66,7 @@ for(f in 1:n_predictions){
   
   
   start_time <- Sys.time()
-  for(c in c("simple","max","frac")){
+  for(c in c("simple","frac")){
     print(c)
     # Single Tree
     raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
@@ -88,7 +94,6 @@ for(f in 1:n_predictions){
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 100, nrow(train), 3, 0.15, 100, parallel = TRUE,
                           remain_cores = 1)
-
   pred <- predict_forest_df(cts_forest, test)
   write.csv(pred, paste("Predictions/Hillstrom/cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
@@ -96,6 +101,8 @@ for(f in 1:n_predictions){
 }
 
 
+# Here the predictions are evaluated. Additionally we look at the treatment distribution, to see which treatments
+# are assigned how often by the models.
 start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
@@ -103,7 +110,7 @@ p_treated <- c()
 
 for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","random_forest")) > 0){
-    for(c in c("simple","max","frac")){
+    for(c in c("simple","frac")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
@@ -143,9 +150,19 @@ perc_treated_df[,2] <- as.character(perc_treated_df[,2])
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
-
-for(model in unique(outcome_df$Model)){
-  temp_data <- outcome_df[outcome_df$Model == model,]
-  n_treated <- perc_treated_df[perc_treated_df$Model == model,]
-  visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
+#Visualize the results
+if(n_predictions > 1){
+  for(model in unique(outcome_df$Model)){
+    temp_data <- outcome_df[outcome_df$Model == model,]
+    n_treated <- perc_treated_df[perc_treated_df$Model == model,]
+    visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
+  }
+  visualize(temp_data = outcome_df, multiple_predictions = TRUE, n_treated = perc_treated_df)
+} else{
+  for(model in unique(outcome_df$Model)){
+    temp_data <- outcome_df[outcome_df$Model == model,]
+    n_treated <- perc_treated_df[perc_treated_df$Model == model,]
+    visualize(temp_data = temp_data, multiple_predictions = FALSE, n_treated = n_treated)
+  }
+  visualize(temp_data = outcome_df, multiple_predictions = FALSE, n_treated = perc_treated_df)
 }
