@@ -95,7 +95,8 @@ visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,err
         geom_bar(position="stack", stat="identity") +
         coord_flip()
     }
-    grid.arrange(p1, p2, nrow = 1)
+    print(p1)
+    print(p2)
   }
 }
 
