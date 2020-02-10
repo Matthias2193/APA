@@ -21,7 +21,7 @@ source("ModelImplementations/PredictionFunctions.R")
 
 
 set.seed(1234)
-
+n_predictions <- 25
 #Data import
 email <- read.csv('Data/Email.csv')
 
@@ -38,14 +38,11 @@ response <- 'spend'
 control <- "control"
 treatment_list <- c('men_treatment','women_treatment')
 
-
-#email$spend <- email$spend/max(email$spend)
-
 folds <- createFolds(email$spend, k = 5, list = TRUE, returnTrain = FALSE)
 
 original_email <- email
 
-for(f in 1:1){
+for(f in 1:n_predictions){
   
   email <- original_email[sample(nrow(original_email),nrow(original_email),replace = TRUE),]
   idx <- createDataPartition(y = email[ , response], p=0.2, list = FALSE)
@@ -71,13 +68,6 @@ for(f in 1:1){
     pred <- predict.dt.as.df(pruned_tree, test)
     write.csv(pred, paste("Predictions/Hillstrom/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
 
-
-    #Forest
-    forest <- parallel_build_forest(train,val,treatment_list,response,control,n_trees = 100,n_features = 3,
-                                    pruning = F, criterion = c)
-    pred <- predict_forest_df(forest,test)
-    write.csv(pred, paste("Predictions/Hillstrom/forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
-
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3,
                                            criterion = c)
@@ -89,11 +79,6 @@ for(f in 1:1){
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control)
   write.csv(causal_forest_pred, paste("Predictions/Hillstrom/causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-  
-  # Causal Tree
-  # causal_pred <- causalTreePredicitons(train, test, treatment_list, response, control)
-  # write.csv(causal_pred, paste("Predictions/Hillstrom/causal_tree",as.character(f),".csv",sep = ""),
-  #           row.names = FALSE)
 
   # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
@@ -115,22 +100,19 @@ start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
 p_treated <- c()
-n_treated_df <- c()
-n_predictions <- 1
-for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest")){
-  if(sum(model == c("tree","forest","random_forest")) > 0){
+
+for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
+  if(sum(model == c("tree","random_forest")) > 0){
     for(c in c("simple","max","frac")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
           outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
                         paste(model,"_",c,sep = ""))
-          n_treated_df <- c(n_treated_decile(pred,control),paste(model,"_",c,sep = ""))
           p_treated <- c(perc_treated(pred,control),paste(model,"_",c,sep = ""))
         } else{
           outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
                                        paste(model,"_",c,sep = "")))
-          n_treated_df <- rbind(n_treated_df,c(n_treated_decile(pred,control),paste(model,"_",c,sep = "")))
           p_treated <- rbind(p_treated,c(perc_treated(pred,control),paste(model,"_",c,sep = "")))
         }
       }
@@ -139,26 +121,20 @@ for(model in c("tree","forest","random_forest","cts","sma rf","causal_forest")){
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
-      n_treated_df <- rbind(n_treated_df,c(n_treated_decile(pred,control),model))
       p_treated <- rbind(p_treated,c(perc_treated(pred,control),model))
     }
   }
 }
 outcome_df <- data.frame(outcomes)
-n_treated_df <- data.frame(n_treated_df)
 perc_treated_df <- data.frame(p_treated)
 colnames(outcome_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
-colnames(n_treated_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
 colnames(perc_treated_df) <- c("PercTreated","Model")
 rownames(outcome_df) <- 1:nrow(outcome_df)
-rownames(n_treated_df) <- 1:nrow(n_treated_df)
 rownames(perc_treated_df) <- 1:nrow(perc_treated_df)
 for(c in 1:11){
   outcome_df[,c] <- as.numeric(as.character(outcome_df[,c]))
-  n_treated_df[,c] <- as.numeric(as.character(n_treated_df[,c]))
 }
 outcome_df[,12] <- as.character(outcome_df[,12])
-n_treated_df[,12] <- as.character(n_treated_df[,12])
 perc_treated_df[,1] <- as.numeric(as.character(perc_treated_df[,1]))
 perc_treated_df[,2] <- as.character(perc_treated_df[,2])
 print(difftime(Sys.time(),start_time,units = "mins"))
@@ -167,7 +143,8 @@ print(difftime(Sys.time(),start_time,units = "mins"))
 
 for(model in unique(outcome_df$Model)){
   temp_data <- outcome_df[outcome_df$Model == model,]
-  visualize(temp_data)
+  n_treated <- perc_treated_df[perc_treated_df$Model == model,]
+  visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
 }
 
 

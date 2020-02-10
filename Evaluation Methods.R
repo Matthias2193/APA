@@ -40,6 +40,7 @@ new_expected_quantile_response <- function(response,control,treatment_list,predi
   }
   sorted_predictions$Treatment <- sorted_predictions$temp_pred
   deciles <- c(deciles,expected_outcome(sorted_predictions,response,control,treatment_list))
+  return(deciles)
 }
 
 
