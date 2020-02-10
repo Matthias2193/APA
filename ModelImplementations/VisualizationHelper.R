@@ -1,7 +1,7 @@
 library("DiagrammeR")
 library("gridExtra")
 #Methods used to plot incremental expected outcome
-visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL){
+visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,errorbars = TRUE){
   values <- c()
   percentile <- c()
   model <- c()
@@ -28,14 +28,24 @@ visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL){
       tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
       # new_tgc <- tgc[order(tgc$model),]
       # rownames(new_tgc) <- 1:nrow(new_tgc)
-      pd <- position_dodge(0.1) # move them .05 to the left and right
-      print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
-              geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), width=1) +
-              geom_line() +
-              geom_point() +
-              xlab("Percent assigned according to Model Prediction") +
-              ylab("Expected Outcome per Person") +
-              ggtitle("Mean and Confidence Interval for Expected Outcome"))
+      pd <- position_dodge(1) # move them .05 to the left and right
+      if(errorbars){
+        print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+                geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), position = pd) +
+                geom_line() +
+                geom_point() +
+                xlab("Percent assigned according to Model Prediction") +
+                ylab("Expected Outcome per Person") +
+                ggtitle("Mean and Confidence Interval for Expected Outcome"))
+      } else{
+        print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+                geom_line() +
+                geom_point() +
+                xlab("Percent assigned according to Model Prediction") +
+                ylab("Expected Outcome per Person") +
+                ggtitle("Mean and Confidence Interval for Expected Outcome"))
+      }
+     
     } else{
       print(ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
               geom_line() +
@@ -47,15 +57,26 @@ visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL){
   } else{
     if(multiple_predictions){
       tgc <- summarySE(temp_df, measurevar="values", groupvars=c("percentile","model"))
-      pd <- position_dodge(0.1) # move them .05 to the left and right
-      p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
-              geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), width=1) +
-              geom_line() +
-              geom_point() +
-              xlab("Percent assigned according to Model Prediction") +
-              ylab("Expected Outcome per Person") +
-              ggtitle("Mean and Confidence Interval for Expected Outcome") + 
-              theme(legend.position="none")
+      pd <- position_dodge(1) # move them .05 to the left and right
+      if(errorbars){
+        p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+          geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), position = pd) +
+          geom_line() +
+          geom_point() +
+          xlab("Percent assigned according to Model Prediction") +
+          ylab("Expected Outcome per Person") +
+          ggtitle("Mean and Confidence Interval for Expected Outcome") + 
+          theme(legend.position="none")
+      } else{
+        p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+          geom_line() +
+          geom_point() +
+          xlab("Percent assigned according to Model Prediction") +
+          ylab("Expected Outcome per Person") +
+          ggtitle("Mean and Confidence Interval for Expected Outcome") + 
+          theme(legend.position="none")
+      }
+      
       agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Model), FUN=mean)
       ordered_values <- c()
       for(m in  unique(n_treated$Model)){
@@ -122,7 +143,7 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 
 #Methods used to plot a tree
 visualize_tree <- function(tree){
-  plot_list <- get_plot_params(raw_tree)
+  plot_list <- get_plot_params(tree)
   plot_string <- "digraph flowchart {  \n node [fontname = Helvetica, shape = rectangle]"
   
   label = ""
@@ -149,7 +170,7 @@ visualize_tree <- function(tree){
   }
   links <- paste(plot_list[[6]], collapse = "; \n ")
   
-  grViz(paste(plot_string,label,links,"}",sep = "\n"))
+  print(grViz(paste(plot_string,label,links,"}",sep = "\n")))
 }
 
 
