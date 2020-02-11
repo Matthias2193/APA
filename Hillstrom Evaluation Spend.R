@@ -157,7 +157,7 @@ if(n_predictions > 1){
     n_treated <- perc_treated_df[perc_treated_df$Model == model,]
     visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
   }
-  visualize(temp_data = outcome_df, multiple_predictions = TRUE, n_treated = perc_treated_df)
+  visualize(temp_data = outcome_df, multiple_predictions = TRUE, n_treated = perc_treated_df, errorbars = FALSE)
 } else{
   for(model in unique(outcome_df$Model)){
     temp_data <- outcome_df[outcome_df$Model == model,]

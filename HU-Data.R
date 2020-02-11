@@ -190,7 +190,7 @@ for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
 outcome_df <- data.frame(outcomes)
 perc_treated_df <- data.frame(p_treated)
 colnames(outcome_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
-colnames(perc_treated_df) <- c("PercTreated","Model")
+colnames(perc_treated_df) <- c("PercTreated","Treatment","Model")
 rownames(outcome_df) <- 1:nrow(outcome_df)
 rownames(perc_treated_df) <- 1:nrow(perc_treated_df)
 for(c in 1:11){
@@ -208,7 +208,7 @@ if(n_predictions > 1){
     n_treated <- perc_treated_df[perc_treated_df$Model == model,]
     visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
   }
-  visualize(temp_data = outcome_df, multiple_predictions = TRUE, n_treated = perc_treated_df)
+  visualize(temp_data = outcome_df, multiple_predictions = TRUE, n_treated = perc_treated_df, errorbars = FALSE)
 } else{
   for(model in unique(outcome_df$Model)){
     temp_data <- outcome_df[outcome_df$Model == model,]
