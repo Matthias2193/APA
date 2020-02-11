@@ -1,6 +1,8 @@
 library("DiagrammeR")
 library("gridExtra")
-#Methods used to plot incremental expected outcome
+# This method visualizes the incremental expected outcome for one or more models.
+# If there are multiple predictions for each model, the function aggregates those predictions and can create
+# errorbars to show the confidence interval of the predictions.
 visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,errorbars = TRUE){
   values <- c()
   percentile <- c()
@@ -26,8 +28,6 @@ visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,err
   if(is.null(n_treated)){
     if(multiple_predictions){
       tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
-      # new_tgc <- tgc[order(tgc$model),]
-      # rownames(new_tgc) <- 1:nrow(new_tgc)
       pd <- position_dodge(1) # move them .05 to the left and right
       if(errorbars){
         print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
@@ -76,10 +76,6 @@ visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,err
       }
       
       agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Treatment,n_treated$Model), FUN=mean)
-      # ordered_values <- c()
-      # for(m in  unique(n_treated$Model)){
-      #   ordered_values <- rbind(ordered_values, agg_df[agg_df$Group.2 == m,])
-      # }
       colnames(agg_df) <- c("Treatment","Model","PercTreated")
       p2 <- ggplot(agg_df, aes(fill=Treatment, y=PercTreated, x=Model)) + 
         geom_bar(position="stack", stat="identity") +
@@ -100,7 +96,7 @@ visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,err
   }
 }
 
-
+# Function used to aggregate multiple predictions for the same model.
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
   
@@ -123,9 +119,6 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                  measurevar
   )
   
-  # Rename the "mean" column    
-  #datac <- rename(datac, c("mean" = measurevar))
-  
   datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
   
   # Confidence interval multiplier for standard error
@@ -140,7 +133,8 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 
 
 
-#Methods used to plot a tree
+# Methods used to plot a tree
+# It is advisable to build a shallow tree (low value for max_depth) to make the graph somewhat readable.
 visualize_tree <- function(tree){
   plot_list <- get_plot_params(tree)
   plot_string <- "digraph flowchart {  \n node [fontname = Helvetica, shape = rectangle]"
@@ -173,7 +167,7 @@ visualize_tree <- function(tree){
 }
 
 
-
+# Helperfunction for the tree visualization.
 get_plot_params <- function(tree,counter = 0){
   type_list <- c(tree[["type"]])
   split_list <- c(tree[["split"]])

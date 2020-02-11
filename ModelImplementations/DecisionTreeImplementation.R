@@ -256,13 +256,14 @@ max_gain <- function(test_case, treatment, control, target, data, test_type, tes
 #Functions to build the tree ----
 
 #Tree
-#For a continuous target variable use divergence = 'EucDistance'. 
-#For a binary categorical use 'binary_KL_divergence'
+#data: the training data
 #depth: the current depth, can be ignored by the user, for internal pruposes
 #treatment_list: a list with the names of all treatments
 #target: the name of the response variable
 #control: the name of the control 'treatment'
 #test_list: a list of possible splits created by the 'set_up_tests' function
+#random and n_features are used for building the random forest.
+#criterion sepcifies which criterion to use to calculate the gain ("simple", "max", "frac")
 build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list,random = FALSE,
                        n_features = 0,criterion = "simple"){
   #Return leaf if current depth is max depth
@@ -325,7 +326,7 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   return(node)
 }
 
-#Used to creat a leaf
+#Used to create a leaf
 final_node <- function(data,treatment_list,target,control){
   treatment_names <- c(treatment_list,control)
   if(nrow(data) == 0){
@@ -349,59 +350,11 @@ final_node <- function(data,treatment_list,target,control){
   return(node)
 }
 
-#Forest
-build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                         pruning,max_depth = 10,criterion = "simple"){
-  trees <- list()
-  retain_cols <- c(treatment_list,control,response)
-  sample_cols <- setdiff(colnames(train_data),retain_cols)
-  for(x in 1:n_trees){
-    temp_cols <- sample(sample_cols,n_features,replace = F)
-    chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
-    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
-                             test_list = test_list,target = response,control = control,
-                             max_depth = max_depth,criterion)
-    if(pruning){
-      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
-      trees[[x]] <- temp_prune_tree
-    } else{
-      trees[[x]] <- temp_tree
-    }
-    
-  }
-  return(trees)
-}
 
-parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                                  pruning,max_depth = 10,remain_cores = 1,criterion = "simple"){
-  numCores <- detectCores()
-  cl <- makePSOCKcluster(numCores-remain_cores)
-  registerDoParallel(cl)
-  retain_cols <- c(treatment_list,control,response)
-  sample_cols <- setdiff(colnames(train_data),retain_cols)
-  trees <- foreach(x=1:n_trees) %dopar% {
-    source('ModelImplementations/DecisionTreeImplementation.R')
-    set.seed(x)
-    temp_cols <- sample(sample_cols,n_features,replace = F)
-    chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
-    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
-                            test_list = test_list,target = response,control = control,
-                            max_depth = max_depth,criterion = criterion)
-    return(temp_tree)
-    if(pruning){
-      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
-                                    test_list, response,control = control)
-      return(temp_prune_tree)
-    } else{
-      return(temp_tree)
-    }
-  }
-  stopCluster(cl)
-  return(trees)
-}
-
+#Fucntion to build a random forest
+#Two random forest specific parameters:
+#n_trees: the number of trees in the forest
+#n_features: the number of randomly selected covariates to use for each split 
 build_random_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
                                 max_depth = 100, criterion = "simple"){
   trees <- list()
@@ -417,9 +370,8 @@ build_random_forest <- function(train_data,treatment_list,response,control,n_tre
   return(trees)
 }
 
-
-
-
+#Function to build a random forest with parallelization.
+#remain_cores specifies how many cores should NOT be used for the process. 
 parallel_build_random_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
                                          max_depth = 100,remain_cores = 1,criterion = "simple"){
   numCores <- detectCores()
@@ -431,7 +383,8 @@ parallel_build_random_forest <- function(train_data,treatment_list,response,cont
     temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
     temp_tree <- build_tree(data = temp_train_data,0,treatment_list = treatment_list, 
                             test_list = test_list,target = response,control = control,
-                            max_depth = max_depth,random = TRUE,n_features,criterion)
+                            max_depth = max_depth,random = TRUE,n_features =  n_features, 
+                            criterion =  criterion)
     return(temp_tree)
   }
   stopCluster(cl)
@@ -441,7 +394,6 @@ parallel_build_random_forest <- function(train_data,treatment_list,response,cont
 #Pruning ----
 #Takes a tree and prunes it with the help of a validation set.
 #Returns a pruned tree.
-
 simple_prune_tree <- function(tree, val_data, treatment_list, test_list, target,control,criterion = "simple"){
   new_tree <- assign_val_predictions(tree,val_data,treatment_list,test_list,target,control)
   pruned_tree <- simple_check_pruning(new_tree,val_data,target,control,treatment_list,criterion)
@@ -475,7 +427,8 @@ simple_check_pruning <- function(node,val_data,target,control,treatments,criteri
 }
 
 
-
+#Given a tree and a validation data set this function assigns validation data to the nodes of the tree
+#A helper function for the tuning process.
 assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target,control){
   treatment_names <- c(treatment_list,control)
   if(nrow(val_data) == 0){
@@ -610,4 +563,56 @@ max_pruning_helper <- function(node,treatments,control){
 }
 
 
+#Old functions
+#Forest
+build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+                         pruning,max_depth = 10,criterion = "simple"){
+  trees <- list()
+  retain_cols <- c(treatment_list,control,response)
+  sample_cols <- setdiff(colnames(train_data),retain_cols)
+  for(x in 1:n_trees){
+    temp_cols <- sample(sample_cols,n_features,replace = F)
+    chosen_cols <- c(temp_cols,retain_cols)
+    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
+    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
+                            test_list = test_list,target = response,control = control,
+                            max_depth = max_depth,criterion)
+    if(pruning){
+      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
+      trees[[x]] <- temp_prune_tree
+    } else{
+      trees[[x]] <- temp_tree
+    }
+    
+  }
+  return(trees)
+}
 
+parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+                                  pruning,max_depth = 10,remain_cores = 1,criterion = "simple"){
+  numCores <- detectCores()
+  cl <- makePSOCKcluster(numCores-remain_cores)
+  registerDoParallel(cl)
+  retain_cols <- c(treatment_list,control,response)
+  sample_cols <- setdiff(colnames(train_data),retain_cols)
+  trees <- foreach(x=1:n_trees) %dopar% {
+    source('ModelImplementations/DecisionTreeImplementation.R')
+    set.seed(x)
+    temp_cols <- sample(sample_cols,n_features,replace = F)
+    chosen_cols <- c(temp_cols,retain_cols)
+    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
+    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
+                            test_list = test_list,target = response,control = control,
+                            max_depth = max_depth,criterion = criterion)
+    return(temp_tree)
+    if(pruning){
+      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
+                                           test_list, response,control = control)
+      return(temp_prune_tree)
+    } else{
+      return(temp_tree)
+    }
+  }
+  stopCluster(cl)
+  return(trees)
+}
