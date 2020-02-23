@@ -3,7 +3,7 @@ library("gridExtra")
 # This method visualizes the incremental expected outcome for one or more models.
 # If there are multiple predictions for each model, the function aggregates those predictions and can create
 # errorbars to show the confidence interval of the predictions.
-visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,errorbars = TRUE){
+visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FALSE){
   values <- c()
   percentile <- c()
   model <- c()
@@ -24,77 +24,73 @@ visualize <- function(temp_data,multiple_predictions = TRUE,n_treated = NULL,err
   for(c in 1:2){
     temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
   }
-  temp_df[,3] <- as.character(temp_df[,3])
-  if(is.null(n_treated)){
-    if(multiple_predictions){
-      tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
-      pd <- position_dodge(1) # move them .05 to the left and right
-      if(errorbars){
-        print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
-                geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), position = pd) +
-                geom_line() +
-                geom_point() +
-                xlab("Percent assigned according to Model Prediction") +
-                ylab("Expected Outcome per Person") +
-                ggtitle("Mean and Confidence Interval for Expected Outcome"))
-      } else{
-        print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
-                geom_line() +
-                geom_point() +
-                xlab("Percent assigned according to Model Prediction") +
-                ylab("Expected Outcome per Person") +
-                ggtitle("Mean and Confidence Interval for Expected Outcome"))
-      }
-     
-    } else{
-      print(ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
-              geom_line() +
-              geom_point() +
-              xlab("Percent assigned according to Model Prediction") +
-              ylab("Expected Outcome per Person") +
-              ggtitle("Mean and Confidence Interval for Expected Outcome"))
-    }
-  } else{
-    if(multiple_predictions){
-      tgc <- summarySE(temp_df, measurevar="values", groupvars=c("percentile","model"))
-      pd <- position_dodge(1) # move them .05 to the left and right
-      if(errorbars){
-        p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
-          geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), position = pd) +
-          geom_line() +
-          geom_point() +
-          xlab("Percent assigned according to Model Prediction") +
-          ylab("Expected Outcome per Person") +
-          ggtitle("Mean and Confidence Interval for Expected Outcome")
-      } else{
-        p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
-          geom_line() +
-          geom_point() +
-          xlab("Percent assigned according to Model Prediction") +
-          ylab("Expected Outcome per Person") +
-          ggtitle("Mean and Confidence Interval for Expected Outcome") 
-      }
-      
-      agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Treatment,n_treated$Model), FUN=mean)
-      colnames(agg_df) <- c("Treatment","Model","PercTreated")
-      p2 <- ggplot(agg_df, aes(fill=Treatment, y=PercTreated, x=Model)) + 
-        geom_bar(position="stack", stat="identity") +
-        coord_flip()
-    } else{
-      p1 <- ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
-              geom_line() +
-              geom_point() +
-              xlab("Percent assigned according to Model Prediction") +
-              ylab("Expected Outcome per Person") +
-              ggtitle("Mean and Confidence Interval for Expected Outcome")
-      p2 <- ggplot(n_treated, aes(fill=Treatment, y=PercTreated, x=Model)) + 
-        geom_bar(position="stack", stat="identity") +
-        coord_flip()
-    }
+  temp_df[,3] <- as.character(temp_df[,3]) 
+  tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
+  pd <- position_dodge(1) # move them .05 to the left and right
+  p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+  {if(errorbars && sum(is.na(tgc)) == 0) geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), position = pd)} +
+    geom_line() +
+    geom_point() +
+    xlab("Percent assigned according to Model Prediction") +
+    ylab("Expected Outcome per Person") +
+    {if(multiplot) facet_wrap(~model)} +
+    {if(multiplot) theme(legend.position = "none")} +
+    ggtitle("Mean and Confidence Interval for Expected Outcome")
+  if(!is.null(n_treated)){
+    agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Treatment,n_treated$Model,n_treated$Decile), 
+                       FUN=mean)
+    colnames(agg_df) <- c("Treatment","Model","Decile","PercTreated")
+    p2 <- ggplot(agg_df, aes(fill=Treatment, y=PercTreated, x=Decile)) + 
+      geom_bar(position="stack", stat="identity") +
+      facet_wrap(~Model) 
     print(p1)
     print(p2)
+  } else{
+    print(p1)
   }
 }
+
+
+visualize_qini_uplift <- function(temp_data,type,multiple_predictions = TRUE,errorbars = TRUE,multiplot=TRUE){
+  values <- c()
+  percentile <- c()
+  model <- c()
+  temp_df <- temp_data
+  if(multiple_predictions){
+    tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
+    if(errorbars){
+      print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+              geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci)) +
+              geom_line() +
+              geom_point() +
+              xlab("Percent assigned according to Model Prediction") +
+              ylab(paste("Cummulated",type,sep = " ")) +
+              {if(multiplot) facet_wrap(~model)} +
+              {if(multiplot) theme(legend.position = "none")} +
+              ggtitle(paste("Mean and Confidence Interval for",type,"score",sep=" ")))
+    } else{
+      print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+              geom_line() +
+              geom_point() +
+              xlab("Percent assigned according to Model Prediction") +
+              ylab(paste("Cummulated",type,sep = " ")) +
+              {if(multiplot) facet_wrap(~model)} +
+              {if(multiplot) theme(legend.position = "none")} +
+              ggtitle(paste("Mean",type,"score",sep=" ")))
+    }
+    
+  } else{
+    print(ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
+            geom_line() +
+            geom_point() +
+            xlab("Percent assigned according to Model Prediction") +
+            ylab(paste("Cummulated",type,sep = " ")) +
+            {if(multiplot) facet_wrap(~model)} +
+            {if(multiplot) theme(legend.position = "none")} +
+            ggtitle(paste("Mean",type,"score",sep=" ")))
+  }
+}
+
 
 # Function used to aggregate multiple predictions for the same model.
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
@@ -135,31 +131,48 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 
 # Methods used to plot a tree
 # It is advisable to build a shallow tree (low value for max_depth) to make the graph somewhat readable.
-visualize_tree <- function(tree){
+visualize_tree <- function(tree, only_split = F){
   plot_list <- get_plot_params(tree)
   plot_string <- "digraph flowchart {  \n node [fontname = Helvetica, shape = rectangle]"
   
   label = ""
   split_counter <- 1
-  for(x in 1:length(plot_list[[1]])){
-    if(!(plot_list[[1]][x]) == "leaf"){
-      label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n", 
-                                 "Split", names(plot_list[[2]][split_counter]), as.character(plot_list[[2]][[split_counter]]), "\n", 
-                                 "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
-                                 names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
-                                 names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
-                                 names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
-                                 "'] \n", sep = " "), sep = "")
-      split_counter <- split_counter + 1
-    } else{
-      label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n",
-                                 "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
-                                 names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
-                                 names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
-                                 names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
-                                 "'] \n", sep = " "), sep = "")
+  if(only_split){
+    for(x in 1:length(plot_list[[1]])){
+      if(!(plot_list[[1]][x]) == "leaf"){
+        label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '",
+                                   "Split", names(plot_list[[2]][split_counter]), as.character(plot_list[[2]][[split_counter]]),
+                                   "'] \n", sep = " "), sep = "")
+        split_counter <- split_counter + 1
+      } else{
+        label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n",
+                                   "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
+                                   names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
+                                   names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
+                                   names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
+                                   "'] \n", sep = " "), sep = "")
+      }
     }
-    
+  } else{
+    for(x in 1:length(plot_list[[1]])){
+      if(!(plot_list[[1]][x]) == "leaf"){
+        label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n", 
+                                   "Split", names(plot_list[[2]][split_counter]), as.character(plot_list[[2]][[split_counter]]), "\n", 
+                                   "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
+                                   names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
+                                   names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
+                                   names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
+                                   "'] \n", sep = " "), sep = "")
+        split_counter <- split_counter + 1
+      } else{
+        label = paste(label, paste(as.character(plot_list[[5]][x]), "[label = '", plot_list[[1]][x], "\n",
+                                   "Number of Samples", as.character(plot_list[[3]][x]), "\n", 
+                                   names(plot_list[[4]][((x-1) * 3 + 1)]), as.character(plot_list[[4]][[((x-1) * 3 + 1)]]), "\n",
+                                   names(plot_list[[4]][((x-1) * 3 + 2)]), as.character(plot_list[[4]][[((x-1) * 3 + 2)]]), "\n",
+                                   names(plot_list[[4]][((x-1) * 3 + 3)]), as.character(plot_list[[4]][[((x-1) * 3 + 3)]]), "\n",
+                                   "'] \n", sep = " "), sep = "")
+      }
+    }
   }
   links <- paste(plot_list[[6]], collapse = "; \n ")
   
@@ -205,9 +218,8 @@ get_plot_params <- function(tree,counter = 0){
   result_list[[1]] <- type_list
   result_list[[2]] <- split_list
   result_list[[3]] <- n_sample_list
-  result_list[[4]] <- results_list
+  result_list[[4]] <- round(results_list,2)
   result_list[[5]] <- counter_list
   result_list[[6]] <- connection_list
   return(result_list)
 }
-

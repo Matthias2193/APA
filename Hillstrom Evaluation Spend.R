@@ -65,7 +65,7 @@ for(f in 1:n_predictions){
   
   
   start_time <- Sys.time()
-  for(c in c("simple","frac")){
+  for(c in c("simple","frac","max")){
     print(c)
     # Single Tree
     raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
@@ -105,63 +105,72 @@ for(f in 1:n_predictions){
 start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
-p_treated <- c()
-
-for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
+result_qini <- c()
+result_uplift <- c()
+decile_treated <- c()
+n_predictions <- 5
+for(model in c("random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","random_forest")) > 0){
-    for(c in c("simple","frac")){
+    for(c in c("simple","frac","max")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
           outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
                         paste(model,"_",c,sep = ""))
-          p_treated <- cbind(perc_treated(pred,treatment_list),treatment_list,rep(paste(model,"_",c,sep = ""),
-                                                                   length(treatment_list)))
+          decile_treated <- cbind(decile_perc_treated(pred,treatment_list),
+                                  rep(paste(model,"_",c,sep = ""),11*length(treatment_list)))
+          result_qini <- cbind(qini_curve(pred,control,treatment_list),
+                               paste(model,"_",c,sep = ""))
+          result_uplift <- cbind(uplift_curve(pred,control,treatment_list),
+                                 paste(model,"_",c,sep = ""))
         } else{
           outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
                                        paste(model,"_",c,sep = "")))
-          p_treated <- rbind(p_treated,cbind(perc_treated(pred,treatment_list),treatment_list,
-                                              rep(paste(model,"_",c,sep = ""),length(treatment_list))))
+          decile_treated <- rbind(decile_treated,
+                                  cbind(decile_perc_treated(pred,treatment_list),
+                                        rep(paste(model,"_",c,sep = ""),11*length(treatment_list))))
+          result_qini <- rbind(result_qini,cbind(qini_curve(pred,control,treatment_list),
+                                                 paste(model,"_",c,sep = "")))
+          result_uplift <- rbind(result_uplift,cbind(uplift_curve(pred,control,treatment_list),
+                                                     paste(model,"_",c,sep = "")))
         }
       }
     }
   } else{
+    colnames(result_qini) <- c("Percentile","Values","Treatment","model")
+    colnames(result_uplift) <- c("Percentile","combined","model")
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
-      p_treated <- rbind(p_treated, cbind(perc_treated(pred,treatment_list),treatment_list,
-                                          rep(model, length(treatment_list))))
+      decile_treated <- rbind(decile_treated,
+                              cbind(decile_perc_treated(pred,treatment_list),
+                                    rep(model,11*length(treatment_list))))
+      result_qini <- rbind(result_qini,cbind(qini_curve(pred,control,treatment_list),
+                                             model))    
+      result_uplift <- rbind(result_uplift,cbind(uplift_curve(pred,control,treatment_list),
+                                                 model))    
     }
   }
 }
 outcome_df <- data.frame(outcomes)
-perc_treated_df <- data.frame(p_treated)
+decile_treated_df <- data.frame(decile_treated)
 colnames(outcome_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
-colnames(perc_treated_df) <- c("PercTreated","Treatment","Model")
+colnames(decile_treated_df) <- c("PercTreated","Treatment","Decile","Model")
 rownames(outcome_df) <- 1:nrow(outcome_df)
-rownames(perc_treated_df) <- 1:nrow(perc_treated_df)
+rownames(decile_treated_df) <- 1:nrow(decile_treated_df)
 for(c in 1:11){
   outcome_df[,c] <- as.numeric(as.character(outcome_df[,c]))
 }
 outcome_df[,12] <- as.character(outcome_df[,12])
-perc_treated_df[,1] <- as.numeric(as.character(perc_treated_df[,1]))
-perc_treated_df[,2] <- as.character(perc_treated_df[,2])
+decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
+decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
+colnames(result_qini) <- c("percentile","values","treatment","model")
+colnames(result_uplift) <- c("percentile","values","model")
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
 #Visualize the results
-if(n_predictions > 1){
-  for(model in unique(outcome_df$Model)){
-    temp_data <- outcome_df[outcome_df$Model == model,]
-    n_treated <- perc_treated_df[perc_treated_df$Model == model,]
-    visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
-  }
-  visualize(temp_data = outcome_df, multiple_predictions = TRUE, n_treated = perc_treated_df, errorbars = FALSE)
-} else{
-  for(model in unique(outcome_df$Model)){
-    temp_data <- outcome_df[outcome_df$Model == model,]
-    n_treated <- perc_treated_df[perc_treated_df$Model == model,]
-    visualize(temp_data = temp_data, multiple_predictions = FALSE, n_treated = n_treated)
-  }
-  visualize(temp_data = outcome_df, multiple_predictions = FALSE, n_treated = perc_treated_df)
-}
+visualize_qini_uplift(result_qini,type = "qini")
+visualize_qini_uplift(result_uplift,type = "uplift",errorbars = F,multiplot = F)
+visualize(outcome_df,n_treated = decile_treated_df,multiplot = T)
+visualize(outcome_df,multiplot = F,errorbars = F)

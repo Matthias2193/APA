@@ -43,11 +43,30 @@ new_expected_quantile_response <- function(response,control,treatment_list,predi
 
 # Given a prediction, this function checks how many what percentage of people where assigned a treatment 
 # by the model
-perc_treated <- function(pred, treatment_list){
+perc_treated <- function(pred, treatment_list, n_pred = NULL){
   perc <- c()
   for(t in treatment_list){
-    perc <- c(perc, sum(pred$Treatment == t)/nrow(pred))
+    if(is.null(n_pred)){
+      perc <- c(perc, sum(pred$Treatment == t)/nrow(pred))
+    } else{
+      perc <- c(perc, sum(pred$Treatment == t)/n_pred)
+    }
+    
   }
+  return(perc)
+}
+
+decile_perc_treated <- function(pred, treatment_list){
+  pred$max_uplift <- apply(pred[ , grep("^uplift",colnames(pred))], 1 , max)
+  sorted_predictions <- pred[order(-pred$max_uplift),]
+  perc <- c()
+  n_tenth <- round(nrow(pred)/10)
+  for(x in 1:9){
+    perc <- rbind(perc, cbind(perc_treated(sorted_predictions[1:(x*n_tenth),], treatment_list, nrow(pred)),
+                              treatment_list, rep(x,length(treatment_list))))
+  }
+  perc <- rbind(perc,cbind(perc_treated(sorted_predictions, treatment_list),treatment_list,
+                           rep(10,length(treatment_list))))
   return(perc)
 }
 
@@ -70,7 +89,7 @@ n_treated_decile <- function(pred,control){
 
 # Old Evaluation Methods ----
 # Incremental Uplift Curve
-uplift_curve <- function(predictions, control_level){
+uplift_curve <- function(predictions, control_level,treatments){
   # score for each T individually
   N_total <- nrow(predictions)
   
@@ -78,34 +97,32 @@ uplift_curve <- function(predictions, control_level){
   N_c <- nrow(c_group)
   
   ret <- data.frame(Percentile=  seq(0,1, 0.1))
-  
-  treatments <- levels(as.factor(predictions$Assignment[predictions$Assignment != control_level]))
-  
+
   
   # Uplift Curve for each treatment
-  for(t in treatments) {
-    
-    tmp <- predictions[predictions$Assignment == t, ]
-    
-    # score by uplift column of T
-    tmp <- tmp[order(tmp[ , paste0("uplift_",t)] , decreasing = T) , ]
-    c_tmp <- c_group[order(c_group[ , paste0("uplift_",t)] , decreasing = T) , ]
-    
-    N_t  <- nrow(tmp)
-    
-    outcomes <- c()
-    # For each decile
-    for(x in seq(0,1, 0.1)){
-      
-      # Formula from Gutierrez 2017
-      weighted_uplift <- (mean(head(tmp$Outcome, x * N_t)) - mean(head(c_tmp$Outcome, x * N_c)) ) * (N_total * x) 
-      
-      outcomes <- c(outcomes, weighted_uplift)
-    }     
-    ret[ , t] <- outcomes
-    
-  }
-  
+  # for(t in treatments) {
+  #   
+  #   tmp <- predictions[predictions$Assignment == t, ]
+  #   
+  #   # score by uplift column of T
+  #   tmp <- tmp[order(tmp[ , paste0("uplift_",t)] , decreasing = T) , ]
+  #   c_tmp <- c_group[order(c_group[ , paste0("uplift_",t)] , decreasing = T) , ]
+  #   
+  #   N_t  <- nrow(tmp)
+  #   
+  #   outcomes <- c()
+  #   # For each decile
+  #   for(x in seq(0,1, 0.1)){
+  #     
+  #     # Formula from Gutierrez 2017
+  #     weighted_uplift <- (mean(head(tmp$Outcome, x * N_t)) - mean(head(c_tmp$Outcome, x * N_c)) ) * (N_total * x) 
+  #     
+  #     outcomes <- c(outcomes, weighted_uplift)
+  #   }     
+  #   ret[ , t] <- outcomes
+  #   
+  # }
+  # 
   # Combined Uplift Curve
   tmp <- predictions[predictions$Assignment != control_level, ]
   
@@ -140,19 +157,15 @@ uplift_curve <- function(predictions, control_level){
 
 
 # incremental Qini - Curve
-qini_curve <- function(predictions, control_level){
+qini_curve <- function(predictions, control_level,treatments){
   # score for each T individually
   c_group <- predictions[predictions$Assignment == control_level , ]
   N_c <- nrow(c_group)
   
-  ret <- data.frame(Percentile=  seq(0,1, 0.1))
   
-  treatments <- levels(as.factor(predictions$Assignment[predictions$Assignment != control_level]))
-  
-  treatments <- treatments[treatments != control_level]
   
   for(t in treatments) {
-    print(t)
+    ret <- data.frame(Percentile=  seq(0,1, 0.1))
     tmp <- predictions[predictions$Assignment == t, ]
     
     # score by uplift column of T
@@ -170,11 +183,17 @@ qini_curve <- function(predictions, control_level){
       
       outcomes <- c(outcomes, qini_gain)
     }     
-    ret[ , t] <- outcomes
+    ret$Values <- outcomes
+    ret$Treatment <- t
+    if(t == treatments[1]){
+      result <- ret
+    } else{
+      result <- rbind(result,ret)
+    }
   }
-  ret[is.na(ret)] <- 0 
+  result[is.na(result)] <- 0 
   
-  return(ret)
+  return(result)
 }
 
 
