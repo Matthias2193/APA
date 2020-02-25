@@ -311,17 +311,25 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
 #criterion: 1 for Rzp-tree, 2 for simple tree
 #alpha, l and g are parameters according to Rzepakowski paper (only necessare if criterion = 1)
 build_tree_rzp <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
-                       l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
-                       divergence = 'binary_KL_divergence',normalize = T){
+                           l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
+                           divergence = 'binary_KL_divergence',normalize = T,random = F,
+                           n_features = 0){
   #Return leaf if current depth is max depth
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
+  }
+  if(random){
+    retain_cols <- c(treatment_list,control,target)
+    sample_cols <- setdiff(colnames(data),retain_cols)
+    temp_cols <- sample(sample_cols,n_features,replace = F)
+    chosen_cols <- c(temp_cols,retain_cols)
+    test_list<- set_up_tests(data[,temp_cols],TRUE)
   }
   #Create current node
   node <- list()
   #Select split with maximum gain
   temp_split <- select_split_rzp(alpha,l,g , divergence,test_list = test_list,
-                             treatment = treatment_list,control,target,data,normalize)
+                                 treatment = treatment_list,control,target,data,normalize)
   #Return a leaf, if there is no split with gain > 0
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
@@ -349,19 +357,18 @@ build_tree_rzp <- function(data,depth,max_depth,treatment_list,target,control,te
   #Split the data and create two new subtrees, each using one subset of the data
   if(names(temp_split) %in% names(test_list$categorical)){
     node[['left']] <- build_tree_rzp(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,max_depth,
-                                 treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
+                                     treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
     node[['right']] <- build_tree_rzp(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,max_depth,
-                                  treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
+                                      treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
   }
   else{
     node[['left']] <- build_tree_rzp(data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,max_depth,
-                                 treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
+                                     treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
     node[['right']] <- build_tree_rzp(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,max_depth,
-                                  treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
+                                      treatment_list,target,control,test_list,alpha,l,g,divergence,normalize)
   }
   return(node)
 }
-
 
 #Used to creat a leaf
 final_node <- function(data,treatment_list,target,control){
@@ -396,63 +403,45 @@ final_node <- function(data,treatment_list,target,control){
 
 
 #Forest
-build_forest_rzp <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                         criterion,pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
-                         g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10){
-  trees <- list()
-  retain_cols <- c(treatment_list,control,response)
-  sample_cols <- setdiff(colnames(train_data),retain_cols)
-  for(x in 1:n_trees){
-    temp_cols <- sample(sample_cols,n_features,replace = F)
-    chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
-    temp_tree <- build_tree_rzp(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
-                            test_list = test_list, criterion = criterion,target = response,control = control,
-                            divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
-                            max_depth = max_depth)
-    if(pruning){
-      temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
-      trees[[x]] <- temp_prune_tree
-    } else{
-      trees[[x]] <- temp_tree
-    }
-    
-  }
-  return(trees)
-}
 
-parallel_build_forest_rzp <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                                  pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
-                                  g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10,
-                                  remain_cores = 1){
+
+parallel_build_random_rzp_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+                                             pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
+                                             g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10,
+                                             remain_cores = 1,test_list){
   numCores <- detectCores()
   cl <- makePSOCKcluster(numCores-remain_cores)
   registerDoParallel(cl)
-  retain_cols <- c(treatment_list,control,response)
-  sample_cols <- setdiff(colnames(train_data),retain_cols)
   trees <- foreach(x=1:n_trees) %dopar% {
     source('ModelImplementations/RzepakowskiTree.R')
     set.seed(x)
-    temp_cols <- sample(sample_cols,n_features,replace = F)
-    chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,chosen_cols],TRUE)
-    temp_tree <- build_tree_rzp(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
-                            test_list = test_list,target = response,control = control,
-                            divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
-                            max_depth = max_depth)
+    temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
+    temp_tree <- build_tree_rzp(data = temp_train_data,depth = 0,treatment_list = treatment_list, 
+                                test_list = test_list,target = response,control = control,
+                                divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
+                                max_depth = max_depth,random = T,n_features = n_features)
     return(temp_tree)
-    if(pruning){
-      temp_prune_tree <- prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
-                                    test_list, response,control = control)
-      return(temp_prune_tree)
-    } else{
-      return(temp_tree)
-    }
   }
   stopCluster(cl)
   return(trees)
 }
 
+build_random_rzp_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+                                    pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
+                                    g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10,
+                                    remain_cores = 1,test_list){
+  trees <- list()
+  for(x in 1:n_trees){
+    print(x)
+    temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
+    temp_tree <- build_tree_rzp(data = temp_train_data,depth = 0,treatment_list = treatment_list, 
+                                test_list = test_list,target = response,control = control,
+                                divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
+                                max_depth = max_depth,random = T,n_features = n_features)
+    trees[[x]] <- temp_tree
+  }
+  return(trees)
+}
 
 
 
@@ -618,10 +607,5 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
   }
   return(tree)
 }
-
-
-
-
-
 
 

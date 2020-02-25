@@ -111,7 +111,7 @@ decile_treated <- c()
 n_predictions <- 5
 for(model in c("random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","random_forest")) > 0){
-    for(c in c("simple","frac","max")){
+    for(c in c("frac")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
@@ -121,8 +121,6 @@ for(model in c("random_forest","cts","sma rf","causal_forest")){
                                   rep(paste(model,"_",c,sep = ""),11*length(treatment_list)))
           result_qini <- cbind(qini_curve(pred,control,treatment_list),
                                paste(model,"_",c,sep = ""))
-          result_uplift <- cbind(uplift_curve(pred,control,treatment_list),
-                                 paste(model,"_",c,sep = ""))
         } else{
           outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
                                        paste(model,"_",c,sep = "")))
@@ -131,8 +129,6 @@ for(model in c("random_forest","cts","sma rf","causal_forest")){
                                         rep(paste(model,"_",c,sep = ""),11*length(treatment_list))))
           result_qini <- rbind(result_qini,cbind(qini_curve(pred,control,treatment_list),
                                                  paste(model,"_",c,sep = "")))
-          result_uplift <- rbind(result_uplift,cbind(uplift_curve(pred,control,treatment_list),
-                                                     paste(model,"_",c,sep = "")))
         }
       }
     }
@@ -147,8 +143,6 @@ for(model in c("random_forest","cts","sma rf","causal_forest")){
                                     rep(model,11*length(treatment_list))))
       result_qini <- rbind(result_qini,cbind(qini_curve(pred,control,treatment_list),
                                              model))    
-      result_uplift <- rbind(result_uplift,cbind(uplift_curve(pred,control,treatment_list),
-                                                 model))    
     }
   }
 }
@@ -166,11 +160,20 @@ decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
 colnames(result_qini) <- c("percentile","values","treatment","model")
 colnames(result_uplift) <- c("percentile","values","model")
+start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
+finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
+qini_random <- seq(start,finish,by = (finish-start)/10)
+random_df <- cbind(seq(0,1,by=0.1),qini_random,"random","random")
+colnames(random_df) <- c("percentile","values","treatment","model")
+result_qini <- rbind(result_qini,random_df)
+result_qini[,2] <- as.numeric(result_qini[,2])
+result_qini[,1] <- as.numeric(result_qini[,1])
+# result_qini[,4] <- as.character(result_qini[,4])
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
 #Visualize the results
 visualize_qini_uplift(result_qini,type = "qini")
-visualize_qini_uplift(result_uplift,type = "uplift",errorbars = F,multiplot = F)
+visualize_qini_uplift(result_qini,type = "qini",errorbars = F,multiplot = F)
 visualize(outcome_df,n_treated = decile_treated_df,multiplot = T)
 visualize(outcome_df,multiplot = F,errorbars = F)

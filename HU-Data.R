@@ -17,8 +17,6 @@ source('ModelImplementations/ContextualTreatmentSelection.R')
 source('ModelImplementations/VisualizationHelper.R')
 source("ModelImplementations/PredictionFunctions.R")
 
-
-n_predictions <- 15
 set.seed(1234)
 #Preprocessing---- 
 if(!file.exists("Data/hu-data.csv")){
@@ -95,7 +93,13 @@ if(!file.exists("Data/hu-data.csv")){
 response <- 'checkoutAmount'
 control <- 'X0'
 
+for(t in c(treatment_list,control)){
+  print(t)
+  print(sum(new_hu_data[,t]==1))
+  print(mean(new_hu_data[new_hu_data[,t]==1,response]))
+}
 
+n_predictions <- 15
 treatment_list <- levels(new_hu_data$multi_treat)[2:7]
 n_treatments <- length(treatment_list)
 new_hu_data$multi_treat <- NULL
@@ -157,62 +161,73 @@ for(f in 1:n_predictions){
 start_time <- Sys.time()
 folder <- "Predictions/HU-Data/"
 outcomes <- c()
-p_treated <- c()
+decile_treated <- c()
+result_qini <- c()
+result_uplift <- c()
 
-for(model in c("tree","random_forest","cts","sma rf","causal_forest")){
+for(model in c("random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","random_forest")) > 0){
-    for(c in c("simple","max","frac")){
+    for(c in c("max")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
           outcomes <- c(new_expected_quantile_response(response,control,treatment_list,pred),
                         paste(model,"_",c,sep = ""))
-          p_treated <- cbind(perc_treated(pred,treatment_list),treatment_list,rep(paste(model,"_",c,sep = ""),
-                                                                                  length(treatment_list)))
+          decile_treated <- cbind(decile_perc_treated(pred,treatment_list),
+                                  rep(paste(model,"_",c,sep = ""),11*length(treatment_list)))
+          result_qini <- cbind(qini_curve(pred,control,treatment_list),
+                               paste(model,"_",c,sep = ""))
         } else{
           outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),
                                        paste(model,"_",c,sep = "")))
-          p_treated <- rbind(p_treated,cbind(perc_treated(pred,treatment_list),treatment_list,
-                                             rep(paste(model,"_",c,sep = ""),length(treatment_list))))
+          decile_treated <- rbind(decile_treated,
+                                  cbind(decile_perc_treated(pred,treatment_list),
+                                        rep(paste(model,"_",c,sep = ""),11*length(treatment_list))))
+          result_qini <- rbind(result_qini,cbind(qini_curve(pred,control,treatment_list),
+                                                 paste(model,"_",c,sep = "")))
         }
       }
     }
   } else{
+    colnames(result_qini) <- c("Percentile","Values","Treatment","model")
+    colnames(result_uplift) <- c("Percentile","combined","model")
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
-      p_treated <- rbind(p_treated, cbind(perc_treated(pred,treatment_list),treatment_list,
-                                          rep(model, length(treatment_list))))
+      decile_treated <- rbind(decile_treated,
+                              cbind(decile_perc_treated(pred,treatment_list),
+                                    rep(model,11*length(treatment_list))))
+      result_qini <- rbind(result_qini,cbind(qini_curve(pred,control,treatment_list),
+                                             model))    
     }
   }
 }
 outcome_df <- data.frame(outcomes)
-perc_treated_df <- data.frame(p_treated)
+decile_treated_df <- data.frame(decile_treated)
 colnames(outcome_df) <- c(0,10,20,30,40,50,60,70,80,90,100,"Model")
-colnames(perc_treated_df) <- c("PercTreated","Treatment","Model")
+colnames(decile_treated_df) <- c("PercTreated","Treatment","Decile","Model")
 rownames(outcome_df) <- 1:nrow(outcome_df)
-rownames(perc_treated_df) <- 1:nrow(perc_treated_df)
+rownames(decile_treated_df) <- 1:nrow(decile_treated_df)
 for(c in 1:11){
   outcome_df[,c] <- as.numeric(as.character(outcome_df[,c]))
 }
 outcome_df[,12] <- as.character(outcome_df[,12])
-perc_treated_df[,1] <- as.numeric(as.character(perc_treated_df[,1]))
-perc_treated_df[,2] <- as.character(perc_treated_df[,2])
+decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
+decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
+colnames(result_qini) <- c("percentile","values","treatment","model")
+colnames(result_uplift) <- c("percentile","values","model")
+start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
+finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
+qini_random <- seq(start,finish,by = (finish-start)/10)
+random_df <- cbind(seq(0,1,by=0.1),qini_random,"random","random")
+colnames(random_df) <- c("percentile","values","treatment","model")
+result_qini <- rbind(result_qini,random_df)
+result_qini[,2] <- as.numeric(result_qini[,2])
+result_qini[,1] <- as.numeric(result_qini[,1])
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
-if(n_predictions > 1){
-  for(model in unique(outcome_df$Model)){
-    temp_data <- outcome_df[outcome_df$Model == model,]
-    n_treated <- perc_treated_df[perc_treated_df$Model == model,]
-    visualize(temp_data = temp_data, multiple_predictions = TRUE, n_treated = n_treated)
-  }
-  visualize(temp_data = outcome_df, multiple_predictions = TRUE, n_treated = perc_treated_df, errorbars = FALSE)
-} else{
-  for(model in unique(outcome_df$Model)){
-    temp_data <- outcome_df[outcome_df$Model == model,]
-    n_treated <- perc_treated_df[perc_treated_df$Model == model,]
-    visualize(temp_data = temp_data, multiple_predictions = FALSE, n_treated = n_treated)
-  }
-  visualize(temp_data = outcome_df, multiple_predictions = FALSE, n_treated = perc_treated_df)
-}
+visualize_qini_uplift(result_qini,type = "qini")
+visualize_qini_uplift(result_qini,type = "qini",errorbars = F,multiplot = F)
+visualize(outcome_df,n_treated = decile_treated_df,multiplot = T)
+visualize(outcome_df,multiplot = F,errorbars = F)

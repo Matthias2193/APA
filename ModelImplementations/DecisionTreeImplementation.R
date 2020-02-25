@@ -221,37 +221,29 @@ max_gain <- function(test_case, treatment, control, target, data, test_type, tes
   if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
     return(-1)
   }
-  current_gain <- 0
-  for(t in treatment){
-    if(mean(data[data[,t]==1,target])>current_gain){
-      current_gain <- mean(data[data[,t]==1,target])
-    }
-  }
+  frac1 <- nrow(data1)/nrow(data)
+  frac2 <- nrow(data2)/nrow(data)
   
-  #Here the gain is calculated
-  left_gain <- 0
-  right_gain <- 0
-  for(t in treatment){
-    left_gain <- max(left_gain,mean(data1[data1[,t]==1,target]))
-    right_gain <- max(right_gain,mean(data2[data2[,t]==1,target]))
-  }
-  gain <- max(left_gain,right_gain)
-  # gain <- (frac1*left_gain+frac2*right_gain)
+  current_results <- c()
+  left_results <- c()
+  right_results <- c()
   for(t in treatments){
-    if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-      gain <- -1
-    }
+    current_results <- c(current_results, mean(data[data[,t] == 1,target]))
+    left_results <- c(left_results, mean(data1[data1[,t] == 1,target]))
+    right_results <- c(right_results, mean(data2[data2[,t] == 1,target]))
   }
+  current_gain <- (max(current_results) - sort(current_results,decreasing = T)[2])^2
+  right_gain <- (max(right_results) - sort(right_results,decreasing = T)[2])^2
+  left_gain <- (max(left_results) - sort(left_results,decreasing = T)[2])^2
+  gain <- frac1*left_gain + frac2*right_gain - current_gain
   if(is.na(gain)){
-    gain = -1
+    return(-1)
+  } else if(gain < 0){
+    return(-1)
+  } else{
+    return(gain)
   }
-  if(gain <= current_gain){
-    gain = -1
-  }
-  return(gain)
 }
-
-
 
 #Functions to build the tree ----
 
@@ -560,59 +552,4 @@ max_pruning_helper <- function(node,treatments,control){
   } else{
     return(node)
   }
-}
-
-
-#Old functions
-#Forest
-build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                         pruning,max_depth = 10,criterion = "simple"){
-  trees <- list()
-  retain_cols <- c(treatment_list,control,response)
-  sample_cols <- setdiff(colnames(train_data),retain_cols)
-  for(x in 1:n_trees){
-    temp_cols <- sample(sample_cols,n_features,replace = F)
-    chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
-    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
-                            test_list = test_list,target = response,control = control,
-                            max_depth = max_depth,criterion)
-    if(pruning){
-      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
-      trees[[x]] <- temp_prune_tree
-    } else{
-      trees[[x]] <- temp_tree
-    }
-    
-  }
-  return(trees)
-}
-
-parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                                  pruning,max_depth = 10,remain_cores = 1,criterion = "simple"){
-  numCores <- detectCores()
-  cl <- makePSOCKcluster(numCores-remain_cores)
-  registerDoParallel(cl)
-  retain_cols <- c(treatment_list,control,response)
-  sample_cols <- setdiff(colnames(train_data),retain_cols)
-  trees <- foreach(x=1:n_trees) %dopar% {
-    source('ModelImplementations/DecisionTreeImplementation.R')
-    set.seed(x)
-    temp_cols <- sample(sample_cols,n_features,replace = F)
-    chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
-    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
-                            test_list = test_list,target = response,control = control,
-                            max_depth = max_depth,criterion = criterion)
-    return(temp_tree)
-    if(pruning){
-      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
-                                           test_list, response,control = control)
-      return(temp_prune_tree)
-    } else{
-      return(temp_tree)
-    }
-  }
-  stopCluster(cl)
-  return(trees)
 }
