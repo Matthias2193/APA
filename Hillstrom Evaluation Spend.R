@@ -59,8 +59,6 @@ for(f in 1:n_predictions){
   
   test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
                                      "newbie","channel")],TRUE, max_cases = 10)
-  # Partition training data for pruning
-  p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
   
   start_time <- Sys.time()
   for(c in c("simple","frac","max")){
@@ -78,7 +76,7 @@ for(f in 1:n_predictions){
             row.names = FALSE)
 
   # Separate Model Approach
-  pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
+  pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf", mtry = 3, ntree = 300)
   write.csv(pred_sma_rf, paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
 

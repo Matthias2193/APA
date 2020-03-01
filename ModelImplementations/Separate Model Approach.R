@@ -12,7 +12,8 @@ library(randomForest)
 # Decision Tree and Random Forest Models
 ########################################
 
-dt_models <- function(train_data, response, prediction_method,treatments,control, test_data, model_type){  
+dt_models <- function(train_data, response, prediction_method,treatments,control, test_data, model_type,
+                      mtry = 3, ntree = 300){  
   assignment <- predictions_to_treatment(test_data, treatment_list, control)
   outcome <- test_data[, response]
   for(t in c(treatments,control)){
@@ -33,7 +34,7 @@ dt_models <- function(train_data, response, prediction_method,treatments,control
       if(prediction_method == "class"){
         temp_train[,response] <- as.factor(temp_train[,response])
       }
-      dt <- randomForest(as.formula(paste(response, "~.")), data = temp_train, mtry=3, ntree = 300)
+      dt <- randomForest(as.formula(paste(response, "~.")), data = temp_train, mtry=mtry, ntree = ntree)
     } else{
       print("No valid model type selected. Please choose 'dt' for a single tree or 'rf' for a random forest.")
       return()

@@ -34,7 +34,6 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
       # Once the new training data is sampled the tree is build.
       return(build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg, 
                                   min_split, parent_predictions = NA))
-      print(paste(as.character(x),"completed!",sep = " "))
     }
     stopCluster(cl)
     return(trees)
@@ -254,11 +253,11 @@ check_split <- function(tree){
   if(tree[["type"]] == "leaf"){
     #print("Reached End")
   } else if((tree[["left"]][["n_samples"]] + tree[["right"]][["n_samples"]]) == tree[["n_samples"]]){
-    if(tree[["left"]][["n_samples"]] == 0){
-      print("Left no samples")
-    } else if(tree[["right"]][["n_samples"]] == 0){
-      print("Right no samples")
-    }
+    # if(tree[["left"]][["n_samples"]] == 0){
+    #   print("Left no samples")
+    # } else if(tree[["right"]][["n_samples"]] == 0){
+    #   print("Right no samples")
+    # }
     check_split(tree[["left"]])
     check_split(tree[["right"]])
   } else{
