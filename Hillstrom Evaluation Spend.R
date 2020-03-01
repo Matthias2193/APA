@@ -43,14 +43,16 @@ treatment_list <- c('men_treatment','women_treatment')
 
 original_email <- email
 
+bootstrap_df <- read.csv("bootstrap.csv")
+test_df <- read.csv("test.csv")
 # The training and prediction part
 for(f in 1:n_predictions){
   
   # If n_predictions is > 1 as bootstrap sample is created
   if(n_predictions > 1){
-    email <- original_email[sample(nrow(original_email),nrow(original_email),replace = TRUE),]
+    email <- original_email[bootstrap_df[,f],]
   }
-  idx <- createDataPartition(y = email[ , response], p=0.2, list = FALSE)
+  idx <- test_df[,f]
   train <- email[-idx, ]
   
   test <- email[idx, ]
@@ -60,22 +62,12 @@ for(f in 1:n_predictions){
   # Partition training data for pruning
   p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
   
-  val <- train[p_idx,]
-  train_val <- train[-p_idx,]
-  
-  
   start_time <- Sys.time()
   for(c in c("simple","frac","max")){
     print(c)
-    # Single Tree
-    raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
-    pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control,criterion = c)
-    pred <- predict.dt.as.df(pruned_tree, test)
-    write.csv(pred, paste("Predictions/Hillstrom/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
-
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3,
-                                           criterion = c)
+                                           criterion = c,remain_cores = 2)
     pred <- predict_forest_df(forest,test)
     write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
@@ -106,9 +98,7 @@ start_time <- Sys.time()
 folder <- "Predictions/Hillstrom/"
 outcomes <- c()
 result_qini <- c()
-result_uplift <- c()
 decile_treated <- c()
-n_predictions <- 5
 for(model in c("random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","random_forest")) > 0){
     for(c in c("frac")){
@@ -134,7 +124,6 @@ for(model in c("random_forest","cts","sma rf","causal_forest")){
     }
   } else{
     colnames(result_qini) <- c("Percentile","Values","Treatment","model")
-    colnames(result_uplift) <- c("Percentile","combined","model")
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
@@ -159,7 +148,6 @@ outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
 colnames(result_qini) <- c("percentile","values","treatment","model")
-colnames(result_uplift) <- c("percentile","values","model")
 start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
 finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
 qini_random <- seq(start,finish,by = (finish-start)/10)

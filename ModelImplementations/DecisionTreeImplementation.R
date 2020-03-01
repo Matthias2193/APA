@@ -56,7 +56,7 @@ set_up_tests <- function(x,reduce_cases,max_cases = 10){
 #For each possible split the gain is calculated. The split with the highest gain is returned. If no split has a
 #gain > 0, then -1 is returned indicating that no split is beneficial.
 #Curretnly there are three criterions supported to calculate the gain. More explanation further down.
-select_split <- function(test_list,treatment,control,target,temp_data,criterion,alpha){
+select_split <- function(test_list,treatment,control,target,temp_data,criterion){
   gain_list <- c()
   name_list <- c()
   if(length(test_list$categorical)>0){
@@ -67,13 +67,13 @@ select_split <- function(test_list,treatment,control,target,temp_data,criterion,
         new_name <- paste(temp_name, as.character(t), sep = '@@')
         if(criterion == "simple"){
           gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'categorical',
-                                               temp_name,alpha = alpha))
+                                               temp_name))
         } else if( criterion == "max"){
           gain_list <- c(gain_list,max_gain(t,treatment,control,target,temp_data,'categorical',
                                             temp_name))
-        } else{
+        } else {
           gain_list <- c(gain_list,frac_gain(t,treatment,control,target,temp_data,'categorical',
-                                             temp_name,alpha = alpha))
+                                             temp_name))
         }
         
         name_list <- c(name_list,new_name)
@@ -88,13 +88,13 @@ select_split <- function(test_list,treatment,control,target,temp_data,criterion,
         new_name <- paste(temp_name, as.character(t), sep = '@@')
         if(criterion == "simple"){
           gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'numerical',
-                                               temp_name,alpha = alpha))
+                                               temp_name))
         } else if( criterion == "max"){
           gain_list <- c(gain_list,max_gain(t,treatment,control,target,temp_data,'numerical',
                                             temp_name))
         } else{
           gain_list <- c(gain_list,frac_gain(t,treatment,control,target,temp_data,'numerical',
-                                             temp_name,alpha = alpha))
+                                             temp_name))
         }
         name_list <- c(name_list,new_name)
       }
@@ -130,7 +130,7 @@ select_split <- function(test_list,treatment,control,target,temp_data,criterion,
 #The first of 3 possible ways to calculate the "gain". This option tries to maximize the difference in expected
 #outcome between the treatments and control and between treatments.
 #Doesn't take into accout current results or number of samples in each node after the split.
-simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col, alpha = 0.5){
+simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
   treatments <- c(treatment, control)
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
@@ -169,7 +169,8 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
 #Frac
 #Similar to "Simple" but makes sure the difference in outcome after the split is bigger than before. Also takes into
 #account the number of samples in each node after the split.
-frac_gain <- function(test_case, treatment, control, target, data, test_type, test_col, alpha = 0.5){
+frac_gain <- function(test_case, treatment, control, target, data, test_type, test_col,
+                      min_split, parent_predictions){
   treatments <- c(treatment, control)
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
@@ -187,31 +188,48 @@ frac_gain <- function(test_case, treatment, control, target, data, test_type, te
   frac2 <- nrow(data2)/nrow(data)
   
   current_gain <- 0
-  between_treatments <- 0
-  treatment_control <- 0
   for(x in 1:(length(treatment)-1)){
     t <- treatments[x]
-    s <- treatments[x+1]
-    temp_gain <- (mean(data[data[,t] == 1,target])-mean(data[data[,s] == 1,target]))^2
-    current_gain <- current_gain + alpha * temp_gain
+    for(y in (x+1):length(treatment)){
+      s <- treatments[y]
+      temp_gain <- (parent_predictions[[t]]-parent_predictions[[s]])^2
+      current_gain <- current_gain + temp_gain
+    }
   }
   for(t in treatment){
-    temp_gain <- (mean(data[data[,t] == 1,target])-mean(data[data[,control] == 1,target]))^2
-    current_gain <- current_gain + (1 - alpha) * temp_gain
+    temp_gain <- (parent_predictions[[t]]-parent_predictions[[control]])^2
+    current_gain <- current_gain + temp_gain
+  }
+  left_results <- c()
+  right_results <- c()
+  for(t in treatments){
+    if(sum(data1[,t]==1)<min_split){
+      left_results <- c(left_results,parent_predictions[[t]])
+    }else{
+      left_results <- c(left_results,mean(data1[data1[,t] == 1,target]))
+    }
+    if(sum(data2[,t]==1)<min_split){
+      right_results <- c(parent_predictions[[t]],right_results)
+    }else{
+      right_results <- c(right_results,mean(data2[data2[,t] == 1,target]))
+    }
   }
   #The actual calculation of the gain
   #Here for a test of a categorical cavariate
   for(x in 1:(length(treatment)-1)){
     t <- treatments[x]
-    s <- treatments[x+1]
-    temp_gain <- temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-      frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
-    gain <- gain + alpha * temp_gain
+    for(y in (x+1):length(treatment)){
+      s <- treatments[y]
+      temp_gain <- temp_gain <- frac1*(left_results[[t]]-left_results[[s]])^2 +
+        frac2*(right_results[[t]]-right_results[[s]])^2
+      gain <- gain + temp_gain
+    }
+    
   }
   for(t in treatment){
-    temp_gain <- temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,control] == 1,target]))^2 +
-      frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,control] == 1,target]))^2
-    gain <- gain + (1 - alpha) * temp_gain
+    temp_gain <- temp_gain <- frac1*(left_results[[t]]-left_results[[control]])^2 +
+      frac2*(right_results[[t]]-right_results[[control]])^2
+    gain <- gain + temp_gain
   }
   if(is.na(gain)){
     gain = -1
@@ -274,7 +292,7 @@ max_gain <- function(test_case, treatment, control, target, data, test_type, tes
 #random and n_features are used for building the random forest.
 #criterion sepcifies which criterion to use to calculate the gain ("simple", "max", "frac")
 build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list,random = FALSE,
-                       n_features = 0,criterion = "simple",alpha = 0.5){
+                       n_features = 0,criterion = "simple"){
   #Return leaf if current depth is max depth
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
@@ -291,7 +309,7 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   node <- list()
   #Select split with maximum gain
   temp_split <- select_split(test_list = test_list, treatment = treatment_list, control, 
-                             target,data,criterion,alpha = alpha)
+                             target,data,criterion)
   #Return a leaf, if there is no split with gain > 0
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
