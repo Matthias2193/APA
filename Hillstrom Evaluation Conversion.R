@@ -79,7 +79,7 @@ for(f in 1:n_predictions){
   #Causal Forest
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
                                                 s_rule = "TOT", s_true = T)
-  write.csv(causal_forest_pred, paste(folder,"causal_forest2",as.character(f),".csv",sep = ""),
+  write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
   # # Separate Model Approach
@@ -114,9 +114,9 @@ start_time <- Sys.time()
 outcomes <- c()
 decile_treated <- c()
 result_qini <- c()
-for(model in c("random_forest2","random_forest","cts","sma rf","causal_forest2","rzp")){
-  if(sum(model == c("tree","random_forest","random_forest2")) > 0){
-    for(c in c("max")){
+for(model in c("random_forest","cts","sma rf","causal_forest","rzp")){
+  if(sum(model == c("tree","random_forest")) > 0){
+    for(c in c("frac","max")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){

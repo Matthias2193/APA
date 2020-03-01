@@ -138,7 +138,8 @@ for(f in 1:n_predictions){
   }
 
   # Causal Forest
-  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control)
+  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
+                                                s_rule = "TOT", s_true = T)
   write.csv(causal_forest_pred, paste("Predictions/HU-Data/causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
