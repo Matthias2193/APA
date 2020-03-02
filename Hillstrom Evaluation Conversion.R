@@ -95,7 +95,7 @@ for(f in 1:n_predictions){
   
   #Rzp
   for(div in c("EucDistance","binary_KL_divergence")){
-    rzp_forest <- parallel_build_random_rzp_forest(train_data = train, val_data = val, treatment_list = treatment_list,
+    rzp_forest <- parallel_build_random_rzp_forest(train_data = train, treatment_list = treatment_list,
                                                    response = response,control = control, n_trees = 200, n_features = 3,
                                                    normalize = F, max_depth = 100,test_list = test_list, remain_cores = 12,
                                                    divergence = div)

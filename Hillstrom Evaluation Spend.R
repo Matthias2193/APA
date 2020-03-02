@@ -64,7 +64,7 @@ for(f in 1:n_predictions){
   for(c in c("simple","frac","max")){
     print(c)
     #Random Forest
-    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 100,n_features = 3,
+    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 300,n_features = 3,
                                            criterion = c,remain_cores = 2)
     pred <- predict_forest_df(forest,test)
     write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
@@ -82,7 +82,7 @@ for(f in 1:n_predictions){
             row.names = FALSE)
 
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 100, nrow(train), 3, 0.15, 100, parallel = TRUE,
+  cts_forest <- build_cts(response, control, treatment_list, train, 300, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = 1)
   pred <- predict_forest_df(cts_forest, test)
   write.csv(pred, paste("Predictions/Hillstrom/cts",as.character(f),".csv",sep = ""), row.names = FALSE)
