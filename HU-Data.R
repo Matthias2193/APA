@@ -107,7 +107,6 @@ feature_list <- setdiff(colnames(new_hu_data),c(treatment_list,control,response)
 
 
 for(f in 1:n_predictions){
-  
   hu_data <- new_hu_data[sample(nrow(new_hu_data),nrow(new_hu_data),replace = TRUE),]
   idx <- createDataPartition(y = hu_data[ , response], p=0.2, list = FALSE)
   train <- hu_data[-idx, ]
@@ -115,30 +114,20 @@ for(f in 1:n_predictions){
   test <- hu_data[idx, ]
   
   test_list <- set_up_tests(train[,colnames(train[,feature_list])],TRUE,max_cases = 10)
-  # Partition training data for pruning
-  p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
-  
-  val <- train[p_idx,]
-  train_val <- train[-p_idx,]
   
   start_time <- Sys.time()
-  for(c in c("simple","max","frac")){
+  for(c in c("max","frac")){
     print(c)
-    # Single Tree
-    raw_tree <- build_tree(train_val,0,100,treatment_list,response,control,test_list,criterion = c)
-    pruned_tree <- simple_prune_tree(raw_tree,val,treatment_list,test_list,response,control,criterion = c)
-    pred <- predict.dt.as.df(pruned_tree, test)
-    write.csv(pred, paste("Predictions/HU-Data/tree_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
-
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 300,n_features = 5,
-                                           criterion = c)
+                                           criterion = c, min_split = 100)
     pred <- predict_forest_df(forest,test)
     write.csv(pred, paste("Predictions/HU-Data/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
   # Causal Forest
-  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control)
+  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
+                                                s_rule = "TOT", s_true = T)
   write.csv(causal_forest_pred, paste("Predictions/HU-Data/causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
@@ -148,7 +137,7 @@ for(f in 1:n_predictions){
             row.names = FALSE)
   
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 300, nrow(train), 5, 1, 100, parallel = TRUE,
+  cts_forest <- build_cts(response, control, treatment_list, train, 300, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = 1)
   pred <- predict_forest_df(cts_forest, test)
   write.csv(pred, paste("Predictions/HU-Data/cts",as.character(f),".csv",sep = ""), row.names = FALSE)
@@ -167,7 +156,7 @@ result_uplift <- c()
 
 for(model in c("random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","random_forest")) > 0){
-    for(c in c("max")){
+    for(c in c("frac","max")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
@@ -215,7 +204,7 @@ outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
 colnames(result_qini) <- c("percentile","values","treatment","model")
-colnames(result_uplift) <- c("percentile","values","model")
+#Add random line to qini
 start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
 finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
 qini_random <- seq(start,finish,by = (finish-start)/10)

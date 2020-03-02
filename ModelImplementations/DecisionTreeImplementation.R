@@ -56,7 +56,8 @@ set_up_tests <- function(x,reduce_cases,max_cases = 10){
 #For each possible split the gain is calculated. The split with the highest gain is returned. If no split has a
 #gain > 0, then -1 is returned indicating that no split is beneficial.
 #Curretnly there are three criterions supported to calculate the gain. More explanation further down.
-select_split <- function(test_list,treatment,control,target,temp_data,criterion){
+select_split <- function(test_list,treatment,control,target,temp_data,criterion,
+                         min_split, parent_predictions){
   gain_list <- c()
   name_list <- c()
   if(length(test_list$categorical)>0){
@@ -66,11 +67,14 @@ select_split <- function(test_list,treatment,control,target,temp_data,criterion)
         t <- test_list$categorical[[x]][y]
         new_name <- paste(temp_name, as.character(t), sep = '@@')
         if(criterion == "simple"){
-          gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'categorical',temp_name))
+          gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'categorical',temp_name,
+                                               min_split, parent_predictions))
         } else if( criterion == "max"){
-          gain_list <- c(gain_list,max_gain(t,treatment,control,target,temp_data,'categorical',temp_name))
+          gain_list <- c(gain_list,max_gain(t,treatment,control,target,temp_data,'categorical',temp_name,
+                                            min_split, parent_predictions))
         } else{
-          gain_list <- c(gain_list,frac_gain(t,treatment,control,target,temp_data,'categorical',temp_name))
+          gain_list <- c(gain_list,frac_gain(t,treatment,control,target,temp_data,'categorical',temp_name,
+                                             min_split, parent_predictions))
         }
         
         name_list <- c(name_list,new_name)
@@ -84,11 +88,14 @@ select_split <- function(test_list,treatment,control,target,temp_data,criterion)
         t <- test_list$numerical[[x]][y]
         new_name <- paste(temp_name, as.character(t), sep = '@@')
         if(criterion == "simple"){
-          gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'numerical',temp_name))
+          gain_list <- c(gain_list,simple_gain(t,treatment,control,target,temp_data,'numerical',temp_name,
+                                               min_split, parent_predictions))
         } else if( criterion == "max"){
-          gain_list <- c(gain_list,max_gain(t,treatment,control,target,temp_data,'numerical',temp_name))
+          gain_list <- c(gain_list,max_gain(t,treatment,control,target,temp_data,'numerical',temp_name,
+                                            min_split, parent_predictions))
         } else{
-          gain_list <- c(gain_list,frac_gain(t,treatment,control,target,temp_data,'numerical',temp_name))
+          gain_list <- c(gain_list,frac_gain(t,treatment,control,target,temp_data,'numerical',temp_name,
+                                             min_split, parent_predictions))
         }
         name_list <- c(name_list,new_name)
       }
@@ -124,7 +131,7 @@ select_split <- function(test_list,treatment,control,target,temp_data,criterion)
 #The first of 3 possible ways to calculate the "gain". This option tries to maximize the difference in expected
 #outcome between the treatments and control and between treatments.
 #Doesn't take into accout current results or number of samples in each node after the split.
-simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+simple_gain <- function(test_case, treatment, control, target, data, test_type, test_col,min_split,parent_predictions){
   treatments <- c(treatment, control)
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
@@ -138,18 +145,32 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
   if((nrow(data) == 0) || nrow(data1) == 0 || nrow(data2) == 0 ){
     return(-1)
   }
-  for(t in treatments){
-    if(nrow(data1[data1[,t]==1,])==0 || nrow(data2[data2[,t]==1,]) == 0){
-      return(-1)
-    }
-  }
   #The actual calculation of the gain
   #Here for a test of a categorical cavariate
   #Here the gain is calculated
   for(t in treatments){
     for(s in treatments){
-      temp_gain <- (mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-        (mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
+      if(sum(data1[,t]==1)<min_split){
+        mean_t1 <- parent_predictions[[t]]
+      }else{
+        mean_t1 <- mean(data1[data1[,t] == 1,target])
+      }
+      if(sum(data[,s]==1)<min_split){
+        mean_s1 <- parent_predictions[[s]]
+      }else{
+        mean_s1 <- mean(data1[data1[,s] == 1,target])
+      }
+      if(sum(data2[,t]==1)<min_split){
+        mean_t2 <- parent_predictions[[t]]
+      }else{
+        mean_t2 <- mean(data2[data2[,t] == 1,target])
+      }
+      if(sum(data2[,s]==1)<min_split){
+        mean_s2 <- parent_predictions[[s]]
+      }else{
+        mean_s2 <- mean(data2[data2[,s] == 1,target])
+      }
+      temp_gain <- (mean_t1 - mean_s1)^2 + (mean_t2 - mean_s2)^2
       gain <- gain + temp_gain
     }
   }
@@ -163,7 +184,7 @@ simple_gain <- function(test_case, treatment, control, target, data, test_type, 
 #Frac
 #Similar to "Simple" but makes sure the difference in outcome after the split is bigger than before. Also takes into
 #account the number of samples in each node after the split.
-frac_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+frac_gain <- function(test_case, treatment, control, target, data, test_type, test_col,min_split, parent_predictions){
   treatments <- c(treatment, control)
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
@@ -183,18 +204,34 @@ frac_gain <- function(test_case, treatment, control, target, data, test_type, te
   current_gain <- 0
   for(x in 1:(length(treatments)-1)){
     t <- treatments[x]
-    s <- treatments[x+1]
-    temp_gain <- (mean(data[data[,t] == 1,target])-mean(data[data[,s] == 1,target]))^2
-    current_gain <- current_gain + temp_gain
+    for(y in (x+1):length(treatments)){
+      s <- treatments[y]
+      temp_gain <- (parent_predictions[[t]]-parent_predictions[[s]])^2
+      current_gain <- current_gain + temp_gain
+    }
   }
+  
   #The actual calculation of the gain
   #Here for a test of a categorical cavariate
+  left_results <- c()
+  right_results <- c()
+  for(t in treatments){
+    if(sum(data1[,t]==1)<min_split){
+      left_results <- c(left_results,parent_predictions[[t]])
+    }else{
+      left_results <- c(left_results,mean(data1[data1[,t] == 1,target]))
+    }
+    if(sum(data2[,t]==1)<min_split){
+      right_results <- c(parent_predictions[[t]],right_results)
+    }else{
+      right_results <- c(right_results,mean(data2[data2[,t] == 1,target]))
+    }
+  }
   for(x in 1:(length(treatments)-1)){
-    t <- treatments[x]
-    s <- treatments[x+1]
-    temp_gain <- frac1*(mean(data1[data1[,t] == 1,target])-mean(data1[data1[,s] == 1,target]))^2 +
-      frac2*(mean(data2[data2[,t] == 1,target])-mean(data2[data2[,s] == 1,target]))^2
-    gain <- gain + temp_gain
+    for(y in (x+1):length(treatments)){
+      temp_gain <- frac1*(left_results[[x]] - left_results[[y]])^2 + frac2*(right_results[[x]] - right_results[[y]])^2
+      gain <- gain + temp_gain
+    }
   }
   if(is.na(gain)){
     gain = -1
@@ -207,7 +244,7 @@ frac_gain <- function(test_case, treatment, control, target, data, test_type, te
 
 #Max
 #Simply tries to maximize the maximum expected outcome for all treatments and control.
-max_gain <- function(test_case, treatment, control, target, data, test_type, test_col){
+max_gain <- function(test_case, treatment, control, target, data, test_type, test_col,min_split, parent_predictions){
   treatments <- c(treatment, control)
   gain <- 0
   #First check if there is data in each subset after the data is split. If not return -1.
@@ -224,13 +261,21 @@ max_gain <- function(test_case, treatment, control, target, data, test_type, tes
   frac1 <- nrow(data1)/nrow(data)
   frac2 <- nrow(data2)/nrow(data)
   
-  current_results <- c()
+  current_results <- parent_predictions
   left_results <- c()
   right_results <- c()
   for(t in treatments){
-    current_results <- c(current_results, mean(data[data[,t] == 1,target]))
-    left_results <- c(left_results, mean(data1[data1[,t] == 1,target]))
-    right_results <- c(right_results, mean(data2[data2[,t] == 1,target]))
+    if(sum(data1[,t]==1)<min_split){
+      left_results <- c(left_results, parent_predictions[[t]])
+    }else{
+      left_results <- c(left_results, mean(data1[data1[,t] == 1,target]))
+    }
+    if(sum(data2[,t]==1)<min_split){
+      right_results <- c(right_results, parent_predictions[[t]])
+    }else{
+      right_results <- c(right_results, mean(data2[data2[,t] == 1,target]))
+    }
+    
   }
   current_gain <- (max(current_results) - sort(current_results,decreasing = T)[2])^2
   right_gain <- (max(right_results) - sort(right_results,decreasing = T)[2])^2
@@ -245,6 +290,9 @@ max_gain <- function(test_case, treatment, control, target, data, test_type, tes
   }
 }
 
+
+
+
 #Functions to build the tree ----
 
 #Tree
@@ -257,7 +305,7 @@ max_gain <- function(test_case, treatment, control, target, data, test_type, tes
 #random and n_features are used for building the random forest.
 #criterion sepcifies which criterion to use to calculate the gain ("simple", "max", "frac")
 build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list,random = FALSE,
-                       n_features = 0,criterion = "simple"){
+                       n_features = 0,criterion = "simple",min_split = 0,parent_predictions = NULL){
   #Return leaf if current depth is max depth
   if(depth == max_depth){
     return(final_node(data,treatment_list,target,control))
@@ -270,10 +318,26 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
     chosen_cols <- c(temp_cols,retain_cols)
     test_list<- set_up_tests(data[,temp_cols],TRUE)
   }
-  
+  treatment_names <- c(treatment_list,control)
+  effects <- c()
+  if(is.null(parent_predictions)){
+    for(t in treatment_names){
+      effects <- c(effects,mean(data[data[t]==1,target]))
+    }
+  } else{
+    for(t in treatment_names){
+      if(sum(data[,t])<min_split){
+        effects <- c(effects,parent_predictions[[t]])
+      }else{
+        effects <- c(effects,mean(data[data[t]==1,target]))
+      }
+    }
+  }
+  names(effects) <- treatment_names
   node <- list()
   #Select split with maximum gain
-  temp_split <- select_split(test_list = test_list, treatment = treatment_list, control, target,data,criterion)
+  temp_split <- select_split(test_list = test_list, treatment = treatment_list, control, target,data,criterion,
+                             min_split = min_split, parent_predictions = effects)
   #Return a leaf, if there is no split with gain > 0
   if(temp_split == -1){
     return(final_node(data,treatment_list,target,control))
@@ -286,12 +350,7 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   #Number of training samples in current node
   node[['n_samples']] <- nrow(data)
   #The estimated effects for an observation in the current node, used for pruning
-  treatment_names <- c(treatment_list,control)
-  effects <- c()
-  for(t in treatment_names){
-    effects <- c(effects,mean(data[data[t]==1,target]))
-  }
-  names(effects) <- treatment_names
+  
   node[['results']] <- effects
   #The current split
   node[['split']] <- temp_split
@@ -300,20 +359,20 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
     node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
                                  max_depth = max_depth,treatment_list =  treatment_list,target = target,
                                  control = control,test_list = test_list,random = random, n_features = n_features,
-                                 criterion = criterion)
+                                 criterion = criterion,min_split = min_split,parent_predictions = node[['results']])
     node[['right']] <- build_tree(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,
                                   max_depth = max_depth,treatment_list =  treatment_list,target = target,
                                   control = control,test_list = test_list,random = random, n_features = n_features,
-                                  criterion = criterion)
+                                  criterion = criterion,min_split = min_split,parent_predictions = node[['results']])
   } else{
     node[['left']] <- build_tree(data = data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,
                                  max_depth = max_depth,treatment_list =  treatment_list,target = target,
                                  control = control,test_list = test_list,random = random, n_features = n_features,
-                                 criterion = criterion)
+                                 criterion = criterion,min_split = min_split,parent_predictions = node[['results']])
     node[['right']] <- build_tree(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,
                                   max_depth = max_depth,treatment_list =  treatment_list,target = target,
                                   control = control,test_list = test_list,random = random, n_features = n_features,
-                                  criterion = criterion)
+                                  criterion = criterion,min_split = min_split,parent_predictions = node[['results']])
   }
   return(node)
 }
@@ -348,7 +407,7 @@ final_node <- function(data,treatment_list,target,control){
 #n_trees: the number of trees in the forest
 #n_features: the number of randomly selected covariates to use for each split 
 build_random_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
-                                max_depth = 100, criterion = "simple"){
+                                max_depth = 100, criterion = "simple",min_split=0){
   trees <- list()
   for(x in 1:n_trees){
     print(x)
@@ -356,7 +415,7 @@ build_random_forest <- function(train_data,treatment_list,response,control,n_tre
     temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
     temp_tree <- build_tree(data = temp_train_data, depth = 0, max_depth = max_depth, treatment_list = treatment_list, 
                             target = response, control = control, test_list = test_list,
-                            random = TRUE,n_features = n_features,criterion = criterion)
+                            random = TRUE,n_features = n_features,criterion = criterion,min_split = min_split)
     trees[[x]] <- temp_tree
   }
   return(trees)
@@ -365,7 +424,7 @@ build_random_forest <- function(train_data,treatment_list,response,control,n_tre
 #Function to build a random forest with parallelization.
 #remain_cores specifies how many cores should NOT be used for the process. 
 parallel_build_random_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
-                                         max_depth = 100,remain_cores = 1,criterion = "simple"){
+                                         max_depth = 100,remain_cores = 1,criterion = "simple",min_split=0){
   numCores <- detectCores()
   cl <- makePSOCKcluster(numCores-remain_cores)
   registerDoParallel(cl)
@@ -376,7 +435,7 @@ parallel_build_random_forest <- function(train_data,treatment_list,response,cont
     temp_tree <- build_tree(data = temp_train_data,0,treatment_list = treatment_list, 
                             test_list = test_list,target = response,control = control,
                             max_depth = max_depth,random = TRUE,n_features =  n_features, 
-                            criterion =  criterion)
+                            criterion =  criterion,min_split = min_split)
     return(temp_tree)
   }
   stopCluster(cl)
@@ -439,7 +498,7 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
         effects <- c(effects,0)
       } else{
         effects <- c(effects,temp_effect)
-        }
+      }
     }
     names(effects) <- treatment_names
     tree[['val_samples']] <- nrow(val_data)
@@ -552,4 +611,59 @@ max_pruning_helper <- function(node,treatments,control){
   } else{
     return(node)
   }
+}
+
+
+#Old functions
+#Forest
+build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+                         pruning,max_depth = 10,criterion = "simple"){
+  trees <- list()
+  retain_cols <- c(treatment_list,control,response)
+  sample_cols <- setdiff(colnames(train_data),retain_cols)
+  for(x in 1:n_trees){
+    temp_cols <- sample(sample_cols,n_features,replace = F)
+    chosen_cols <- c(temp_cols,retain_cols)
+    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
+    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
+                            test_list = test_list,target = response,control = control,
+                            max_depth = max_depth,criterion)
+    if(pruning){
+      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
+      trees[[x]] <- temp_prune_tree
+    } else{
+      trees[[x]] <- temp_tree
+    }
+    
+  }
+  return(trees)
+}
+
+parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+                                  pruning,max_depth = 10,remain_cores = 1,criterion = "simple"){
+  numCores <- detectCores()
+  cl <- makePSOCKcluster(numCores-remain_cores)
+  registerDoParallel(cl)
+  retain_cols <- c(treatment_list,control,response)
+  sample_cols <- setdiff(colnames(train_data),retain_cols)
+  trees <- foreach(x=1:n_trees) %dopar% {
+    source('ModelImplementations/DecisionTreeImplementation.R')
+    set.seed(x)
+    temp_cols <- sample(sample_cols,n_features,replace = F)
+    chosen_cols <- c(temp_cols,retain_cols)
+    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
+    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
+                            test_list = test_list,target = response,control = control,
+                            max_depth = max_depth,criterion = criterion)
+    return(temp_tree)
+    if(pruning){
+      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
+                                           test_list, response,control = control)
+      return(temp_prune_tree)
+    } else{
+      return(temp_tree)
+    }
+  }
+  stopCluster(cl)
+  return(trees)
 }

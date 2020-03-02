@@ -403,9 +403,7 @@ final_node <- function(data,treatment_list,target,control){
 
 
 #Forest
-
-
-parallel_build_random_rzp_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+parallel_build_random_rzp_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
                                              pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
                                              g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10,
                                              remain_cores = 1,test_list){
@@ -426,7 +424,7 @@ parallel_build_random_rzp_forest <- function(train_data, val_data,treatment_list
   return(trees)
 }
 
-build_random_rzp_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
+build_random_rzp_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
                                     pruning,divergence = "binary_KL_divergence",a=0.5,l=c(0.5,0.5),
                                     g = matrix(0.25,nrow = 2, ncol = 2),normalize = F,max_depth = 10,
                                     remain_cores = 1,test_list){

@@ -38,7 +38,7 @@ causalTreePredicitons <- function(train, test,treatment_list, response,control){
 
 
 
-causalForestPredicitons <- function(train,test,treatment_list,response,control){
+causalForestPredicitons <- function(train,test,treatment_list,response,control,ntree = 200,s_true = T,s_rule = "CT"){
   pred <- data.frame(rep(0,nrow(test)))
   for(t in treatment_list){
     train_data <- train[train[,setdiff(treatment_list,t)] == 0,]
@@ -48,9 +48,9 @@ causalForestPredicitons <- function(train,test,treatment_list,response,control){
     
     forest <- causalForest(as.formula(paste(response,paste(setdiff(colnames(train_data_new),response),collapse = "+"),
                                             sep = "~")), data = train_data_new, treatment = train_data[,t], 
-                           split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = T, split.Bucket = F, 
-                           minsize = 20, propensity = 0.5, mtry = 2, num.trees = 200, ncov_sample = 3, 
-                           ncolx = ncol(train_data_new)-1)
+                           split.Rule = s_rule, cv.option = s_rule, split.Honest = s_true, cv.Honest = T, split.Bucket = F, 
+                           minsize = 20, mtry = 3, num.trees = ntree, ncov_sample = 3, 
+                           ncolx = ncol(train_data_new)-1,sample.size.total = nrow(train_data_new),sample.size.train.frac=0.25)
     
     assign(paste('predictions',t,sep = '_'), predict(forest, newdata = test_data))
     pred <- cbind(pred,eval(as.name(paste('predictions',t,sep = '_'))))
