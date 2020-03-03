@@ -93,19 +93,44 @@ if(!file.exists("Data/hu-data.csv")){
 response <- 'checkoutAmount'
 control <- 'X0'
 
-n_predictions <- 15
+n_predictions <- 25
 treatment_list <- levels(new_hu_data$multi_treat)[2:7]
 n_treatments <- length(treatment_list)
 new_hu_data$multi_treat <- NULL
 feature_list <- setdiff(colnames(new_hu_data),c(treatment_list,control,response))
 
+#Create and save the bootrap samples and train test splits. This is done so, if we want to change something
+#on one model we can retrain and test it on the sample bootstrap samples in order for fair comparison with
+#the other models
+if(!file.exists("bootstrap_hu.csv")){
+  bootstrap_idx <- c()
+  for(f in 1:n_predictions){
+    bootstrap_idx <- cbind(bootstrap_idx,sample(nrow(new_hu_data),nrow(new_hu_data),replace = TRUE))
+  }
+  bootstrap_df <- data.frame(bootstrap_idx)
+  write.csv(bootstrap_idx,"bootstrap_hu.csv")
+} else{
+  bootstrap_df <- read.csv("bootstrap_hu.csv")
+}
+if(!file.exists("test_hu.csv")){
+  test_idx <- c()
+  for(f in 1:n_predictions){
+    hu_data <- new_hu_data[bootstrap_df[,f],]
+    test_idx <- cbind(test_idx,createDataPartition(y = hu_data[ , response], p=0.2, list = FALSE))
+  }
+  test_df <- data.frame(test_idx)
+  write.csv(test_idx,"test_hu.csv")
+} else{
+  test_df <- read.csv("test_hu.csv")
+}
+
+folder <- "Predictions/HU-Data/"
 
 for(f in 1:n_predictions){
-  hu_data <- new_hu_data[sample(nrow(new_hu_data),nrow(new_hu_data),replace = TRUE),]
-  idx <- createDataPartition(y = hu_data[ , response], p=0.2, list = FALSE)
-  train <- hu_data[-idx, ]
+  hu_data <- new_hu_data[bootstrap_df[,f],]
+  train <- hu_data[-test_df[,f], ]
   
-  test <- hu_data[idx, ]
+  test <- hu_data[test_df[,f], ]
   
   test_list <- set_up_tests(train[,colnames(train[,feature_list])],TRUE,max_cases = 10)
   
@@ -116,25 +141,25 @@ for(f in 1:n_predictions){
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 300,n_features = 5,
                                            criterion = c, min_split = 100)
     pred <- predict_forest_df(forest,test)
-    write.csv(pred, paste("Predictions/HU-Data/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+    write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
   # Causal Forest
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
                                                 s_rule = "TOT", s_true = T)
-  write.csv(causal_forest_pred, paste("Predictions/HU-Data/causal_forest",as.character(f),".csv",sep = ""),
+  write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
   #Separate Model Approach
   pred <- dt_models(train, response, "anova",treatment_list,control,test,"rf")
-  write.csv(pred, paste("Predictions/HU-Data/sma rf",as.character(f),".csv",sep = ""),
+  write.csv(pred, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 300, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = 1)
   pred <- predict_forest_df(cts_forest, test)
-  write.csv(pred, paste("Predictions/HU-Data/cts",as.character(f),".csv",sep = ""), row.names = FALSE)
+  write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
 }
@@ -142,12 +167,9 @@ for(f in 1:n_predictions){
 
 
 start_time <- Sys.time()
-folder <- "Predictions/HU-Data/"
 outcomes <- c()
 decile_treated <- c()
 result_qini <- c()
-result_uplift <- c()
-
 for(model in c("random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","random_forest")) > 0){
     for(c in c("frac","max")){
@@ -202,7 +224,7 @@ start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
 finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
 qini_random <- seq(start,finish,by = (finish-start)/10)
 random_df <- cbind(seq(0,1,by=0.1),qini_random,"random","random")
-colnames(random_df) <- c("percentile","values","treatment","model")
+colnames(random_df) <- c("percentile","values","model")
 result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])

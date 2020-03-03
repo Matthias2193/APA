@@ -43,8 +43,31 @@ treatment_list <- c('men_treatment','women_treatment')
 
 original_email <- email
 
-bootstrap_df <- read.csv("bootstrap.csv")
-test_df <- read.csv("test.csv")
+#Create and save the bootrap samples and train test splits. This is done so, if we want to change something
+#on one model we can retrain and test it on the sample bootstrap samples in order for fair comparison with
+#the other models
+if(!file.exists("bootstrap.csv")){
+  bootstrap_idx <- c()
+  for(f in 1:n_predictions){
+    bootstrap_idx <- cbind(bootstrap_idx,sample(nrow(original_email),nrow(original_email),replace = TRUE))
+  }
+  bootstrap_df <- data.frame(bootstrap_idx)
+  write.csv(bootstrap_idx,"bootstrap.csv")
+} else{
+  bootstrap_df <- read.csv("bootstrap.csv")
+}
+if(!file.exists("test.csv")){
+  test_idx <- c()
+  for(f in 1:n_predictions){
+    email <- original_email[bootstrap_df[,f],]
+    test_idx <- cbind(test_idx,createDataPartition(y = email[ , response], p=0.2, list = FALSE))
+  }
+  test_df <- data.frame(test_idx)
+  write.csv(test_idx,"test.csv")
+} else{
+  test_df <- read.csv("test.csv")
+}
+folder <- "Predictions/Hillstrom/"
 # The training and prediction part
 for(f in 1:n_predictions){
   
@@ -67,25 +90,25 @@ for(f in 1:n_predictions){
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 300,n_features = 3,
                                            criterion = c,remain_cores = 2)
     pred <- predict_forest_df(forest,test)
-    write.csv(pred, paste("Predictions/Hillstrom/random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+    write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
   # Causal Forest
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
                                                 s_rule = "TOT", s_true = T)
-  write.csv(causal_forest_pred, paste("Predictions/Hillstrom/causal_forest",as.character(f),".csv",sep = ""),
+  write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
 
   # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf", mtry = 3, ntree = 300)
-  write.csv(pred_sma_rf, paste("Predictions/Hillstrom/sma rf",as.character(f),".csv",sep = ""),
+  write.csv(pred_sma_rf, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
 
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 300, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = 1)
   pred <- predict_forest_df(cts_forest, test)
-  write.csv(pred, paste("Predictions/Hillstrom/cts",as.character(f),".csv",sep = ""), row.names = FALSE)
+  write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
 }
@@ -94,7 +117,6 @@ for(f in 1:n_predictions){
 # Here the predictions are evaluated. Additionally we look at the treatment distribution, to see which treatments
 # are assigned how often by the models.
 start_time <- Sys.time()
-folder <- "Predictions/Hillstrom/"
 outcomes <- c()
 result_qini <- c()
 decile_treated <- c()
@@ -147,6 +169,7 @@ outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
 colnames(result_qini) <- c("percentile","values","model")
+#Add random line to qini
 start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
 finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
 qini_random <- seq(start,finish,by = (finish-start)/10)
@@ -155,7 +178,6 @@ colnames(random_df) <- c("percentile","values","model")
 result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])
-# result_qini[,4] <- as.character(result_qini[,4])
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 

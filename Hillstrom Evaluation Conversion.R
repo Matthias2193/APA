@@ -44,15 +44,39 @@ control <- "control"
 treatment_list <- c('men_treatment','women_treatment')
 
 original_email <- email
+#Create and save the bootrap samples and train test splits. This is done so, if we want to change something
+#on one model we can retrain and test it on the sample bootstrap samples in order for fair comparison with
+#the other models
+if(!file.exists("bootstrap.csv")){
+  bootstrap_idx <- c()
+  for(f in 1:n_predictions){
+    bootstrap_idx <- cbind(bootstrap_idx,sample(nrow(original_email),nrow(original_email),replace = TRUE))
+  }
+  bootstrap_df <- data.frame(bootstrap_idx)
+  write.csv(bootstrap_idx,"bootstrap.csv")
+} else{
+  bootstrap_df <- read.csv("bootstrap.csv")
+}
+if(!file.exists("test.csv")){
+  test_idx <- c()
+  for(f in 1:n_predictions){
+    email <- original_email[bootstrap_df[,f],]
+    test_idx <- cbind(test_idx,createDataPartition(y = email[ , response], p=0.2, list = FALSE))
+  }
+  test_df <- data.frame(test_idx)
+  write.csv(test_idx,"test.csv")
+} else{
+  test_df <- read.csv("test.csv")
+}
 folder <- "Predictions/Conversion/"
 # The training and prediction part
 for(f in 1:n_predictions){
   
   # If n_predictions is > 1 as bootstrap sample is created
   if(n_predictions > 1){
-    email <- original_email[sample(nrow(original_email),nrow(original_email),replace = TRUE),]
+    email <- original_email[bootstrap_df[,f],]
   }
-  idx <- createDataPartition(y = email[ , response], p=0.2, list = FALSE)
+  idx <- test_df[,f]
   train <- email[-idx, ]
   
   test <- email[idx, ]
@@ -175,12 +199,13 @@ for(c in 1:11){
 outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
-colnames(result_qini) <- c("percentile","values","treatment","model")
+colnames(result_qini) <- c("percentile","values","model")
+#Add random line to qini
 start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
 finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
 qini_random <- seq(start,finish,by = (finish-start)/10)
 random_df <- cbind(seq(0,1,by=0.1),qini_random,"random","random")
-colnames(random_df) <- c("percentile","values","treatment","model")
+colnames(random_df) <- c("percentile","values","model")
 result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])

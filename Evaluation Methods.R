@@ -86,8 +86,6 @@ n_treated_decile <- function(pred,control){
   return(treated)
 }
 
-
-# Old Evaluation Methods ----
 # Incremental Uplift Curve
 uplift_curve <- function(predictions, control_level,treatments){
   # score for each T individually
@@ -98,32 +96,6 @@ uplift_curve <- function(predictions, control_level,treatments){
   
   ret <- data.frame(Percentile=  seq(0,1, 0.1))
 
-  
-  # Uplift Curve for each treatment
-  # for(t in treatments) {
-  #   
-  #   tmp <- predictions[predictions$Assignment == t, ]
-  #   
-  #   # score by uplift column of T
-  #   tmp <- tmp[order(tmp[ , paste0("uplift_",t)] , decreasing = T) , ]
-  #   c_tmp <- c_group[order(c_group[ , paste0("uplift_",t)] , decreasing = T) , ]
-  #   
-  #   N_t  <- nrow(tmp)
-  #   
-  #   outcomes <- c()
-  #   # For each decile
-  #   for(x in seq(0,1, 0.1)){
-  #     
-  #     # Formula from Gutierrez 2017
-  #     weighted_uplift <- (mean(head(tmp$Outcome, x * N_t)) - mean(head(c_tmp$Outcome, x * N_c)) ) * (N_total * x) 
-  #     
-  #     outcomes <- c(outcomes, weighted_uplift)
-  #   }     
-  #   ret[ , t] <- outcomes
-  #   
-  # }
-  # 
-  # Combined Uplift Curve
   tmp <- predictions[predictions$Assignment != control_level, ]
   
   # score by max T
