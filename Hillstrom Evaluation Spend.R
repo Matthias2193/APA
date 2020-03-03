@@ -122,7 +122,7 @@ for(model in c("random_forest","cts","sma rf","causal_forest")){
       }
     }
   } else{
-    colnames(result_qini) <- c("Percentile","Values","Treatment","model")
+    colnames(result_qini) <- c("Percentile","Values","model")
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
@@ -146,12 +146,12 @@ for(c in 1:11){
 outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
-colnames(result_qini) <- c("percentile","values","treatment","model")
+colnames(result_qini) <- c("percentile","values","model")
 start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
 finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
 qini_random <- seq(start,finish,by = (finish-start)/10)
-random_df <- cbind(seq(0,1,by=0.1),qini_random,"random","random")
-colnames(random_df) <- c("percentile","values","treatment","model")
+random_df <- cbind(seq(0,1,by=0.1),qini_random,"random")
+colnames(random_df) <- c("percentile","values","model")
 result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])

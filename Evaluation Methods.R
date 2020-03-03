@@ -159,40 +159,33 @@ uplift_curve <- function(predictions, control_level,treatments){
 # incremental Qini - Curve
 qini_curve <- function(predictions, control_level,treatments){
   # score for each T individually
+  predictions$max_uplift <- apply(predictions[ , grep("^uplift",colnames(predictions))], 1 , max)
   c_group <- predictions[predictions$Assignment == control_level , ]
   N_c <- nrow(c_group)
   
   
   
-  for(t in treatments) {
-    ret <- data.frame(Percentile=  seq(0,1, 0.1))
-    tmp <- predictions[predictions$Assignment == t, ]
-    
-    # score by uplift column of T
-    tmp <- tmp[order(tmp[ , paste0("uplift_",t)] , decreasing = T) , ]
-    c_tmp <- c_group[order(c_group[ , paste0("uplift_",t)] , decreasing = T) , ]
-    
-    N_t  <- nrow(tmp)
-    
-    outcomes <- c()
-    # For each decile
-    for(x in seq(0,1, 0.1)){
-      # Radcliffe 2007 
-      # u = R_t - ((R_c * N_t) / N_c)
-      qini_gain <- sum(head(tmp$Outcome, x * N_t)) - ((sum(head(c_tmp$Outcome, x * N_c)) * N_t) / N_c)
-      
-      outcomes <- c(outcomes, qini_gain)
-    }     
-    ret$Values <- outcomes
-    ret$Treatment <- t
-    if(t == treatments[1]){
-      result <- ret
-    } else{
-      result <- rbind(result,ret)
-    }
-  }
-  result[is.na(result)] <- 0 
+  ret <- data.frame(Percentile=  seq(0,1, 0.1))
+  tmp <- predictions[predictions$Assignment != control_level, ]
   
+  # score by uplift column of T
+  tmp <- tmp[order(tmp[ , "max_uplift"] , decreasing = T) , ]
+  c_tmp <- c_group[order(c_group[ ,"max_uplift"] , decreasing = T) , ]
+  
+  N_t  <- nrow(tmp)
+  
+  outcomes <- c()
+  # For each decile
+  for(x in seq(0,1, 0.1)){
+    # Radcliffe 2007 
+    # u = R_t - ((R_c * N_t) / N_c)
+    qini_gain <- sum(head(tmp$Outcome, x * N_t)) - ((sum(head(c_tmp$Outcome, x * N_c)) * N_t) / N_c)
+    
+    outcomes <- c(outcomes, qini_gain)
+  }     
+  ret$Values <- outcomes
+  result <- ret
+  result[is.na(result)] <- 0 
   return(result)
 }
 

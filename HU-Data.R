@@ -93,12 +93,6 @@ if(!file.exists("Data/hu-data.csv")){
 response <- 'checkoutAmount'
 control <- 'X0'
 
-for(t in c(treatment_list,control)){
-  print(t)
-  print(sum(new_hu_data[,t]==1))
-  print(mean(new_hu_data[new_hu_data[,t]==1,response]))
-}
-
 n_predictions <- 15
 treatment_list <- levels(new_hu_data$multi_treat)[2:7]
 n_treatments <- length(treatment_list)
@@ -178,8 +172,7 @@ for(model in c("random_forest","cts","sma rf","causal_forest")){
       }
     }
   } else{
-    colnames(result_qini) <- c("Percentile","Values","Treatment","model")
-    colnames(result_uplift) <- c("Percentile","combined","model")
+    colnames(result_qini) <- c("Percentile","Values","model")
     for(f in 1:n_predictions){
       pred <- read.csv(paste(folder,model,as.character(f),".csv",sep = ""))
       outcomes <- rbind(outcomes,c(new_expected_quantile_response(response,control,treatment_list,pred),model))
@@ -203,7 +196,7 @@ for(c in 1:11){
 outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
-colnames(result_qini) <- c("percentile","values","treatment","model")
+colnames(result_qini) <- c("percentile","values","model")
 #Add random line to qini
 start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
 finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
