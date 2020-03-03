@@ -1,8 +1,10 @@
-# Disclaimer: 
-This Repository is still very much work in progress. Therefore it is not yet thoroughly tested, contains only minimal documentation and is not optimized.
-<br>
 # Multiple Treatments for Uplift Modeling
-This repository looks at uplift modeling specifically in cases where we want to campare multiple treatments. To do this several uplift methods are implemented and/or adapted for the multiple treatment case.
+# Disclaimer: 
+This Repository is still work in progress and not yet thoroughly tested. If you find any mistakes or have any questions, feel free to write me at becherma@hu-berlin.de
+<br>
+#Introduction
+Uplift modeling is a predictive modeling technique which is concerned with directly estimating the effect of a treatment on a persons behaviour. Specifiacally it tries to estimate the conditional average treatment effect (CATE) of a treatment based on the characteristics of a given person (age, gender, income, ...). While the type of predictive modeling has applications in a wide variety of field, we will focus on a marketing framework. Therefore when we talk about "treatments" we usually refer to marketing campaigns, ads, etc. <br>
+So far most research in this field has been done on a single treatment case and on cases with a binary outcome. We aim to fill that gap by looking exclusively at cases where multiple possible treatments are compared and focus on continuous outcome variables.
 <br>
 # Implemented Models<br>
 ## Tree after Rzepakowski & Jorszewicz
