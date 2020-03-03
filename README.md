@@ -7,7 +7,8 @@ Uplift modeling is a predictive modeling technique which is concerned with direc
 So far, most research in this field has been done on a single treatment case and on cases with a binary outcome. We aim to fill that gap by looking exclusively at cases where multiple possible treatments are compared and focus on continuous outcome variables.
 
 <br>
-# Implemented Models
+# Implemented
+Models
 ## Tree after Rzepakowski & Jorszewicz
 The decision tree is based on the one proposed by Piotr Rzepakowski & Szymon Jaroszewicz ["Decision trees for uplift modeling with single
 and multiple treatments"](https://core.ac.uk/download/pdf/81899141.pdf)
