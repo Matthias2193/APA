@@ -277,6 +277,9 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
     pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/
       nrow(temp_data[(temp_data[,control] == 1),])
   }
+  if(is.na(pc)){
+    pc = 0
+  }
   if(pc != 0){
     norm_factor <- norm_factor +nc/nrow(temp_data) * temp_function(c(pc,1-pc))
   }
@@ -286,18 +289,6 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
   }
   return(norm_factor)
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 #Functions to build the tree ----
 #Tree
@@ -412,12 +403,15 @@ parallel_build_random_rzp_forest <- function(train_data,treatment_list,response,
   registerDoParallel(cl)
   trees <- foreach(x=1:n_trees) %dopar% {
     source('ModelImplementations/RzepakowskiTree.R')
-    set.seed(x)
-    temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
-    temp_tree <- build_tree_rzp(data = temp_train_data,depth = 0,treatment_list = treatment_list, 
-                                test_list = test_list,target = response,control = control,
-                                divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
-                                max_depth = max_depth,random = T,n_features = n_features)
+    for(x in 1:100){
+      print(x)
+      set.seed(x)
+      temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
+      temp_tree <- build_tree_rzp(data = temp_train_data,depth = 0,treatment_list = treatment_list, 
+                                  test_list = test_list,target = response,control = control,
+                                  divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
+                                  max_depth = max_depth,random = T,n_features = n_features)
+    }
     return(temp_tree)
   }
   stopCluster(cl)

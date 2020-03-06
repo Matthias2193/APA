@@ -17,7 +17,6 @@ source('ModelImplementations/DecisionTreeImplementation.R')
 source('ModelImplementations/RzepakowskiTree.R')
 source('Evaluation Methods.R')
 source('ModelImplementations/CausalTree.R')
-#('ModelImplementations/Causal Forest.R')
 source('ModelImplementations/Separate Model Approach.R')
 source('ModelImplementations/ContextualTreatmentSelection.R')
 source('ModelImplementations/VisualizationHelper.R')
@@ -83,12 +82,6 @@ for(f in 1:n_predictions){
   
   test_list <- set_up_tests(train[,c("recency","history_segment","history","mens","womens","zip_code",
                                      "newbie","channel")],TRUE, max_cases = 10)
-  # Partition training data for pruning
-  p_idx <- createDataPartition(y = train[ , response], p=0.3, list = FALSE)
-  
-  val <- train[p_idx,]
-  train_val <- train[-p_idx,]
-  
   
   start_time <- Sys.time()
   for(c in c("frac","max")){
@@ -118,10 +111,10 @@ for(f in 1:n_predictions){
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   
   #Rzp
-  for(div in c("EucDistance","binary_KL_divergence")){
-    rzp_forest <- parallel_build_random_rzp_forest(train_data = train, treatment_list = treatment_list,
+  for(div in c("binary_KL_divergence")){
+    rzp_forest <- build_random_rzp_forest(train_data = train, treatment_list = treatment_list,
                                                    response = response,control = control, n_trees = 200, n_features = 3,
-                                                   normalize = F, max_depth = 100,test_list = test_list, remain_cores = 12,
+                                                   normalize = T, max_depth = 100,test_list = test_list, remain_cores = 12,
                                                    divergence = div)
     pred <- predict_forest_df(rzp_forest, test,remain_cores = 12)
     write.csv(pred, paste(folder,"rzp",div,as.character(f),".csv",sep = ""), row.names = FALSE)
