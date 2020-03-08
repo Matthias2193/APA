@@ -84,12 +84,12 @@ for(f in 1:n_predictions){
                                      "newbie","channel")],TRUE, max_cases = 10)
   
   start_time <- Sys.time()
-  for(c in c("simple","frac","max")){
+  for(c in c("frac","max")){
     print(c)
     #Random Forest
-    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 300,n_features = 3,
+    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 3,
                                            criterion = c,remain_cores = 2)
-    pred <- predict_forest_df(forest,test)
+    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = 2)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
@@ -105,7 +105,7 @@ for(f in 1:n_predictions){
             row.names = FALSE)
 
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 300, nrow(train), 5, 2, 100, parallel = TRUE,
+  cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = 1)
   pred <- predict_forest_df(cts_forest, test)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
@@ -122,7 +122,7 @@ result_qini <- c()
 decile_treated <- c()
 for(model in c("random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("tree","random_forest")) > 0){
-    for(c in c("frac")){
+    for(c in c("frac",'max')){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){

@@ -87,9 +87,9 @@ for(f in 1:n_predictions){
   for(c in c("frac","max")){
     print(c)
     #Random Forest
-    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 300,n_features = 3,
+    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 3,
                                            criterion = c, remain_cores = 14)
-    pred <- predict_forest_df(forest,test,remain_cores = 14)
+    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = 14)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
   
@@ -105,7 +105,7 @@ for(f in 1:n_predictions){
             row.names = FALSE)
   #
   # # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 200, nrow(train), 5, 2, 100, parallel = TRUE,
+  cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = 18)
   pred <- predict_forest_df(cts_forest, test,remain_cores = 18)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
@@ -113,10 +113,10 @@ for(f in 1:n_predictions){
   #Rzp
   for(div in c("binary_KL_divergence")){
     rzp_forest <- build_random_rzp_forest(train_data = train, treatment_list = treatment_list,
-                                                   response = response,control = control, n_trees = 200, n_features = 3,
+                                                   response = response,control = control, n_trees = 500, n_features = 3,
                                                    normalize = T, max_depth = 100,test_list = test_list, remain_cores = 12,
                                                    divergence = div)
-    pred <- predict_forest_df(rzp_forest, test,remain_cores = 12)
+    pred <- predict_forest_df(rzp_forest, test, treatment_list, control,remain_cores = 12)
     write.csv(pred, paste(folder,"rzp",div,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
   

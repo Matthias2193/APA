@@ -131,8 +131,9 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 
 # Methods used to plot a tree
 # It is advisable to build a shallow tree (low value for max_depth) to make the graph somewhat readable.
-visualize_tree <- function(tree, only_split = F){
+visualize_tree <- function(tree, only_split = F,result_digits = 2,result_multiplicator = 1){
   plot_list <- get_plot_params(tree)
+  plot_list[[4]] <- round(plot_list[[4]] * result_multiplicator, result_digits)
   plot_string <- "digraph flowchart {  \n node [fontname = Helvetica, shape = rectangle]"
   
   label = ""
@@ -179,7 +180,6 @@ visualize_tree <- function(tree, only_split = F){
   print(grViz(paste(plot_string,label,links,"}",sep = "\n")))
 }
 
-
 # Helperfunction for the tree visualization.
 get_plot_params <- function(tree,counter = 0){
   type_list <- c(tree[["type"]])
@@ -218,7 +218,7 @@ get_plot_params <- function(tree,counter = 0){
   result_list[[1]] <- type_list
   result_list[[2]] <- split_list
   result_list[[3]] <- n_sample_list
-  result_list[[4]] <- round(results_list,2)
+  result_list[[4]] <- results_list
   result_list[[5]] <- counter_list
   result_list[[6]] <- connection_list
   return(result_list)

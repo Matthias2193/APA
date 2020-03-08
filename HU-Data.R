@@ -138,9 +138,9 @@ for(f in 1:n_predictions){
   for(c in c("max","frac")){
     print(c)
     #Random Forest
-    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 300,n_features = 5,
+    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 5,
                                            criterion = c, min_split = 100)
-    pred <- predict_forest_df(forest,test)
+    pred <- predict_forest_df(forest,test, treatment_list, control, remain_cores = 2)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
@@ -156,7 +156,7 @@ for(f in 1:n_predictions){
             row.names = FALSE)
   
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 300, nrow(train), 5, 2, 100, parallel = TRUE,
+  cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = 1)
   pred <- predict_forest_df(cts_forest, test)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)

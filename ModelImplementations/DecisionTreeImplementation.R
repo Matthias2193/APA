@@ -530,6 +530,7 @@ assign_val_predictions <- function(tree,val_data,treatment_list,test_list,target
   return(tree)
 }
 
+
 simple_pruning_helper <- function(node,treatments,control){
   #Check if we are already at the root
   if(node[['type']] == 'root'){
@@ -537,34 +538,44 @@ simple_pruning_helper <- function(node,treatments,control){
   }
   
   #The rows of the validation set, that ended up in the left and right leaf
-  temp_left_bool <- node[['left']][['val_samples']]
-  temp_right_bool <- node[['right']][['val_samples']]
+  n_left <- node[['left']][['val_samples']]
+  n_right <- node[['right']][['val_samples']]
   
-  if(temp_left_bool == 0 || temp_right_bool == 0){
+  if(n_left == 0 || n_right == 0){
     node[['type']] <- 'leaf'
     return(node)
   }
   
   left_distance <- 0
-  for(r in node[['left']][['val_predictions']]){
-    for(s in node[['left']][['val_predictions']]){
-      left_distance <- left_distance + (r-s)^2
+  left_frac <- n_left/node[['val_samples']]
+  left_results <- node[['left']][['val_predictions']]
+  for(r in 1:(length(left_results)-1)){
+    for(s in (r+1):length(left_results)){
+      x <- left_results[r]
+      y <- left_results[s]
+      left_distance <- left_distance + (x-y)^2
     }
   }
   right_distance <- 0
-  for(r in node[['right']][['val_predictions']]){
-    for(s in node[['right']][['val_predictions']]){
-      right_distance <- right_distance + (r-s)^2
+  right_frac <- n_right/node[['val_samples']]
+  right_results <- node[['right']][['val_predictions']]
+  for(r in 1:(length(right_results)-1)){
+    for(s in (r+1):length(right_results)){
+      x <- right_results[r]
+      y <- right_results[s]
+      right_distance <- right_distance + (x-y)^2
     }
   }
   root_distance <- 0
-  for(r in node[['val_predictions']]){
-    for(s in node[['val_predictions']]){
-      root_distance <- root_distance + (r-s)^2
+  root_results <- node[['val_predictions']]
+  for(r in 1:(length(root_results)-1)){
+    for(s in (r+1):length(root_results)){
+      x <- root_results[r]
+      y <- root_results[s]
+      root_distance <- root_distance + (x-y)^2
     }
   }
-  sub_distance <- (node[['right']][['val_predictions']]/node[['val_predictions']])*right_distance+
-    (node[['left']][['val_predictions']]/node[['val_predictions']])*left_distance
+  sub_distance <- left_frac*left_distance + right_frac*right_distance
   
   if(is.nan(sub_distance) || is.nan(root_distance) || (sub_distance <= root_distance)){
     node[['type']] <- 'leaf'
@@ -611,59 +622,4 @@ max_pruning_helper <- function(node,treatments,control){
   } else{
     return(node)
   }
-}
-
-
-#Old functions
-#Forest
-build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                         pruning,max_depth = 10,criterion = "simple"){
-  trees <- list()
-  retain_cols <- c(treatment_list,control,response)
-  sample_cols <- setdiff(colnames(train_data),retain_cols)
-  for(x in 1:n_trees){
-    temp_cols <- sample(sample_cols,n_features,replace = F)
-    chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
-    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
-                            test_list = test_list,target = response,control = control,
-                            max_depth = max_depth,criterion)
-    if(pruning){
-      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list, test_list, response, control)
-      trees[[x]] <- temp_prune_tree
-    } else{
-      trees[[x]] <- temp_tree
-    }
-    
-  }
-  return(trees)
-}
-
-parallel_build_forest <- function(train_data, val_data,treatment_list,response,control,n_trees,n_features,
-                                  pruning,max_depth = 10,remain_cores = 1,criterion = "simple"){
-  numCores <- detectCores()
-  cl <- makePSOCKcluster(numCores-remain_cores)
-  registerDoParallel(cl)
-  retain_cols <- c(treatment_list,control,response)
-  sample_cols <- setdiff(colnames(train_data),retain_cols)
-  trees <- foreach(x=1:n_trees) %dopar% {
-    source('ModelImplementations/DecisionTreeImplementation.R')
-    set.seed(x)
-    temp_cols <- sample(sample_cols,n_features,replace = F)
-    chosen_cols <- c(temp_cols,retain_cols)
-    test_list <- set_up_tests(train_data[,temp_cols],TRUE)
-    temp_tree <- build_tree(data = train_data[,chosen_cols],0,treatment_list = treatment_list, 
-                            test_list = test_list,target = response,control = control,
-                            max_depth = max_depth,criterion = criterion)
-    return(temp_tree)
-    if(pruning){
-      temp_prune_tree <- simple_prune_tree(temp_tree,val_data[,chosen_cols], treatment_list,
-                                           test_list, response,control = control)
-      return(temp_prune_tree)
-    } else{
-      return(temp_tree)
-    }
-  }
-  stopCluster(cl)
-  return(trees)
 }
