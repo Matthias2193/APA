@@ -47,7 +47,7 @@ for(f in 1:length(folds)){
                                       target = response,control = control,test_list = test_list, alpha = alpha,
                                       l = lambda, divergence = divergence,normalize = T)
           pruned_tree <- prune_tree(temp_tree,val, treatment_list, test_list, response,control)
-          temp_pred <- predict.dt.as.df(pruned_tree,test,additional_info = T)
+          temp_pred <- predict.dt.as.df(pruned_tree,test,treatment_list,control,additional_info = T)
         }
       }
     }
