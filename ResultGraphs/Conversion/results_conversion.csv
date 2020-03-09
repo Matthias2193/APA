@@ -1,0 +1,78 @@
+"","percentile","model","mean","sd"
+"1",0,"causal_forest",0.59,0.1
+"8",10,"causal_forest",1.2,0.14
+"15",20,"causal_forest",1.31,0.15
+"22",30,"causal_forest",1.44,0.15
+"29",40,"causal_forest",1.53,0.16
+"36",50,"causal_forest",1.58,0.16
+"43",60,"causal_forest",1.65,0.18
+"50",70,"causal_forest",1.71,0.19
+"57",80,"causal_forest",1.73,0.2
+"64",90,"causal_forest",1.75,0.18
+"71",100,"causal_forest",1.73,0.18
+"2",0,"cts",0.59,0.1
+"9",10,"cts",1.12,0.12
+"16",20,"cts",1.32,0.14
+"23",30,"cts",1.47,0.15
+"30",40,"cts",1.58,0.16
+"37",50,"cts",1.65,0.17
+"44",60,"cts",1.71,0.16
+"51",70,"cts",1.75,0.17
+"58",80,"cts",1.76,0.17
+"65",90,"cts",1.77,0.18
+"72",100,"cts",1.77,0.19
+"3",0,"random_forest_frac",0.59,0.1
+"10",10,"random_forest_frac",1.81,0.15
+"17",20,"random_forest_frac",1.86,0.16
+"24",30,"random_forest_frac",1.91,0.17
+"31",40,"random_forest_frac",1.92,0.18
+"38",50,"random_forest_frac",1.93,0.18
+"45",60,"random_forest_frac",1.96,0.19
+"52",70,"random_forest_frac",1.98,0.19
+"59",80,"random_forest_frac",2,0.2
+"66",90,"random_forest_frac",2.01,0.2
+"73",100,"random_forest_frac",2.01,0.2
+"4",0,"random_forest_max",0.59,0.1
+"11",10,"random_forest_max",1.79,0.15
+"18",20,"random_forest_max",1.87,0.16
+"25",30,"random_forest_max",1.89,0.17
+"32",40,"random_forest_max",1.91,0.18
+"39",50,"random_forest_max",1.93,0.18
+"46",60,"random_forest_max",1.95,0.18
+"53",70,"random_forest_max",1.97,0.18
+"60",80,"random_forest_max",1.99,0.18
+"67",90,"random_forest_max",2.01,0.19
+"74",100,"random_forest_max",2.01,0.19
+"5",0,"rzp_binary_KL_divergence",0.59,0.1
+"12",10,"rzp_binary_KL_divergence",0.87,0.11
+"19",20,"rzp_binary_KL_divergence",1.04,0.14
+"26",30,"rzp_binary_KL_divergence",1.12,0.15
+"33",40,"rzp_binary_KL_divergence",1.24,0.14
+"40",50,"rzp_binary_KL_divergence",1.34,0.12
+"47",60,"rzp_binary_KL_divergence",1.4,0.1
+"54",70,"rzp_binary_KL_divergence",1.45,0.12
+"61",80,"rzp_binary_KL_divergence",1.5,0.13
+"68",90,"rzp_binary_KL_divergence",1.52,0.14
+"75",100,"rzp_binary_KL_divergence",1.52,0.15
+"6",0,"rzp_EucDistance",0.59,0.1
+"13",10,"rzp_EucDistance",0.94,0.09
+"20",20,"rzp_EucDistance",1.14,0.13
+"27",30,"rzp_EucDistance",1.29,0.15
+"34",40,"rzp_EucDistance",1.4,0.16
+"41",50,"rzp_EucDistance",1.46,0.13
+"48",60,"rzp_EucDistance",1.53,0.12
+"55",70,"rzp_EucDistance",1.59,0.13
+"62",80,"rzp_EucDistance",1.62,0.13
+"69",90,"rzp_EucDistance",1.64,0.13
+"76",100,"rzp_EucDistance",1.62,0.15
+"7",0,"sma rf",0.59,0.1
+"14",10,"sma rf",1.77,0.16
+"21",20,"sma rf",1.82,0.18
+"28",30,"sma rf",1.85,0.18
+"35",40,"sma rf",1.88,0.19
+"42",50,"sma rf",1.88,0.19
+"49",60,"sma rf",1.88,0.19
+"56",70,"sma rf",1.87,0.19
+"63",80,"sma rf",1.87,0.19
+"70",90,"sma rf",1.87,0.19
+"77",100,"sma rf",1.87,0.19
