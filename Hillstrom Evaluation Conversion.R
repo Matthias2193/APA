@@ -26,6 +26,7 @@ source("ModelImplementations/RzepakowskiTree.R")
 
 set.seed(1234)
 n_predictions <- 25
+remain_cores <- 1
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -88,8 +89,8 @@ for(f in 21:25){
     print(c)
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 3,
-                                           criterion = c, remain_cores = 14)
-    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = 14)
+                                           criterion = c, remain_cores = remain_cores)
+    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
   
@@ -106,8 +107,8 @@ for(f in 21:25){
   #
   # # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
-                          remain_cores = 18)
-  pred <- predict_forest_df(cts_forest, test,remain_cores = 18)
+                          remain_cores = remain_cores)
+  pred <- predict_forest_df(cts_forest, test,remain_cores = remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   
   #Rzp
@@ -132,7 +133,7 @@ outcomes <- c()
 decile_treated <- c()
 result_qini <- c()
 for(model in c("random_forest","cts","sma rf","causal_forest","rzp")){
-  if(sum(model == c("tree","random_forest")) > 0){
+  if(sum(model == c("random_forest")) > 0){
     for(c in c("frac","max")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))

@@ -146,12 +146,12 @@ qini_curve <- function(predictions, control_level,treatments){
   
   N_t  <- nrow(tmp)
   
-  outcomes <- c()
+  outcomes <- c(0)
   # For each decile
-  for(x in seq(0,1, 0.1)){
+  for(x in seq(0.1,1, 0.1)){
     # Radcliffe 2007 
     # u = R_t - ((R_c * N_t) / N_c)
-    qini_gain <- sum(head(tmp$Outcome, x * N_t)) - ((sum(head(c_tmp$Outcome, x * N_c)) * N_t) / N_c)
+    qini_gain <- sum(head(tmp$Outcome, x * N_t)) - ((sum(head(c_tmp$Outcome, x * N_c)) * (x *N_t)) / (x *N_c))
     
     outcomes <- c(outcomes, qini_gain)
   }     

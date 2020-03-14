@@ -25,6 +25,7 @@ source("ModelImplementations/PredictionFunctions.R")
 
 set.seed(1234)
 n_predictions <- 15
+remain_cores <- 1
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -88,8 +89,8 @@ for(f in 1:n_predictions){
     print(c)
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 3,
-                                           criterion = c,remain_cores = 2)
-    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = 2)
+                                           criterion = c,remain_cores = remain_cores)
+    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores2)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
@@ -106,8 +107,8 @@ for(f in 1:n_predictions){
 
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
-                          remain_cores = 1)
-  pred <- predict_forest_df(cts_forest, test)
+                          remain_cores = remain_cores)
+  pred <- predict_forest_df(cts_forest, test,test, treatment_list, control, remain_cores =  remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
@@ -121,7 +122,7 @@ outcomes <- c()
 result_qini <- c()
 decile_treated <- c()
 for(model in c("random_forest","cts","sma rf","causal_forest")){
-  if(sum(model == c("tree","random_forest")) > 0){
+  if(sum(model == c("random_forest")) > 0){
     for(c in c("frac",'max')){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
@@ -178,6 +179,21 @@ colnames(random_df) <- c("percentile","values","model")
 result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])
+result_qini$model <- as.character(result_qini$model)
+decile_treated_df$Model <- as.character(decile_treated_df$Model)
+result_qini$percentile <- result_qini$percentile*100
+outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
+outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
+outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
+outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
+result_qini[result_qini$model == "cts","model"] <- "CTS"
+result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
+result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
+result_qini[result_qini$model == "sma rf","model"] <- "SMA"
+decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
+decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
+decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
+decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 

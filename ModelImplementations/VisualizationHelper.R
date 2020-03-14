@@ -31,17 +31,23 @@ visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FA
   {if(errorbars && sum(is.na(tgc)) == 0) geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), position = pd)} +
     geom_line() +
     geom_point() +
-    xlab("Percent assigned according to Model Prediction") +
+    scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                       breaks = seq(0,100,10)) +
     ylab("Expected Outcome per Person") +
     {if(multiplot) facet_wrap(~model)} +
-    {if(multiplot) theme(legend.position = "none")} +
-    ggtitle("Mean and Confidence Interval for Expected Outcome")
+    {if(multiplot) theme(legend.position = "none")} 
+    #ggtitle("Mean and Confidence Interval for Expected Outcome")
   if(!is.null(n_treated)){
     agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Treatment,n_treated$Model,n_treated$Decile), 
                        FUN=mean)
     colnames(agg_df) <- c("Treatment","Model","Decile","PercTreated")
     p2 <- ggplot(agg_df, aes(fill=Treatment, y=PercTreated, x=Decile)) + 
       geom_bar(position="stack", stat="identity") +
+      scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                          breaks = seq(0,100,10)) +
+      scale_y_continuous(name="Treatment Percentage", 
+                          breaks = seq(0,100,10)) +
+      
       facet_wrap(~Model) 
     print(p1)
     print(p2)
@@ -63,31 +69,34 @@ visualize_qini_uplift <- function(temp_data,type,multiple_predictions = TRUE,err
               geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci)) +
               geom_line() +
               geom_point() +
-              xlab("Percent assigned according to Model Prediction") +
+              scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                                 limits=c(0, 100), breaks = seq(0,100,10)) +
               ylab(paste("Cummulated",type,sep = " ")) +
               {if(multiplot) facet_wrap(~model)} +
-              {if(multiplot) theme(legend.position = "none")} +
-              ggtitle(paste("Mean and Confidence Interval for",type,"score",sep=" ")))
+              {if(multiplot) theme(legend.position = "none")}) 
+              #ggtitle(paste("Mean and Confidence Interval for",type,"score",sep=" ")))
     } else{
       print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
               geom_line() +
               geom_point() +
-              xlab("Percent assigned according to Model Prediction") +
+              scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                                 limits=c(0, 100), breaks = seq(0,100,10)) +
               ylab(paste("Cummulated",type,sep = " ")) +
               {if(multiplot) facet_wrap(~model)} +
-              {if(multiplot) theme(legend.position = "none")} +
-              ggtitle(paste("Mean",type,"score",sep=" ")))
+              {if(multiplot) theme(legend.position = "none")})
+              #ggtitle(paste("Mean",type,"score",sep=" ")))
     }
     
   } else{
     print(ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
             geom_line() +
             geom_point() +
-            xlab("Percent assigned according to Model Prediction") +
+            scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                               limits=c(0, 100), breaks = seq(0,100,10)) +
             ylab(paste("Cummulated",type,sep = " ")) +
             {if(multiplot) facet_wrap(~model)} +
-            {if(multiplot) theme(legend.position = "none")} +
-            ggtitle(paste("Mean",type,"score",sep=" ")))
+            {if(multiplot) theme(legend.position = "none")})
+            #ggtitle(paste("Mean",type,"score",sep=" ")))
   }
 }
 
