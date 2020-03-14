@@ -56,6 +56,33 @@ visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FA
   }
 }
 
+outcome_boxplot <- function(temp_data){
+  values <- c()
+  percentile <- c()
+  model <- c()
+  for(f in 1:nrow(temp_data)){
+    if(length(values) == 0){
+      values <- temp_data[f,1:11]
+      percentile <- colnames(temp_data)[1:11]
+      model <- rep(temp_data[f,12],11)
+    } else{
+      values <- c(values,temp_data[f,1:11])
+      percentile <- c(percentile, colnames(temp_data)[1:11])
+      model <- c(model,rep(temp_data[f,12],11))
+    }
+  }
+  temp_df <- data.frame(cbind(values,percentile,model))
+  rownames(temp_df) <- 1:nrow(temp_df)
+  colnames(temp_df) <- c("values","percentile","model")
+  for(c in 1:2){
+    temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
+  }
+  temp_df[,3] <- as.character(temp_df[,3]) 
+  print(ggplot(temp_df, aes(y=values, x=model,color=model)) + 
+    geom_boxplot() +
+    facet_wrap(~percentile)) 
+  
+}
 
 visualize_qini_uplift <- function(temp_data,type,multiple_predictions = TRUE,errorbars = TRUE,multiplot=TRUE){
   values <- c()
