@@ -2,7 +2,7 @@
 
 #Prediction---- 
 #Tree  
-predict.dt.as.df <- function(tree,new_data,additional_info = TRUE){
+predict.dt.as.df <- function(tree,new_data, treatment_list, control,additional_info = TRUE){
   type_list <- sapply(new_data, class)
   names(type_list) = colnames(new_data)
   temp_function <- function(x,node){
@@ -68,10 +68,11 @@ predictions_to_treatment <- function(pred,treatment_list,control){
 #Forest
 
 #Majority Vote
-predict_forest_majority <- function(forest,test_data){
-  predictions <- predictions_to_treatment(predict.dt(forest[[1]],test_data))
+predict_forest_majority <- function(forest,test_data, treatment_list, control){
+  predictions <- predictions_to_treatment(predict.dt(forest[[1]],test_data, treatment_list, control), 
+                                          treatment_list, control)
   for(x in 2:length(forest)){
-    predictions <- cbind(predictions,predictions_to_treatment(predict.dt(forest[[x]],test_data)))
+    predictions <- cbind(predictions,predictions_to_treatment(predict.dt(forest[[x]],test_data, treatment_list, control)))
   }
   return(apply(data.frame(predictions), MARGIN = 1, FUN = forest_predictions_helper))
 }
@@ -88,7 +89,7 @@ forest_predictions_helper <- function(preds){
 
 #Average
 #Sequentially
-predict_forest_average <- function(forest,test_data,additional_info = TRUE){
+predict_forest_average <- function(forest,test_data, treatment_list, control,additional_info = TRUE){
   predictions <- list()
   for(x in 1:length(forest)){
     predictions[[x]] <- predict.dt.as.df(forest[[x]],test_data,additional_info = FALSE)
@@ -113,7 +114,7 @@ predict_forest_average <- function(forest,test_data,additional_info = TRUE){
 }
 
 #Parallel
-parallel_predict_forest_average <- function(forest,test_data,remain_cores = 1,additional_info = TRUE){
+parallel_predict_forest_average <- function(forest,test_data, treatment_list, control,remain_cores = 1,additional_info = TRUE){
   predictions <- list()
   numCores <- detectCores()
   cl <- makePSOCKcluster(numCores-remain_cores)
@@ -175,10 +176,10 @@ parallel_predict_forest_average <- function(forest,test_data,remain_cores = 1,ad
 
 
 
-predict_forest_df <- function(forest,test_data, parallel_pred = TRUE, remain_cores = 1,additiona_info = TRUE){
+predict_forest_df <- function(forest,test_data, treatment_list, control, parallel_pred = TRUE, remain_cores = 1,additiona_info = TRUE){
   if(parallel_pred){
-    return(parallel_predict_forest_average(forest,test_data,remain_cores,additional_info = additiona_info))
+    return(parallel_predict_forest_average(forest,test_data, treatment_list, control,remain_cores,additional_info = additiona_info))
   } else{
-    return(predict_forest_average(forest,test_data,additional_info = additiona_info))
+    return(predict_forest_average(forest,test_data, treatment_list, control,additional_info = additiona_info))
   }
 }

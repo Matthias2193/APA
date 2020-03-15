@@ -31,17 +31,23 @@ visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FA
   {if(errorbars && sum(is.na(tgc)) == 0) geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), position = pd)} +
     geom_line() +
     geom_point() +
-    xlab("Percent assigned according to Model Prediction") +
+    scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                       breaks = seq(0,100,10)) +
     ylab("Expected Outcome per Person") +
     {if(multiplot) facet_wrap(~model)} +
-    {if(multiplot) theme(legend.position = "none")} +
-    ggtitle("Mean and Confidence Interval for Expected Outcome")
+    {if(multiplot) theme(legend.position = "none")} 
+    #ggtitle("Mean and Confidence Interval for Expected Outcome")
   if(!is.null(n_treated)){
     agg_df<- aggregate(n_treated$PercTreated, by=list(n_treated$Treatment,n_treated$Model,n_treated$Decile), 
                        FUN=mean)
     colnames(agg_df) <- c("Treatment","Model","Decile","PercTreated")
     p2 <- ggplot(agg_df, aes(fill=Treatment, y=PercTreated, x=Decile)) + 
       geom_bar(position="stack", stat="identity") +
+      scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                          breaks = seq(0,100,10)) +
+      scale_y_continuous(name="Treatment Percentage", 
+                          breaks = seq(0,100,10)) +
+      
       facet_wrap(~Model) 
     print(p1)
     print(p2)
@@ -50,6 +56,33 @@ visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FA
   }
 }
 
+outcome_boxplot <- function(temp_data){
+  values <- c()
+  percentile <- c()
+  model <- c()
+  for(f in 1:nrow(temp_data)){
+    if(length(values) == 0){
+      values <- temp_data[f,1:11]
+      percentile <- colnames(temp_data)[1:11]
+      model <- rep(temp_data[f,12],11)
+    } else{
+      values <- c(values,temp_data[f,1:11])
+      percentile <- c(percentile, colnames(temp_data)[1:11])
+      model <- c(model,rep(temp_data[f,12],11))
+    }
+  }
+  temp_df <- data.frame(cbind(values,percentile,model))
+  rownames(temp_df) <- 1:nrow(temp_df)
+  colnames(temp_df) <- c("values","percentile","model")
+  for(c in 1:2){
+    temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
+  }
+  temp_df[,3] <- as.character(temp_df[,3]) 
+  print(ggplot(temp_df, aes(y=values, x=model,color=model)) + 
+    geom_boxplot() +
+    facet_wrap(~percentile)) 
+  
+}
 
 visualize_qini_uplift <- function(temp_data,type,multiple_predictions = TRUE,errorbars = TRUE,multiplot=TRUE){
   values <- c()
@@ -63,31 +96,34 @@ visualize_qini_uplift <- function(temp_data,type,multiple_predictions = TRUE,err
               geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci)) +
               geom_line() +
               geom_point() +
-              xlab("Percent assigned according to Model Prediction") +
+              scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                                 limits=c(0, 100), breaks = seq(0,100,10)) +
               ylab(paste("Cummulated",type,sep = " ")) +
               {if(multiplot) facet_wrap(~model)} +
-              {if(multiplot) theme(legend.position = "none")} +
-              ggtitle(paste("Mean and Confidence Interval for",type,"score",sep=" ")))
+              {if(multiplot) theme(legend.position = "none")}) 
+              #ggtitle(paste("Mean and Confidence Interval for",type,"score",sep=" ")))
     } else{
       print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
               geom_line() +
               geom_point() +
-              xlab("Percent assigned according to Model Prediction") +
+              scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                                 limits=c(0, 100), breaks = seq(0,100,10)) +
               ylab(paste("Cummulated",type,sep = " ")) +
               {if(multiplot) facet_wrap(~model)} +
-              {if(multiplot) theme(legend.position = "none")} +
-              ggtitle(paste("Mean",type,"score",sep=" ")))
+              {if(multiplot) theme(legend.position = "none")})
+              #ggtitle(paste("Mean",type,"score",sep=" ")))
     }
     
   } else{
     print(ggplot(temp_df, aes(x=percentile, y=values,color=model)) + 
             geom_line() +
             geom_point() +
-            xlab("Percent assigned according to Model Prediction") +
+            scale_x_continuous(name="Percent assigned according to Model Prediction", 
+                               limits=c(0, 100), breaks = seq(0,100,10)) +
             ylab(paste("Cummulated",type,sep = " ")) +
             {if(multiplot) facet_wrap(~model)} +
-            {if(multiplot) theme(legend.position = "none")} +
-            ggtitle(paste("Mean",type,"score",sep=" ")))
+            {if(multiplot) theme(legend.position = "none")})
+            #ggtitle(paste("Mean",type,"score",sep=" ")))
   }
 }
 
@@ -131,8 +167,9 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 
 # Methods used to plot a tree
 # It is advisable to build a shallow tree (low value for max_depth) to make the graph somewhat readable.
-visualize_tree <- function(tree, only_split = F){
+visualize_tree <- function(tree, only_split = F,result_digits = 2,result_multiplicator = 1){
   plot_list <- get_plot_params(tree)
+  plot_list[[4]] <- round(plot_list[[4]] * result_multiplicator, result_digits)
   plot_string <- "digraph flowchart {  \n node [fontname = Helvetica, shape = rectangle]"
   
   label = ""
@@ -179,7 +216,6 @@ visualize_tree <- function(tree, only_split = F){
   print(grViz(paste(plot_string,label,links,"}",sep = "\n")))
 }
 
-
 # Helperfunction for the tree visualization.
 get_plot_params <- function(tree,counter = 0){
   type_list <- c(tree[["type"]])
@@ -218,7 +254,7 @@ get_plot_params <- function(tree,counter = 0){
   result_list[[1]] <- type_list
   result_list[[2]] <- split_list
   result_list[[3]] <- n_sample_list
-  result_list[[4]] <- round(results_list,2)
+  result_list[[4]] <- results_list
   result_list[[5]] <- counter_list
   result_list[[6]] <- connection_list
   return(result_list)

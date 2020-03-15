@@ -24,7 +24,8 @@ source("ModelImplementations/PredictionFunctions.R")
 
 
 set.seed(1234)
-n_predictions <- 25
+n_predictions <- 15
+remain_cores <- 1
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -84,12 +85,12 @@ for(f in 1:n_predictions){
                                      "newbie","channel")],TRUE, max_cases = 10)
   
   start_time <- Sys.time()
-  for(c in c("simple","frac","max")){
+  for(c in c("frac","max")){
     print(c)
     #Random Forest
-    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 300,n_features = 3,
-                                           criterion = c,remain_cores = 2)
-    pred <- predict_forest_df(forest,test)
+    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 3,
+                                           criterion = c,remain_cores = remain_cores)
+    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores2)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
@@ -105,9 +106,9 @@ for(f in 1:n_predictions){
             row.names = FALSE)
 
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 300, nrow(train), 5, 2, 100, parallel = TRUE,
-                          remain_cores = 1)
-  pred <- predict_forest_df(cts_forest, test)
+  cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
+                          remain_cores = remain_cores)
+  pred <- predict_forest_df(cts_forest, test,test, treatment_list, control, remain_cores =  remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
@@ -121,8 +122,8 @@ outcomes <- c()
 result_qini <- c()
 decile_treated <- c()
 for(model in c("random_forest","cts","sma rf","causal_forest")){
-  if(sum(model == c("tree","random_forest")) > 0){
-    for(c in c("frac")){
+  if(sum(model == c("random_forest")) > 0){
+    for(c in c("frac",'max')){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
@@ -178,6 +179,21 @@ colnames(random_df) <- c("percentile","values","model")
 result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])
+result_qini$model <- as.character(result_qini$model)
+decile_treated_df$Model <- as.character(decile_treated_df$Model)
+result_qini$percentile <- result_qini$percentile*100
+outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
+outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
+outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
+outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
+result_qini[result_qini$model == "cts","model"] <- "CTS"
+result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
+result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
+result_qini[result_qini$model == "sma rf","model"] <- "SMA"
+decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
+decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
+decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
+decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
@@ -186,3 +202,59 @@ visualize_qini_uplift(result_qini,type = "qini")
 visualize_qini_uplift(result_qini,type = "qini",errorbars = F,multiplot = F)
 visualize(outcome_df,n_treated = decile_treated_df,multiplot = T)
 visualize(outcome_df,multiplot = F,errorbars = F)
+
+
+temp_data <- outcome_df
+values <- c()
+percentile <- c()
+model <- c()
+for(f in 1:nrow(temp_data)){
+  if(length(values) == 0){
+    values <- temp_data[f,1:11]
+    percentile <- colnames(temp_data)[1:11]
+    model <- rep(temp_data[f,12],11)
+  } else{
+    values <- c(values,temp_data[f,1:11])
+    percentile <- c(percentile, colnames(temp_data)[1:11])
+    model <- c(model,rep(temp_data[f,12],11))
+  }
+}
+temp_df <- data.frame(cbind(values,percentile,model))
+rownames(temp_df) <- 1:nrow(temp_df)
+colnames(temp_df) <- c("values","percentile","model")
+for(c in 1:2){
+  temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
+}
+temp_df[,3] <- as.character(temp_df[,3]) 
+tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
+
+result_outcome <- tgc[,c("percentile","model","mean","sd")] 
+result_outcome[,c("mean","sd")] <- round(result_outcome[,c("mean","sd")]*100,2)
+
+mean_sd <- c()
+for(x in 1:nrow(result_outcome)){
+  temp_string <- paste(as.character(result_outcome[x,]$mean), " (",as.character(result_outcome[x,]$sd),")",sep = "")
+  mean_sd <- c(mean_sd,temp_string)
+}
+result_outcome[,c("mean","sd")] <- NULL
+result_outcome[,"mean_sd"] <- mean_sd
+test_df <- result_outcome[order(result_outcome$percentile,decreasing = T),][order(result_outcome$model),]
+write.csv(test_df,"ResultGraphs/Spend/results_conversion.csv")
+
+
+
+temp_df <- result_qini[result_qini$model != "random",]
+tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
+
+result_outcome <- tgc[,c("percentile","model","mean","sd")] 
+result_outcome[,c("mean","sd")] <- round(result_outcome[,c("mean","sd")],2)
+
+mean_sd <- c()
+for(x in 1:nrow(result_outcome)){
+  temp_string <- paste(as.character(result_outcome[x,]$mean), " (",as.character(result_outcome[x,]$sd),")",sep = "")
+  mean_sd <- c(mean_sd,temp_string)
+}
+result_outcome[,c("mean","sd")] <- NULL
+result_outcome[,"mean_sd"] <- mean_sd
+test_df <- result_outcome[order(result_outcome$percentile,decreasing = T),][order(result_outcome$model),]
+write.csv(test_df,"ResultGraphs/Spend/qini_conversion.csv")

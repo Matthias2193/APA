@@ -277,6 +277,9 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
     pc <- nrow(temp_data[(temp_data[,control] == 1) & (temp_data[,test_col] < test_case),])/
       nrow(temp_data[(temp_data[,control] == 1),])
   }
+  if(is.na(pc)){
+    pc = 0
+  }
   if(pc != 0){
     norm_factor <- norm_factor +nc/nrow(temp_data) * temp_function(c(pc,1-pc))
   }
@@ -286,18 +289,6 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
   }
   return(norm_factor)
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 #Functions to build the tree ----
 #Tree
@@ -309,7 +300,7 @@ Normalization <- function(a,temp_data,control,treatments,target,test_col,test_ca
 #control: the name of the control 'treatment'
 #test_list: a list of possible splits created by the 'set_up_tests' function
 #criterion: 1 for Rzp-tree, 2 for simple tree
-#alpha, l and g are parameters according to Rzepakowski paper (only necessare if criterion = 1)
+#alpha, l and g are parameters according to Rzepakowski paper
 build_tree_rzp <- function(data,depth,max_depth,treatment_list,target,control,test_list, alpha = 0.5,
                            l = c(0.5,0.5), g = matrix(0.25,nrow = 2, ncol = 2),
                            divergence = 'binary_KL_divergence',normalize = T,random = F,
@@ -412,12 +403,15 @@ parallel_build_random_rzp_forest <- function(train_data,treatment_list,response,
   registerDoParallel(cl)
   trees <- foreach(x=1:n_trees) %dopar% {
     source('ModelImplementations/RzepakowskiTree.R')
-    set.seed(x)
-    temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
-    temp_tree <- build_tree_rzp(data = temp_train_data,depth = 0,treatment_list = treatment_list, 
-                                test_list = test_list,target = response,control = control,
-                                divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
-                                max_depth = max_depth,random = T,n_features = n_features)
+    for(x in 1:100){
+      print(x)
+      set.seed(x)
+      temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
+      temp_tree <- build_tree_rzp(data = temp_train_data,depth = 0,treatment_list = treatment_list, 
+                                  test_list = test_list,target = response,control = control,
+                                  divergence = divergence,alpha = a, l = l, g=g,normalize = normalize,
+                                  max_depth = max_depth,random = T,n_features = n_features)
+    }
     return(temp_tree)
   }
   stopCluster(cl)
@@ -454,7 +448,10 @@ prune_tree <- function(tree, val_data, treatment_list, test_list, target,control
 }
 
 check_pruning <- function(node,val_data,target,control,treatments){
-  if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
+  if(is.null(temp_tree[["left"]]) || is.null(temp_tree[["left"]])){
+    return(node)
+  }
+  else if(node[['left']][['type']] == 'leaf' && node[['right']][['type']] == 'leaf'){
     return(pruning_helper(node,treatments))
   } else{
     if(node[['left']][['type']] != 'leaf'){
