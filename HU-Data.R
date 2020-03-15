@@ -94,7 +94,7 @@ response <- 'checkoutAmount'
 control <- 'X0'
 
 remain_cores <- 1
-n_predictions <- 25
+n_predictions <- 15
 treatment_list <- levels(new_hu_data$multi_treat)[2:7]
 n_treatments <- length(treatment_list)
 new_hu_data$multi_treat <- NULL
@@ -158,7 +158,7 @@ for(f in 1:n_predictions){
   
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
-                          remain_cores = remain_cores <- 1)
+                          remain_cores = remain_cores)
   pred <- predict_forest_df(cts_forest, test, treatment_list, control, remain_cores = remain_cores <- 1)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
@@ -245,6 +245,7 @@ decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "D
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
 print(difftime(Sys.time(),start_time,units = "mins"))
 
+outcome_boxplot(outcome_df)
 
 visualize_qini_uplift(result_qini,type = "qini")
 visualize_qini_uplift(result_qini,type = "qini",errorbars = F,multiplot = F)

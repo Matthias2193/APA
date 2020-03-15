@@ -227,6 +227,9 @@ cts_gain <- function(test_case, treatments, control, response, data, test_type, 
   # Calculate the percentage of samples in the left and right data set.
   p_left <- nrow(data_left)/nrow(data)
   p_right <- nrow(data_right)/nrow(data)
+  if(p_left == 0 || p_right == 0){
+    return(-1)
+  }
   # For each treatment and control calculate the expected outcome. If the expected outcome is greater than the
   # current max, it becomes the new max.
   for(t in c(treatments,control)){
@@ -247,21 +250,4 @@ cts_gain <- function(test_case, treatments, control, response, data, test_type, 
   }
   # Return the calculated gain.
   return(p_left * max_left + p_right * max_right - max_root)
-}
-
-check_split <- function(tree){
-  if(tree[["type"]] == "leaf"){
-    #print("Reached End")
-  } else if((tree[["left"]][["n_samples"]] + tree[["right"]][["n_samples"]]) == tree[["n_samples"]]){
-    # if(tree[["left"]][["n_samples"]] == 0){
-    #   print("Left no samples")
-    # } else if(tree[["right"]][["n_samples"]] == 0){
-    #   print("Right no samples")
-    # }
-    check_split(tree[["left"]])
-    check_split(tree[["right"]])
-  } else{
-    print("Subsamples don't sum up!")
-    break
-  }
 }
