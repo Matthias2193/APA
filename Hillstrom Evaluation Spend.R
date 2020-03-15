@@ -25,7 +25,7 @@ source("ModelImplementations/PredictionFunctions.R")
 
 set.seed(1234)
 n_predictions <- 25
-remain_cores <- 1
+remain_cores <- 6
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -101,19 +101,20 @@ for(f in 1:n_predictions){
             row.names = FALSE)
 
   # Separate Model Approach
-  pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf", mtry = 3, ntree = 300)
+  pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf", mtry = 3, ntree = 500)
   write.csv(pred_sma_rf, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
 
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = remain_cores)
-  pred <- predict_forest_df(cts_forest, test,test, treatment_list, control, remain_cores =  remain_cores)
+  pred <- predict_forest_df(forest = cts_forest,test_data = test, treatment_list =  treatment_list,
+                            control =  control, remain_cores =  remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
 }
-
+n_predictions <- 25
 
 # Here the predictions are evaluated. Additionally we look at the treatment distribution, to see which treatments
 # are assigned how often by the models.
