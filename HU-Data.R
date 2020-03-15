@@ -18,6 +18,9 @@ source('ModelImplementations/VisualizationHelper.R')
 source("ModelImplementations/PredictionFunctions.R")
 
 set.seed(1234)
+n_predictions <- 15
+remain_cores <- 1
+
 #Preprocessing---- 
 if(!file.exists("Data/hu-data.csv")){
   hu_data <- read.csv("Data/explore_mt.csv",sep = ";")
@@ -93,8 +96,7 @@ if(!file.exists("Data/hu-data.csv")){
 response <- 'checkoutAmount'
 control <- 'X0'
 
-remain_cores <- 1
-n_predictions <- 15
+
 treatment_list <- levels(new_hu_data$multi_treat)[2:7]
 n_treatments <- length(treatment_list)
 new_hu_data$multi_treat <- NULL
@@ -140,8 +142,8 @@ for(f in 1:n_predictions){
     print(c)
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 5,
-                                           criterion = c, min_split = 100, remain_cores = remain_cores <- 1)
-    pred <- predict_forest_df(forest,test, treatment_list, control, remain_cores = remain_cores <- 1)
+                                           criterion = c, min_split = 100, remain_cores = remain_cores)
+    pred <- predict_forest_df(forest,test, treatment_list, control, remain_cores = remain_cores)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
@@ -159,7 +161,7 @@ for(f in 1:n_predictions){
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = remain_cores)
-  pred <- predict_forest_df(cts_forest, test, treatment_list, control, remain_cores = remain_cores <- 1)
+  pred <- predict_forest_df(cts_forest, test, treatment_list, control, remain_cores = remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))

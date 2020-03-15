@@ -70,7 +70,7 @@ if(!file.exists("test.csv")){
 }
 folder <- "Predictions/Conversion/"
 # The training and prediction part
-for(f in 21:25){
+for(f in 1:n_predictions){
   
   # If n_predictions is > 1 as bootstrap sample is created
   if(n_predictions > 1){
@@ -100,15 +100,15 @@ for(f in 21:25){
   write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
   
-  # # Separate Model Approach
+  # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "class",treatment_list,control,test,"rf")
   write.csv(pred_sma_rf, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-  #
-  # # CTS
+  
+  # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = remain_cores)
-  pred <- predict_forest_df(cts_forest, test,remain_cores = remain_cores)
+  pred <- predict_forest_df(cts_forest, test, treatment_list, control,remain_cores = remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
   
   #Rzp

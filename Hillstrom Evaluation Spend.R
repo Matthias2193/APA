@@ -24,7 +24,7 @@ source("ModelImplementations/PredictionFunctions.R")
 
 
 set.seed(1234)
-n_predictions <- 15
+n_predictions <- 25
 remain_cores <- 1
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
@@ -90,7 +90,7 @@ for(f in 1:n_predictions){
     #Random Forest
     forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 3,
                                            criterion = c,remain_cores = remain_cores)
-    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores2)
+    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
 
