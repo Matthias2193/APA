@@ -223,9 +223,9 @@ new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max"
 new_outcome <- new_outcome[order(new_outcome$Model),]
 
 visualize_qini_uplift(new_qini,type = "qini")
-visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cummulated gained conversion")
-visualize(new_outcome,n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence"))],multiplot = T)
-visualize(new_outcome,multiplot = F,errorbars = F)
+visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cummulated Gained Conversion")
+visualize(new_outcome,ylabel = "Expected Converion Probability per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),],multiplot = T)
+visualize(new_outcome,ylabel = "Expected Converion Probability per Person",multiplot = F,errorbars = F)
 
 outcome_boxplot(new_outcome,"Expected Conversion Probability per Customer")
 

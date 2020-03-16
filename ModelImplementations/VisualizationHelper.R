@@ -3,7 +3,7 @@ library("gridExtra")
 # This method visualizes the incremental expected outcome for one or more models.
 # If there are multiple predictions for each model, the function aggregates those predictions and can create
 # errorbars to show the confidence interval of the predictions.
-visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FALSE){
+visualize <- function(temp_data,ylabel,n_treated = NULL,errorbars = TRUE,multiplot = FALSE){
   values <- c()
   percentile <- c()
   model <- c()
@@ -33,7 +33,7 @@ visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FA
     geom_point() +
     scale_x_continuous(name="Percent assigned according to Model Prediction", 
                        breaks = seq(0,100,10)) +
-    ylab("Expected Outcome per Person") +
+    ylab(ylabel) +
     {if(multiplot) facet_wrap(~Model)} +
     {if(multiplot) theme(legend.position = "none")} 
     #ggtitle("Mean and Confidence Interval for Expected Outcome")
