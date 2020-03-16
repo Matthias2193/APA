@@ -202,26 +202,29 @@ outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
 outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
 outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
 outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
+outcome_df[outcome_df$Model == "rzp_EucDistance","Model"] <- "Rzp-ED"
 result_qini[result_qini$model == "cts","model"] <- "CTS"
 result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
 result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
 result_qini[result_qini$model == "sma rf","model"] <- "SMA"
+result_qini[result_qini$model == "rzp_EucDistance","model"] <- "Rzp-ED"
 decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
 decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
 decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
+decile_treated_df[decile_treated_df$Model == "rzp_EucDistance","Model"] <- "Rzp-ED"
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
-new_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max")),]
+new_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),]
 new_qini <- new_qini[order(new_qini$model),]
 colnames(new_qini) <- c("percentile","values","Model")
-new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max")),]
+new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),]
 new_outcome <- new_outcome[order(new_outcome$Model),]
 
 visualize_qini_uplift(new_qini,type = "qini")
 visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cummulated gained conversion")
-visualize(new_outcome,n_treated = decile_treated_df,multiplot = T)
+visualize(new_outcome,n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence"))],multiplot = T)
 visualize(new_outcome,multiplot = F,errorbars = F)
 
 outcome_boxplot(new_outcome,"Expected Conversion Probability per Customer")
