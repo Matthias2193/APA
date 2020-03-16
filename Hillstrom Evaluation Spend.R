@@ -24,7 +24,7 @@ source("ModelImplementations/PredictionFunctions.R")
 
 
 set.seed(1234)
-n_predictions <- 10
+n_predictions <- 25
 remain_cores <- 6
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
@@ -93,18 +93,18 @@ for(f in 1:n_predictions){
     pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
-
+  
   # Causal Forest
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
                                                 s_rule = "TOT", s_true = T)
   write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-
+  
   # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf", mtry = 3, ntree = 500)
   write.csv(pred_sma_rf, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-
+  
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
                           remain_cores = remain_cores)
@@ -114,7 +114,6 @@ for(f in 1:n_predictions){
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
 }
-n_predictions <- 25
 
 # Here the predictions are evaluated. Additionally we look at the treatment distribution, to see which treatments
 # are assigned how often by the models.
@@ -190,15 +189,19 @@ decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "D
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
 print(difftime(Sys.time(),start_time,units = "mins"))
 
-outcome_df <- outcome_df[order(outcome_df$Model),]
-result_qini <- result_qini[order(result_qini$model),]
-new_result_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max")),]
+
+new_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max")),]
+new_qini <- new_qini[order(new_qini$model),]
+colnames(new_qini) <- c("percentile","values","Model")
+new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max")),]
+new_outcome <- new_outcome[order(new_outcome$Model),]
+
 #Visualize the results
-visualize_qini_uplift(result_qini,type = "qini")
-visualize_qini_uplift(new_result_qini,type = "qini",errorbars = F,multiplot = F)
-visualize(outcome_df,n_treated = decile_treated_df,multiplot = T)
-visualize(outcome_df[outcome_df$Model != "random_forest_max",],multiplot = F,errorbars = F)
-outcome_boxplot(outcome_df[outcome_df$Model != "random_forest_max",])
+visualize_qini_uplift(new_qini,type = "qini")
+visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cummulated gain spend")
+visualize(new_outcome,n_treated = decile_treated_df[decile_treated_df$Model != "random_forest_max",],multiplot = T)
+visualize(new_outcome,multiplot = F,errorbars = F)
+outcome_boxplot(new_outcome,"Expected Amount Spend per Customer")
 
 temp_data <- outcome_df
 values <- c()

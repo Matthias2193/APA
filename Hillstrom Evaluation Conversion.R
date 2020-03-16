@@ -193,23 +193,38 @@ for(c in 1:11){
 outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
-colnames(result_qini) <- c("percentile","values","model")
-#Add random line to qini
-start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
-finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
-qini_random <- seq(start,finish,by = (finish-start)/10)
-random_df <- cbind(seq(0,1,by=0.1),qini_random,"random")
-colnames(random_df) <- c("percentile","values","model")
-result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])
+result_qini$model <- as.character(result_qini$model)
+decile_treated_df$Model <- as.character(decile_treated_df$Model)
+result_qini$percentile <- result_qini$percentile*100
+outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
+outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
+outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
+outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
+result_qini[result_qini$model == "cts","model"] <- "CTS"
+result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
+result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
+result_qini[result_qini$model == "sma rf","model"] <- "SMA"
+decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
+decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
+decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
+decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
-visualize_qini_uplift(result_qini,type = "qini")
-visualize_qini_uplift(result_qini,type = "qini",errorbars = F,multiplot = F)
-visualize(outcome_df,n_treated = decile_treated_df,multiplot = T)
-visualize(outcome_df,multiplot = F,errorbars = F)
+new_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max")),]
+new_qini <- new_qini[order(new_qini$model),]
+colnames(new_qini) <- c("percentile","values","Model")
+new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max")),]
+new_outcome <- new_outcome[order(new_outcome$Model),]
+
+visualize_qini_uplift(new_qini,type = "qini")
+visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cummulated gained conversion")
+visualize(new_outcome,n_treated = decile_treated_df,multiplot = T)
+visualize(new_outcome,multiplot = F,errorbars = F)
+
+outcome_boxplot(new_outcome,"Expected Conversion Probability per Customer")
 
 temp_data <- outcome_df
 values <- c()

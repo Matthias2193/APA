@@ -20,21 +20,21 @@ visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FA
   }
   temp_df <- data.frame(cbind(values,percentile,model))
   rownames(temp_df) <- 1:nrow(temp_df)
-  colnames(temp_df) <- c("values","percentile","model")
+  colnames(temp_df) <- c("values","percentile","Model")
   for(c in 1:2){
     temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
   }
   temp_df[,3] <- as.character(temp_df[,3]) 
-  tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
+  tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","Model"))
   pd <- position_dodge(1) # move them .05 to the left and right
-  p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+  p1 <- ggplot(tgc, aes(x=percentile, y=mean,color=Model)) + 
   {if(errorbars && sum(is.na(tgc)) == 0) geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci), position = pd)} +
     geom_line() +
     geom_point() +
     scale_x_continuous(name="Percent assigned according to Model Prediction", 
                        breaks = seq(0,100,10)) +
     ylab("Expected Outcome per Person") +
-    {if(multiplot) facet_wrap(~model)} +
+    {if(multiplot) facet_wrap(~Model)} +
     {if(multiplot) theme(legend.position = "none")} 
     #ggtitle("Mean and Confidence Interval for Expected Outcome")
   if(!is.null(n_treated)){
@@ -56,7 +56,7 @@ visualize <- function(temp_data,n_treated = NULL,errorbars = TRUE,multiplot = FA
   }
 }
 
-outcome_boxplot <- function(temp_data){
+outcome_boxplot <- function(temp_data,ylabel){
   values <- c()
   percentile <- c()
   model <- c()
@@ -71,50 +71,53 @@ outcome_boxplot <- function(temp_data){
       model <- c(model,rep(temp_data[f,12],11))
     }
   }
-  temp_df <- data.frame(cbind(values,percentile,model))
+  new_percentile <- c()
+  for(p in percentile){
+    new_percentile <- c(new_percentile, paste(as.character(p),"% treated according to model prediction",sep=""))
+  }
+  temp_df <- data.frame(cbind(values,new_percentile,model))
   rownames(temp_df) <- 1:nrow(temp_df)
   colnames(temp_df) <- c("values","percentile","model")
-  for(c in 1:2){
-    temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
-  }
+  temp_df[,1] <- as.numeric(as.character(temp_df[,1]))
+  temp_df[,2] <- as.character(temp_df[,2]) 
   temp_df[,3] <- as.character(temp_df[,3]) 
-  p1 <- ggplot(temp_df, aes(y=values, x=model,fill=model)) + 
-    geom_boxplot()  +
+  p1 <- ggplot(temp_df[temp_df$percentile > 0,], aes(y=values, x=model,color=model)) + 
+    geom_boxplot() +
+      ylab(ylabel) +
+      xlab("") +
     facet_wrap(~percentile)
+  p1 <- p1 + theme(
+    axis.text.x = element_blank()
+  )
   print(p1)
 }
 
-visualize_qini_uplift <- function(temp_df,type,multiple_predictions = TRUE,errorbars = TRUE,multiplot=TRUE){
-  # start <- mean(temp_df[temp_df$percentile == 0,"values"])
-  # finish <- mean(temp_df[temp_df$percentile == 100,"values"])
-  # slope = (finish-start)/100
-  # qini_random <- seq(start,finish,by = (finish-start)/10)
-  # percentile <- seq(0,100,10)
-  # n <- rep(1,11)
+visualize_qini_uplift <- function(temp_data,type,ylabel,multiple_predictions = TRUE,errorbars = TRUE,multiplot=TRUE){
+  values <- c()
+  percentile <- c()
+  model <- c()
+  temp_df <- temp_data
   if(multiple_predictions){
-    tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
-    # rand_df <- data.frame(percentile,rep("Random",11),n,qini_random,rep(0,11),rep(0,11),rep(0,11))
-    # colnames(rand_df) <- colnames(tgc)
-    # tgc <- rbind(tgc,rand_df)
+    tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","Model"))
     if(errorbars){
-      print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+      print(ggplot(tgc, aes(x=percentile, y=mean,color=Model)) + 
               geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci)) +
               geom_line() +
               geom_point() +
               scale_x_continuous(name="Percent assigned according to Model Prediction", 
                                  limits=c(0, 100), breaks = seq(0,100,10)) +
-              ylab(paste("Cummulated",type,sep = " ")) +
-              {if(multiplot) facet_wrap(~model)} +
+              ylab(ylabel) +
+              {if(multiplot) facet_wrap(~Model)} +
               {if(multiplot) theme(legend.position = "none")}) 
               #ggtitle(paste("Mean and Confidence Interval for",type,"score",sep=" ")))
     } else{
-      print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
+      print(ggplot(tgc, aes(x=percentile, y=mean,color=Model)) + 
               geom_line() +
               geom_point() +
               scale_x_continuous(name="Percent assigned according to Model Prediction", 
                                  limits=c(0, 100), breaks = seq(0,100,10)) +
-              ylab(paste("Cummulated",type,sep = " ")) +
-              {if(multiplot) facet_wrap(~model)} +
+              ylab(ylabel) +
+              {if(multiplot) facet_wrap(~Model)} +
               {if(multiplot) theme(legend.position = "none")})
               #ggtitle(paste("Mean",type,"score",sep=" ")))
     }
