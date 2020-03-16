@@ -24,7 +24,7 @@ source("ModelImplementations/PredictionFunctions.R")
 
 
 set.seed(1234)
-n_predictions <- 25
+n_predictions <- 10
 remain_cores <- 6
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
@@ -171,13 +171,6 @@ outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
 colnames(result_qini) <- c("percentile","values","model")
-#Add random line to qini
-start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
-finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
-qini_random <- seq(start,finish,by = (finish-start)/10)
-random_df <- cbind(seq(0,1,by=0.1),qini_random,"random")
-colnames(random_df) <- c("percentile","values","model")
-result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])
 result_qini$model <- as.character(result_qini$model)
@@ -197,13 +190,15 @@ decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "D
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
 print(difftime(Sys.time(),start_time,units = "mins"))
 
-
+outcome_df <- outcome_df[order(outcome_df$Model),]
+result_qini <- result_qini[order(result_qini$model),]
+new_result_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max")),]
 #Visualize the results
 visualize_qini_uplift(result_qini,type = "qini")
-visualize_qini_uplift(result_qini,type = "qini",errorbars = F,multiplot = F)
+visualize_qini_uplift(new_result_qini,type = "qini",errorbars = F,multiplot = F)
 visualize(outcome_df,n_treated = decile_treated_df,multiplot = T)
-visualize(outcome_df,multiplot = F,errorbars = F)
-
+visualize(outcome_df[outcome_df$Model != "random_forest_max",],multiplot = F,errorbars = F)
+outcome_boxplot(outcome_df[outcome_df$Model != "random_forest_max",])
 
 temp_data <- outcome_df
 values <- c()

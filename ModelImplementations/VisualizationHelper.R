@@ -78,19 +78,24 @@ outcome_boxplot <- function(temp_data){
     temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
   }
   temp_df[,3] <- as.character(temp_df[,3]) 
-  print(ggplot(temp_df, aes(y=values, x=model,color=model)) + 
-    geom_boxplot() +
-    facet_wrap(~percentile)) 
-  
+  p1 <- ggplot(temp_df, aes(y=values, x=model,fill=model)) + 
+    geom_boxplot()  +
+    facet_wrap(~percentile)
+  print(p1)
 }
 
-visualize_qini_uplift <- function(temp_data,type,multiple_predictions = TRUE,errorbars = TRUE,multiplot=TRUE){
-  values <- c()
-  percentile <- c()
-  model <- c()
-  temp_df <- temp_data
+visualize_qini_uplift <- function(temp_df,type,multiple_predictions = TRUE,errorbars = TRUE,multiplot=TRUE){
+  # start <- mean(temp_df[temp_df$percentile == 0,"values"])
+  # finish <- mean(temp_df[temp_df$percentile == 100,"values"])
+  # slope = (finish-start)/100
+  # qini_random <- seq(start,finish,by = (finish-start)/10)
+  # percentile <- seq(0,100,10)
+  # n <- rep(1,11)
   if(multiple_predictions){
     tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
+    # rand_df <- data.frame(percentile,rep("Random",11),n,qini_random,rep(0,11),rep(0,11),rep(0,11))
+    # colnames(rand_df) <- colnames(tgc)
+    # tgc <- rbind(tgc,rand_df)
     if(errorbars){
       print(ggplot(tgc, aes(x=percentile, y=mean,color=model)) + 
               geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci)) +
