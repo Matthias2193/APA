@@ -18,7 +18,7 @@ source('ModelImplementations/VisualizationHelper.R')
 source("ModelImplementations/PredictionFunctions.R")
 
 set.seed(1234)
-n_predictions <- 15
+n_predictions <- 25
 remain_cores <- 1
 
 #Preprocessing---- 
@@ -81,7 +81,7 @@ if(!file.exists("Data/hu-data.csv")){
   importance_df$Temp <- NULL
   importance$importance <- importance_df
   plot(importance)
-  new_hu_data <- hu_data[,c(colnames(new_hu_data)[1:2],rownames(importance$importance)[1:26],"DeviceCategory")]
+  new_hu_data <- hu_data[,c(colnames(new_hu_data)[1:2],rownames(importance$importance)[1:9],"DeviceCategory")]
   
   for(x in levels(new_hu_data$multi_treat)){
     new_hu_data[x] <- ifelse(new_hu_data$multi_treat == x ,1,0)
@@ -89,7 +89,7 @@ if(!file.exists("Data/hu-data.csv")){
   
   write.csv(new_hu_data, "Data/hu-data.csv", row.names = FALSE)
 } else{
-  new_hu_data <- read.csv("Data/hu-data.csv")
+  new_hu_data <- read.csv("Data/hu-data2.csv")
 }
 
 # Model Building----
@@ -105,26 +105,26 @@ feature_list <- setdiff(colnames(new_hu_data),c(treatment_list,control,response)
 #Create and save the bootrap samples and train test splits. This is done so, if we want to change something
 #on one model we can retrain and test it on the sample bootstrap samples in order for fair comparison with
 #the other models
-if(!file.exists("bootstrap_hu.csv")){
+if(!file.exists("bootstrap_hu2.csv")){
   bootstrap_idx <- c()
   for(f in 1:n_predictions){
     bootstrap_idx <- cbind(bootstrap_idx,sample(nrow(new_hu_data),nrow(new_hu_data),replace = TRUE))
   }
   bootstrap_df <- data.frame(bootstrap_idx)
-  write.csv(bootstrap_idx,"bootstrap_hu.csv")
+  write.csv(bootstrap_idx,"bootstrap_hu2.csv")
 } else{
-  bootstrap_df <- read.csv("bootstrap_hu.csv")
+  bootstrap_df <- read.csv("bootstrap_hu2.csv")
 }
-if(!file.exists("test_hu.csv")){
+if(!file.exists("test_hu2.csv")){
   test_idx <- c()
   for(f in 1:n_predictions){
     hu_data <- new_hu_data[bootstrap_df[,f],]
     test_idx <- cbind(test_idx,createDataPartition(y = hu_data[ , response], p=0.2, list = FALSE))
   }
   test_df <- data.frame(test_idx)
-  write.csv(test_idx,"test_hu.csv")
+  write.csv(test_idx,"test_hu2.csv")
 } else{
-  test_df <- read.csv("test_hu.csv")
+  test_df <- read.csv("test_hu2.csv")
 }
 
 folder <- "Predictions/HU-Data/"
