@@ -62,13 +62,13 @@ outcome_boxplot <- function(temp_data,ylabel){
   model <- c()
   for(f in 1:nrow(temp_data)){
     if(length(values) == 0){
-      values <- temp_data[f,1:11]
-      percentile <- colnames(temp_data)[1:11]
-      model <- rep(temp_data[f,12],11)
+      values <- temp_data[f,1:10]
+      percentile <- colnames(temp_data)[1:10]
+      model <- rep(temp_data[f,11],10)
     } else{
-      values <- c(values,temp_data[f,1:11])
-      percentile <- c(percentile, colnames(temp_data)[1:11])
-      model <- c(model,rep(temp_data[f,12],11))
+      values <- c(values,temp_data[f,1:10])
+      percentile <- c(percentile, colnames(temp_data)[1:10])
+      model <- c(model,rep(temp_data[f,11],10))
     }
   }
   new_percentile <- c()
@@ -77,11 +77,12 @@ outcome_boxplot <- function(temp_data,ylabel){
   }
   temp_df <- data.frame(cbind(values,new_percentile,model))
   rownames(temp_df) <- 1:nrow(temp_df)
-  colnames(temp_df) <- c("values","percentile","model")
+  colnames(temp_df) <- c("values","percentile","Model")
   temp_df[,1] <- as.numeric(as.character(temp_df[,1]))
   temp_df[,2] <- as.character(temp_df[,2]) 
   temp_df[,3] <- as.character(temp_df[,3]) 
-  p1 <- ggplot(temp_df[temp_df$percentile > 0,], aes(y=values, x=model,color=model)) + 
+  temp_df <- transform(temp_df, percentile=factor(percentile,levels = unique(temp_df$percentile)))
+  p1 <- ggplot(temp_df, aes(y=values, x=Model,color=Model)) + 
     geom_boxplot() +
       ylab(ylabel) +
       xlab("") +
