@@ -123,7 +123,7 @@ result_qini <- c()
 decile_treated <- c()
 for(model in c("random_forest","cts","sma rf","causal_forest")){
   if(sum(model == c("random_forest")) > 0){
-    for(c in c("frac",'max')){
+    for(c in c("frac",'max',"absfrac",'absmax')){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
@@ -177,31 +177,32 @@ decile_treated_df$Model <- as.character(decile_treated_df$Model)
 result_qini$percentile <- result_qini$percentile*100
 outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
 outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
-outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
+outcome_df[outcome_df$Model == "random_forest_absfrac","Model"] <- "DOM"
 outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
 result_qini[result_qini$model == "cts","model"] <- "CTS"
 result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
-result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
+result_qini[result_qini$model == "random_forest_absfrac","model"] <- "DOM"
 result_qini[result_qini$model == "sma rf","model"] <- "SMA"
 decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
 decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
-decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
+decile_treated_df[decile_treated_df$Model == "random_forest_absfrac","Model"] <- "DOM"
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
+decile_treated_df$Decile <- decile_treated_df$Decile*10
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
-new_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max")),]
+new_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max","random_forest_absmax")),]
 new_qini <- new_qini[order(new_qini$model),]
 colnames(new_qini) <- c("percentile","values","Model")
-new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max")),]
+new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max","random_forest_absmax")),]
 new_outcome <- new_outcome[order(new_outcome$Model),]
 
 #Visualize the results
 visualize_qini_uplift(new_qini,type = "qini")
-visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cummulated Gained Spend")
-visualize(new_outcome,ylabel = "Expected Amount Spend per Person",n_treated = decile_treated_df[decile_treated_df$Model != "random_forest_max",],multiplot = T)
+visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cumulative Gained Spend")
+visualize(new_outcome,ylabel = "Expected Amount Spend per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random_forest_absmax","random_forest_max")),],multiplot = T)
 visualize(new_outcome,ylabel = "Expected Amount Spend per Person",multiplot = F,errorbars = F)
-outcome_boxplot(new_outcome,"Expected Amount Spend per Customer")
+outcome_boxplot(new_outcome[,2:12],"Expected Amount Spend per Customer")
 
 temp_data <- outcome_df
 values <- c()
