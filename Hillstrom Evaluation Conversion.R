@@ -195,6 +195,8 @@ decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])
+result_qini <- result_qini[,1:3]
+colnames(result_qini) <- c("percentile","values","model")
 result_qini$model <- as.character(result_qini$model)
 decile_treated_df$Model <- as.character(decile_treated_df$Model)
 result_qini$percentile <- result_qini$percentile*100
@@ -223,11 +225,11 @@ new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max"
 new_outcome <- new_outcome[order(new_outcome$Model),]
 
 visualize_qini_uplift(new_qini,type = "qini")
-visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cummulated Gained Conversion")
-visualize(new_outcome,ylabel = "Expected Converion Probability per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),],multiplot = T)
-visualize(new_outcome,ylabel = "Expected Converion Probability per Person",multiplot = F,errorbars = F)
+visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cumulative Gained Conversion")
+visualize(new_outcome,ylabel = "Expected Conversion Probability per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),],multiplot = T)
+visualize(new_outcome,ylabel = "Expected Conversion Probability per Person",multiplot = F,errorbars = F)
 
-outcome_boxplot(new_outcome,"Expected Conversion Probability per Customer")
+outcome_boxplot(new_outcome[,2:12],"Expected Conversion Probability per Customer")
 
 temp_data <- outcome_df
 values <- c()
