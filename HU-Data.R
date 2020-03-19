@@ -81,15 +81,16 @@ if(!file.exists("Data/hu-data.csv")){
   importance_df$Temp <- NULL
   importance$importance <- importance_df
   plot(importance)
-  new_hu_data <- hu_data[,c(colnames(new_hu_data)[1:2],rownames(importance$importance)[1:9],"DeviceCategory")]
+  new_hu_data <- hu_data[,c(colnames(new_hu_data)[1:2],rownames(importance$importance)[1:26],"DeviceCategory")]
   
   for(x in levels(new_hu_data$multi_treat)){
     new_hu_data[x] <- ifelse(new_hu_data$multi_treat == x ,1,0)
   }
   
   write.csv(new_hu_data, "Data/hu-data.csv", row.names = FALSE)
+  new_hu_data <- read.csv("Data/hu-data.csv")
 } else{
-  new_hu_data <- read.csv("Data/hu-data2.csv")
+  new_hu_data <- read.csv("Data/hu-data.csv")
 }
 
 # Model Building----
@@ -105,26 +106,26 @@ feature_list <- setdiff(colnames(new_hu_data),c(treatment_list,control,response)
 #Create and save the bootrap samples and train test splits. This is done so, if we want to change something
 #on one model we can retrain and test it on the sample bootstrap samples in order for fair comparison with
 #the other models
-if(!file.exists("bootstrap_hu2.csv")){
+if(!file.exists("bootstrap_hu.csv")){
   bootstrap_idx <- c()
   for(f in 1:n_predictions){
     bootstrap_idx <- cbind(bootstrap_idx,sample(nrow(new_hu_data),nrow(new_hu_data),replace = TRUE))
   }
   bootstrap_df <- data.frame(bootstrap_idx)
-  write.csv(bootstrap_idx,"bootstrap_hu2.csv")
+  write.csv(bootstrap_idx,"bootstrap_hu.csv")
 } else{
-  bootstrap_df <- read.csv("bootstrap_hu2.csv")
+  bootstrap_df <- read.csv("bootstrap_hu.csv")
 }
-if(!file.exists("test_hu2.csv")){
+if(!file.exists("test_hu.csv")){
   test_idx <- c()
   for(f in 1:n_predictions){
     hu_data <- new_hu_data[bootstrap_df[,f],]
     test_idx <- cbind(test_idx,createDataPartition(y = hu_data[ , response], p=0.2, list = FALSE))
   }
   test_df <- data.frame(test_idx)
-  write.csv(test_idx,"test_hu2.csv")
+  write.csv(test_idx,"test_hu.csv")
 } else{
-  test_df <- read.csv("test_hu2.csv")
+  test_df <- read.csv("test_hu.csv")
 }
 
 folder <- "Predictions/HU-Data/"
@@ -159,7 +160,7 @@ for(f in 1:n_predictions){
             row.names = FALSE)
   
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
+  cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 10, parallel = TRUE,
                           remain_cores = remain_cores)
   pred <- predict_forest_df(cts_forest, test, treatment_list, control, remain_cores = remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
@@ -233,23 +234,88 @@ result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])
 result_qini$model <- as.character(result_qini$model)
 decile_treated_df$model <- as.character(decile_treated_df$model)
+decile_treated_df$PercTreated <- decile_treated_df$PercTreated*100
+result_qini$percentile <- result_qini$percentile*100
 outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
 outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
-outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
+outcome_df[outcome_df$Model == "random_forest_absfrac","Model"] <- "DOM"
 outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
 result_qini[result_qini$model == "cts","model"] <- "CTS"
 result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
-result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
+result_qini[result_qini$model == "random_forest_absfrac","model"] <- "DOM"
 result_qini[result_qini$model == "sma rf","model"] <- "SMA"
 decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
 decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
-decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
+decile_treated_df[decile_treated_df$Model == "random_forest_absfrac","Model"] <- "DOM"
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
+decile_treated_df$Decile <- decile_treated_df$Decile*10
 print(difftime(Sys.time(),start_time,units = "mins"))
 
-outcome_boxplot(outcome_df)
 
-visualize_qini_uplift(result_qini,type = "qini")
-visualize_qini_uplift(result_qini,type = "qini",errorbars = F,multiplot = F)
-visualize(outcome_df,n_treated = decile_treated_df,multiplot = T)
-visualize(outcome_df,multiplot = F,errorbars = F)
+new_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max","random_forest_absmax")),]
+new_qini <- new_qini[order(new_qini$model),]
+colnames(new_qini) <- c("percentile","values","Model")
+new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max","random_forest_absmax")),]
+new_outcome <- new_outcome[order(new_outcome$Model),]
+
+#Visualize the results
+visualize_qini_uplift(new_qini,type = "qini")
+visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cumulative Gained  Checkout Amount")
+visualize(new_outcome,ylabel = "Expected Checkout Amount per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random_forest_absmax","random_forest_max")),],multiplot = T)
+visualize(new_outcome,ylabel = "Expected Checkout Amount per Person",multiplot = F,errorbars = F)
+outcome_boxplot(new_outcome[,2:12],"Expected Checkout Amount per Customer")
+
+temp_data <- outcome_df
+values <- c()
+percentile <- c()
+model <- c()
+for(f in 1:nrow(temp_data)){
+  if(length(values) == 0){
+    values <- temp_data[f,1:11]
+    percentile <- colnames(temp_data)[1:11]
+    model <- rep(temp_data[f,12],11)
+  } else{
+    values <- c(values,temp_data[f,1:11])
+    percentile <- c(percentile, colnames(temp_data)[1:11])
+    model <- c(model,rep(temp_data[f,12],11))
+  }
+}
+temp_df <- data.frame(cbind(values,percentile,model))
+rownames(temp_df) <- 1:nrow(temp_df)
+colnames(temp_df) <- c("values","percentile","model")
+for(c in 1:2){
+  temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
+}
+temp_df[,3] <- as.character(temp_df[,3]) 
+tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
+
+result_outcome <- tgc[,c("percentile","model","mean","sd")] 
+result_outcome[,c("mean","sd")] <- round(result_outcome[,c("mean","sd")]*100,2)
+
+mean_sd <- c()
+for(x in 1:nrow(result_outcome)){
+  temp_string <- paste(as.character(result_outcome[x,]$mean), " (",as.character(result_outcome[x,]$sd),")",sep = "")
+  mean_sd <- c(mean_sd,temp_string)
+}
+result_outcome[,c("mean","sd")] <- NULL
+result_outcome[,"mean_sd"] <- mean_sd
+test_df <- result_outcome[order(result_outcome$percentile,decreasing = T),][order(result_outcome$model),]
+write.csv(test_df,"ResultGraphs/Spend/results_conversion.csv")
+
+
+
+temp_df <- result_qini[result_qini$model != "random",]
+tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
+
+result_outcome <- tgc[,c("percentile","model","mean","sd")] 
+result_outcome[,c("mean","sd")] <- round(result_outcome[,c("mean","sd")],2)
+
+mean_sd <- c()
+for(x in 1:nrow(result_outcome)){
+  temp_string <- paste(as.character(result_outcome[x,]$mean), " (",as.character(result_outcome[x,]$sd),")",sep = "")
+  mean_sd <- c(mean_sd,temp_string)
+}
+result_outcome[,c("mean","sd")] <- NULL
+result_outcome[,"mean_sd"] <- mean_sd
+test_df <- result_outcome[order(result_outcome$percentile,decreasing = T),][order(result_outcome$model),]
+write.csv(test_df,"ResultGraphs/Spend/qini_conversion.csv")
