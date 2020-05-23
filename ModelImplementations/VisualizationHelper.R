@@ -124,6 +124,8 @@ visualize_qini_uplift <- function(temp_data,type,ylabel,multiple_predictions = T
               scale_x_continuous(name="Percent assigned according to Model Prediction", 
                                  limits=c(0, 100), breaks = seq(0,100,10)) +
               ylab(ylabel) +
+              theme(axis.text = element_text(size=14),
+                    axis.title = element_text(size=16)) +
               {if(multiplot) facet_wrap(~Model)} +
               {if(multiplot) theme(legend.position = "none")})
               #ggtitle(paste("Mean",type,"score",sep=" ")))
