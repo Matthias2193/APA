@@ -223,17 +223,11 @@ outcome_df[,12] <- as.character(outcome_df[,12])
 decile_treated_df[,1] <- as.numeric(as.character(decile_treated_df[,1]))
 decile_treated_df[,3] <- as.numeric(as.character(decile_treated_df[,3]))
 colnames(result_qini) <- c("percentile","values","model")
-#Add random line to qini
-start <- mean(result_qini[result_qini$percentile == 0.0,"values"])
-finish <- mean(result_qini[result_qini$percentile == 1.0,"values"])
-qini_random <- seq(start,finish,by = (finish-start)/10)
-random_df <- cbind(seq(0,1,by=0.1),qini_random,"random")
 colnames(random_df) <- c("percentile","values","model")
-result_qini <- rbind(result_qini,random_df)
 result_qini[,2] <- as.numeric(result_qini[,2])
 result_qini[,1] <- as.numeric(result_qini[,1])
 result_qini$model <- as.character(result_qini$model)
-decile_treated_df$model <- as.character(decile_treated_df$model)
+decile_treated_df$Model <- as.character(decile_treated_df$Model)
 decile_treated_df$PercTreated <- decile_treated_df$PercTreated*100
 result_qini$percentile <- result_qini$percentile*100
 outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
@@ -246,7 +240,7 @@ result_qini[result_qini$model == "random_forest_absfrac","model"] <- "DOM"
 result_qini[result_qini$model == "sma rf","model"] <- "SMA"
 decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
 decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
-decile_treated_df[decile_treated_df$Model == "random_forest_absfrac","Model"] <- "DOM"
+decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
 decile_treated_df$Decile <- decile_treated_df$Decile*10
 print(difftime(Sys.time(),start_time,units = "mins"))
@@ -259,7 +253,6 @@ new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max"
 new_outcome <- new_outcome[order(new_outcome$Model),]
 
 #Visualize the results
-visualize_qini_uplift(new_qini,type = "qini")
 visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cumulative Gained  Checkout Amount")
 visualize(new_outcome,ylabel = "Expected Checkout Amount per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random_forest_absmax","random_forest_max")),],multiplot = T)
 visualize(new_outcome,ylabel = "Expected Checkout Amount per Person",multiplot = F,errorbars = F)
@@ -300,7 +293,7 @@ for(x in 1:nrow(result_outcome)){
 result_outcome[,c("mean","sd")] <- NULL
 result_outcome[,"mean_sd"] <- mean_sd
 test_df <- result_outcome[order(result_outcome$percentile,decreasing = T),][order(result_outcome$model),]
-write.csv(test_df,"ResultGraphs/Spend/results_conversion.csv")
+write.csv(test_df,"ResultGraphs/Spend/results_conversion4.csv")
 
 
 
@@ -318,4 +311,4 @@ for(x in 1:nrow(result_outcome)){
 result_outcome[,c("mean","sd")] <- NULL
 result_outcome[,"mean_sd"] <- mean_sd
 test_df <- result_outcome[order(result_outcome$percentile,decreasing = T),][order(result_outcome$model),]
-write.csv(test_df,"ResultGraphs/Spend/qini_conversion.csv")
+write.csv(test_df,"ResultGraphs/Spend/qini_conversion4.csv")
