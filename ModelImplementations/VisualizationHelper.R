@@ -34,6 +34,8 @@ visualize <- function(temp_data,ylabel,n_treated = NULL,errorbars = TRUE,multipl
     scale_x_continuous(name="Percent assigned according to Model Prediction", 
                        breaks = seq(0,100,10)) +
     ylab(ylabel) +
+    theme(axis.text = element_text(size=14),
+          axis.title = element_text(size=16)) +
     {if(multiplot) facet_wrap(~Model)} +
     {if(multiplot) theme(legend.position = "none")} 
     #ggtitle("Mean and Confidence Interval for Expected Outcome")
@@ -47,7 +49,8 @@ visualize <- function(temp_data,ylabel,n_treated = NULL,errorbars = TRUE,multipl
                           breaks = seq(0,100,10)) +
       scale_y_continuous(name="Treatment Percentage", 
                           breaks = seq(0,100,10)) +
-      
+      theme(axis.text = element_text(size=14),
+            axis.title = element_text(size=16)) +
       facet_wrap(~Model) 
     print(p1)
     print(p2)
@@ -88,6 +91,9 @@ outcome_boxplot <- function(temp_data,ylabel){
       xlab("") +
     facet_wrap(~percentile)
   p1 <- p1 + theme(
+    axis.text = element_text(size=14),
+    axis.title = element_text(size=16),
+    axis.ticks.x=element_blank(),
     axis.text.x = element_blank()
   )
   print(p1)
@@ -129,6 +135,8 @@ visualize_qini_uplift <- function(temp_data,type,ylabel,multiple_predictions = T
             geom_point() +
             scale_x_continuous(name="Percent assigned according to Model Prediction", 
                                limits=c(0, 100), breaks = seq(0,100,10)) +
+            theme(axis.text = element_text(size=14),
+                  axis.title = element_text(size=16)) +
             ylab(paste("Cummulated",type,sep = " ")) +
             {if(multiplot) facet_wrap(~model)} +
             {if(multiplot) theme(legend.position = "none")})

@@ -26,7 +26,7 @@ source("ModelImplementations/RzepakowskiTree.R")
 
 set.seed(1234)
 n_predictions <- 25
-remain_cores <- 1
+remain_cores <- 12
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -93,31 +93,31 @@ for(f in 1:n_predictions){
     pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
-  
+
   #Causal Forest
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
                                                 s_rule = "TOT", s_true = T)
   write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-  
+
   # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "class",treatment_list,control,test,"rf")
   write.csv(pred_sma_rf, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-  
+
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
-                          remain_cores = remain_cores)
+  cts_forest <- build_cts(response, control, treatment_list, train, ntree = 500, nrow(train), m_try = 4,
+                          n_reg = 4, min_split = 10, parallel = TRUE, remain_cores = remain_cores)
   pred <- predict_forest_df(cts_forest, test, treatment_list, control,remain_cores = remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
-  
+
   #Rzp
-  for(div in c("binary_KL_divergence")){
-    rzp_forest <- build_random_rzp_forest(train_data = train, treatment_list = treatment_list,
-                                                   response = response,control = control, n_trees = 500, n_features = 3,
-                                                   normalize = T, max_depth = 100,test_list = test_list, remain_cores = 12,
+  for(div in c("binary_KL_divergence","EucDistance")){
+    rzp_forest <- parallel_build_random_rzp_forest(train_data = train, treatment_list = treatment_list,
+                                                   response = response,control = control, n_trees = 500, n_features = 5,
+                                                   normalize = F, max_depth = 100,test_list = test_list, remain_cores = remain_cores,
                                                    divergence = div)
-    pred <- predict_forest_df(rzp_forest, test, treatment_list, control,remain_cores = 12)
+    pred <- predict_forest_df(rzp_forest, test, treatment_list, control,remain_cores = remain_cores)
     write.csv(pred, paste(folder,"rzp",div,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
   
@@ -132,7 +132,7 @@ start_time <- Sys.time()
 outcomes <- c()
 decile_treated <- c()
 result_qini <- c()
-for(model in c("random_forest","cts","sma rf","causal_forest","rzp")){
+for(model in c("random_forest","sma rf","causal_forest","rzp","new_cts")){
   if(sum(model == c("random_forest")) > 0){
     for(c in c("frac","max")){
       for(f in 1:n_predictions){
@@ -200,17 +200,17 @@ colnames(result_qini) <- c("percentile","values","model")
 result_qini$model <- as.character(result_qini$model)
 decile_treated_df$Model <- as.character(decile_treated_df$Model)
 result_qini$percentile <- result_qini$percentile*100
-outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
+outcome_df[outcome_df$Model == "new_cts","Model"] <- "CTS"
 outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
 outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
 outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
 outcome_df[outcome_df$Model == "rzp_EucDistance","Model"] <- "Rzp-ED"
-result_qini[result_qini$model == "cts","model"] <- "CTS"
+result_qini[result_qini$model == "new_cts","model"] <- "CTS"
 result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
 result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
 result_qini[result_qini$model == "sma rf","model"] <- "SMA"
 result_qini[result_qini$model == "rzp_EucDistance","model"] <- "Rzp-ED"
-decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
+decile_treated_df[decile_treated_df$Model == "new_cts","Model"] <- "CTS"
 decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
 decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
@@ -224,7 +224,6 @@ colnames(new_qini) <- c("percentile","values","Model")
 new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),]
 new_outcome <- new_outcome[order(new_outcome$Model),]
 
-visualize_qini_uplift(new_qini,type = "qini")
 visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cumulative Gained Conversion")
 visualize(new_outcome,ylabel = "Expected Conversion Probability per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),],multiplot = T)
 visualize(new_outcome,ylabel = "Expected Conversion Probability per Person",multiplot = F,errorbars = F)

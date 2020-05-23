@@ -25,7 +25,7 @@ source("ModelImplementations/PredictionFunctions.R")
 
 set.seed(1234)
 n_predictions <- 25
-remain_cores <- 6
+remain_cores <- 1
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -93,21 +93,21 @@ for(f in 1:n_predictions){
     pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores)
     write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
   }
-  
+
   # Causal Forest
   causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
                                                 s_rule = "TOT", s_true = T)
   write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-  
+
   # Separate Model Approach
   pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf", mtry = 3, ntree = 500)
   write.csv(pred_sma_rf, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
             row.names = FALSE)
-  
+
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train, 500, nrow(train), 5, 2, 100, parallel = TRUE,
-                          remain_cores = remain_cores)
+  cts_forest <- build_cts(response, control, treatment_list, train, ntree = 500, nrow(train), m_try = 4,
+                          n_reg = 4, min_split = 10, parallel = TRUE, remain_cores = remain_cores)
   pred <- predict_forest_df(forest = cts_forest,test_data = test, treatment_list =  treatment_list,
                             control =  control, remain_cores =  remain_cores)
   write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
@@ -121,9 +121,9 @@ start_time <- Sys.time()
 outcomes <- c()
 result_qini <- c()
 decile_treated <- c()
-for(model in c("random_forest","cts","sma rf","causal_forest")){
+for(model in c("random_forest","cts","sma rf","causal_forest","new_cts")){
   if(sum(model == c("random_forest")) > 0){
-    for(c in c("frac",'max',"absfrac",'absmax')){
+    for(c in c("frac",'max')){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
         if(length(outcomes) == 0){
@@ -198,7 +198,6 @@ new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max"
 new_outcome <- new_outcome[order(new_outcome$Model),]
 
 #Visualize the results
-visualize_qini_uplift(new_qini,type = "qini")
 visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cumulative Gained Spend")
 visualize(new_outcome,ylabel = "Expected Amount Spend per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random_forest_absmax","random_forest_max")),],multiplot = T)
 visualize(new_outcome,ylabel = "Expected Amount Spend per Person",multiplot = F,errorbars = F)
