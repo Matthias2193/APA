@@ -199,6 +199,8 @@ result_qini <- result_qini[,1:3]
 colnames(result_qini) <- c("percentile","values","model")
 result_qini$model <- as.character(result_qini$model)
 decile_treated_df$Model <- as.character(decile_treated_df$Model)
+decile_treated_df$PercTreated <- decile_treated_df$PercTreated * 100
+decile_treated_df$Decile <- decile_treated_df$Decile * 10
 result_qini$percentile <- result_qini$percentile*100
 outcome_df[outcome_df$Model == "new_cts","Model"] <- "CTS"
 outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
