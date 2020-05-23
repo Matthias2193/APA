@@ -232,11 +232,11 @@ decile_treated_df$PercTreated <- decile_treated_df$PercTreated*100
 result_qini$percentile <- result_qini$percentile*100
 outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
 outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
-outcome_df[outcome_df$Model == "random_forest_absfrac","Model"] <- "DOM"
+outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
 outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
 result_qini[result_qini$model == "cts","model"] <- "CTS"
 result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
-result_qini[result_qini$model == "random_forest_absfrac","model"] <- "DOM"
+result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
 result_qini[result_qini$model == "sma rf","model"] <- "SMA"
 decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
 decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
