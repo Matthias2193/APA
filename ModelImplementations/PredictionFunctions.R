@@ -103,7 +103,7 @@ predict_forest_average <- function(forest,test_data, treatment_list, control,add
     colnames(final_predictions) <- c(treatment_list,control)
     final_predictions[ , "Treatment"] <- predictions_to_treatment(final_predictions, treatment_list, control)
     final_predictions[ , "Assignment"] <- predictions_to_treatment(test_data, treatment_list, control)
-    final_predictions[, "Outcome"] <- new_data[,response]
+    final_predictions[, "Outcome"] <- test_data[,response]
     for (t in treatment_list) {
       final_predictions[,paste("uplift",t,sep = "_")] <- final_predictions[t] - final_predictions[control]
     }

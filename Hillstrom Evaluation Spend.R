@@ -70,7 +70,7 @@ if(!file.exists("test.csv")){
 }
 folder <- "Predictions/Hillstrom/"
 # The training and prediction part
-for(f in 1:n_predictions){
+for(f in order(1:25,decreasing = T)){
   
   # If n_predictions is > 1 as bootstrap sample is created
   if(n_predictions > 1){
@@ -85,32 +85,32 @@ for(f in 1:n_predictions){
                                      "newbie","channel")],TRUE, max_cases = 10)
   
   start_time <- Sys.time()
-  for(c in c("frac","max")){
-    print(c)
-    #Random Forest
-    forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 3,
-                                           criterion = c,remain_cores = remain_cores)
-    pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores)
-    write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
-  }
-
-  # Causal Forest
-  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
-                                                s_rule = "TOT", s_true = T)
-  write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
-            row.names = FALSE)
-
-  # Separate Model Approach
-  pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf", mtry = 3, ntree = 500)
-  write.csv(pred_sma_rf, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
-            row.names = FALSE)
+  # for(c in c("frac","max")){
+  #   print(c)
+  #   #Random Forest
+  #   forest <- parallel_build_random_forest(train,treatment_list,response,control,n_trees = 500,n_features = 3,
+  #                                          criterion = c,remain_cores = remain_cores)
+  #   pred <- predict_forest_df(forest,test, treatment_list, control,remain_cores = remain_cores)
+  #   write.csv(pred, paste(folder,"random_forest_",c,as.character(f),".csv",sep = ""), row.names = FALSE)
+  # }
+  # 
+  # # Causal Forest
+  # causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
+  #                                               s_rule = "TOT", s_true = T)
+  # write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
+  #           row.names = FALSE)
+  # 
+  # # Separate Model Approach
+  # pred_sma_rf <- dt_models(train, response, "anova",treatment_list,control,test,"rf", mtry = 3, ntree = 500)
+  # write.csv(pred_sma_rf, paste(folder,"sma rf",as.character(f),".csv",sep = ""),
+  #           row.names = FALSE)
 
   # CTS
   cts_forest <- build_cts(response, control, treatment_list, train, ntree = 500, nrow(train), m_try = 4,
                           n_reg = 4, min_split = 10, parallel = TRUE, remain_cores = remain_cores)
   pred <- predict_forest_df(forest = cts_forest,test_data = test, treatment_list =  treatment_list,
-                            control =  control, remain_cores =  remain_cores)
-  write.csv(pred, paste(folder,"cts",as.character(f),".csv",sep = ""), row.names = FALSE)
+                            control =  control, remain_cores =  remain_cores,parallel_pred = F)
+  write.csv(pred, paste(folder,"CTS",as.character(f),".csv",sep = ""), row.names = FALSE)
   end_time <- Sys.time()
   print(difftime(end_time,start_time,units = "mins"))
 }
@@ -179,17 +179,16 @@ decile_treated_df$Decile <- decile_treated_df$Decile * 10
 result_qini$percentile <- result_qini$percentile*100
 outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
 outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
-outcome_df[outcome_df$Model == "random_forest_absfrac","Model"] <- "DOM"
+outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
 outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
 result_qini[result_qini$model == "cts","model"] <- "CTS"
 result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
-result_qini[result_qini$model == "random_forest_absfrac","model"] <- "DOM"
+result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
 result_qini[result_qini$model == "sma rf","model"] <- "SMA"
 decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
 decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
-decile_treated_df[decile_treated_df$Model == "random_forest_absfrac","Model"] <- "DOM"
+decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"
-decile_treated_df$Decile <- decile_treated_df$Decile*10
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 

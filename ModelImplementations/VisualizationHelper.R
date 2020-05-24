@@ -54,7 +54,9 @@ visualize <- function(temp_data,ylabel,n_treated = NULL,errorbars = TRUE,multipl
                           breaks = seq(0,100,10)) +
       theme(axis.text = element_text(size=14),
             axis.title = element_text(size=16),
-            strip.text.x = element_text(size = 10)) +
+            strip.text.x = element_text(size = 10),
+            legend.title = element_text(size = 16),
+            legend.text = element_text(size = 14)) +
       facet_wrap(~Model) 
     print(p1)
     print(p2)
