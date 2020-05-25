@@ -2,6 +2,12 @@
 # Disclaimer: 
 This Repository is still work in progress and not yet thoroughly tested. If you find any mistakes or have any questions, feel free to write me at becherma@hu-berlin.de
 <br>
+# Abstract
+The evaluation and selection of so-called treatments (e.g. marketing actions, advertisements) is one of the key challenges for marketing practitioners today. Uplift modeling is a machine learning tool for causal modeling and commonly used for this task. This thesis looks at uplift modeling in cases where multiple treatments are evaluated at the same time.<br>
+The thesis first gives an overview over the current literature. Then, a new method for uplift modeling is proposed called the Difference in Outcome Model (DOM), which is designed specifically with the multiple treatment case in mind. This method is compared to some of the most popular current methods using data from real world marketing campaigns.<br>
+The results show that the newly proposed method performs competitively or outperforms the other models in the cases tested in this thesis. However, they also show that the performance of uplift models can be somewhat unstable and is highly dependent on the data.
+Therefore, further testing on more and different data sets needs to be done, in order to confirm the good performance of the new model. Based on this thesis it is recommended that practitioners test several models to find the one which performs best on their data. The new method could be one of those models due to its overall good performance. <br>
+
 # Introduction
 Uplift modeling is a predictive modeling technique which is concerned with directly estimating the effect of a treatment on a person's behavior. Specifically, it tries to estimate the conditional average treatment effect (CATE) of a treatment based on the characteristics of a given person (age, gender, income, ...). While the type of predictive modeling has applications in a wide variety of field, we will focus on a marketing framework. Therefore, when we talk about "treatments" we usually refer to marketing campaigns, ads, etc. <br>
 So far, most research in this field has been done on a single treatment case and on cases with a binary outcome. We aim to fill that gap by looking exclusively at cases where multiple possible treatments are compared and focus on continuous outcome variables.
