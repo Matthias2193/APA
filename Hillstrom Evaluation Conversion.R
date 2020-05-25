@@ -26,7 +26,7 @@ source("ModelImplementations/RzepakowskiTree.R")
 
 set.seed(1234)
 n_predictions <- 25
-remain_cores <- 12
+remain_cores <- 1
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -220,69 +220,14 @@ decile_treated_df[decile_treated_df$Model == "rzp_EucDistance","Model"] <- "Rzp-
 print(difftime(Sys.time(),start_time,units = "mins"))
 
 
-new_qini <- result_qini[!(result_qini$model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),]
+new_qini <- result_qini[!(result_qini$model %in% c("random_forest_max","rzp_binary_KL_divergence")),]
 new_qini <- new_qini[order(new_qini$model),]
 colnames(new_qini) <- c("percentile","values","Model")
-new_outcome <- outcome_df[!(outcome_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),]
+new_outcome <- outcome_df[!(outcome_df$Model %in% c("random_forest_max","rzp_binary_KL_divergence")),]
 new_outcome <- new_outcome[order(new_outcome$Model),]
 
 visualize_qini_uplift(new_qini,type = "qini",errorbars = F,multiplot = F,ylabel = "Cumulative Gained Conversion")
-visualize(new_outcome,ylabel = "Expected Conversion Probability per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random","random_forest_max","rzp_binary_KL_divergence")),],multiplot = T)
+visualize(new_outcome,ylabel = "Expected Conversion Probability per Person",n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random_forest_max","rzp_binary_KL_divergence")),],multiplot = T)
 visualize(new_outcome,ylabel = "Expected Conversion Probability per Person",multiplot = F,errorbars = F)
 
 outcome_boxplot(new_outcome[,2:12],"Expected Conversion Probability per Customer")
-
-temp_data <- outcome_df
-values <- c()
-percentile <- c()
-model <- c()
-for(f in 1:nrow(temp_data)){
-  if(length(values) == 0){
-    values <- temp_data[f,1:11]
-    percentile <- colnames(temp_data)[1:11]
-    model <- rep(temp_data[f,12],11)
-  } else{
-    values <- c(values,temp_data[f,1:11])
-    percentile <- c(percentile, colnames(temp_data)[1:11])
-    model <- c(model,rep(temp_data[f,12],11))
-  }
-}
-temp_df <- data.frame(cbind(values,percentile,model))
-rownames(temp_df) <- 1:nrow(temp_df)
-colnames(temp_df) <- c("values","percentile","model")
-for(c in 1:2){
-  temp_df[,c] <- as.numeric(as.character(temp_df[,c]))
-}
-temp_df[,3] <- as.character(temp_df[,3]) 
-tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
-
-result_outcome <- tgc[,c("percentile","model","mean","sd")] 
-result_outcome[,c("mean","sd")] <- round(result_outcome[,c("mean","sd")]*100,2)
-
-mean_sd <- c()
-for(x in 1:nrow(result_outcome)){
-  temp_string <- paste(as.character(result_outcome[x,]$mean), " (",as.character(result_outcome[x,]$sd),")",sep = "")
-  mean_sd <- c(mean_sd,temp_string)
-}
-result_outcome[,c("mean","sd")] <- NULL
-result_outcome[,"mean_sd"] <- mean_sd
-test_df <- result_outcome[order(result_outcome$percentile,decreasing = T),][order(result_outcome$model),]
-write.csv(test_df,"ResultGraphs/Conversion/results_conversion.csv")
-
-
-
-temp_df <- result_qini[result_qini$model != "random",]
-tgc <- summarySE(data=temp_df, measurevar="values", groupvars=c("percentile","model"))
-
-result_outcome <- tgc[,c("percentile","model","mean","sd")] 
-result_outcome[,c("mean","sd")] <- round(result_outcome[,c("mean","sd")],2)
-
-mean_sd <- c()
-for(x in 1:nrow(result_outcome)){
-  temp_string <- paste(as.character(result_outcome[x,]$mean), " (",as.character(result_outcome[x,]$sd),")",sep = "")
-  mean_sd <- c(mean_sd,temp_string)
-}
-result_outcome[,c("mean","sd")] <- NULL
-result_outcome[,"mean_sd"] <- mean_sd
-test_df <- result_outcome[order(result_outcome$percentile,decreasing = T),][order(result_outcome$model),]
-write.csv(test_df,"ResultGraphs/Conversion/qini_conversion.csv")
