@@ -1,7 +1,6 @@
 #This script contains the implementation of a new decision tree for uplift modeling.
 
 #Importing libraries
-library(parallel)
 library(foreach)
 library(doParallel)
 
@@ -304,7 +303,7 @@ max_gain <- function(test_case, treatment, control, target, data, test_type, tes
 #test_list: a list of possible splits created by the 'set_up_tests' function
 #random and n_features are used for building the random forest.
 #criterion sepcifies which criterion to use to calculate the gain ("simple", "max", "frac")
-build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list,random = FALSE,
+dom_tree <- function(data,depth,max_depth,treatment_list,target,control,test_list,random = FALSE,
                        n_features = 0,criterion = "simple",min_split = 0,parent_predictions = NULL){
   #Return leaf if current depth is max depth
   if(depth == max_depth){
@@ -356,20 +355,20 @@ build_tree <- function(data,depth,max_depth,treatment_list,target,control,test_l
   node[['split']] <- temp_split
   #Split the data and create two new subtrees, each using one subset of the data
   if(names(temp_split) %in% names(test_list$categorical)){
-    node[['left']] <- build_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
+    node[['left']] <- dom_tree(data[data[names(temp_split)]==temp_split[[1]],],depth = depth+1,
                                  max_depth = max_depth,treatment_list =  treatment_list,target = target,
                                  control = control,test_list = test_list,random = random, n_features = n_features,
                                  criterion = criterion,min_split = min_split,parent_predictions = node[['results']])
-    node[['right']] <- build_tree(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,
+    node[['right']] <- dom_tree(data[data[names(temp_split)]!=temp_split[[1]],],depth = depth+1,
                                   max_depth = max_depth,treatment_list =  treatment_list,target = target,
                                   control = control,test_list = test_list,random = random, n_features = n_features,
                                   criterion = criterion,min_split = min_split,parent_predictions = node[['results']])
   } else{
-    node[['left']] <- build_tree(data = data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,
+    node[['left']] <- dom_tree(data = data[data[names(temp_split)]<temp_split[[1]],],depth = depth+1,
                                  max_depth = max_depth,treatment_list =  treatment_list,target = target,
                                  control = control,test_list = test_list,random = random, n_features = n_features,
                                  criterion = criterion,min_split = min_split,parent_predictions = node[['results']])
-    node[['right']] <- build_tree(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,
+    node[['right']] <- dom_tree(data[data[names(temp_split)]>=temp_split[[1]],],depth = depth+1,
                                   max_depth = max_depth,treatment_list =  treatment_list,target = target,
                                   control = control,test_list = test_list,random = random, n_features = n_features,
                                   criterion = criterion,min_split = min_split,parent_predictions = node[['results']])
@@ -406,40 +405,40 @@ final_node <- function(data,treatment_list,target,control){
 #Two random forest specific parameters:
 #n_trees: the number of trees in the forest
 #n_features: the number of randomly selected covariates to use for each split 
-build_random_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
-                                max_depth = 100, criterion = "simple",min_split=0){
-  trees <- list()
-  for(x in 1:n_trees){
-    print(x)
-    set.seed(x)
-    temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
-    temp_tree <- build_tree(data = temp_train_data, depth = 0, max_depth = max_depth, treatment_list = treatment_list, 
-                            target = response, control = control, test_list = test_list,
-                            random = TRUE,n_features = n_features,criterion = criterion,min_split = min_split)
-    trees[[x]] <- temp_tree
-  }
-  return(trees)
-}
-
-#Function to build a random forest with parallelization.
 #remain_cores specifies how many cores should NOT be used for the process. 
-parallel_build_random_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
-                                         max_depth = 100,remain_cores = 1,criterion = "simple",min_split=0){
-  numCores <- detectCores()
-  cl <- makePSOCKcluster(numCores-remain_cores)
-  registerDoParallel(cl)
-  trees <- foreach(x=1:n_trees) %dopar% {
-    source('ModelImplementations/DecisionTreeImplementation.R')
-    set.seed(x)
-    temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
-    temp_tree <- build_tree(data = temp_train_data,0,treatment_list = treatment_list, 
-                            test_list = test_list,target = response,control = control,
-                            max_depth = max_depth,random = TRUE,n_features =  n_features, 
-                            criterion =  criterion,min_split = min_split)
-    return(temp_tree)
+dom_forest <- function(train_data,treatment_list,response,control,n_trees,n_features,
+                       max_depth = 100,remain_cores = 1,criterion = "simple",min_split=0,
+                       parallel = T){
+  if(parallel){
+    numCores <- detectCores()
+    cl <- makePSOCKcluster(numCores-remain_cores)
+    registerDoParallel(cl)
+    trees <- foreach(x=1:n_trees) %dopar% {
+      source('src/Algorithm Implementations/DOM.R')
+      set.seed(x)
+      temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
+      temp_tree <- dom_tree(data = temp_train_data,0,treatment_list = treatment_list, 
+                              test_list = test_list,target = response,control = control,
+                              max_depth = max_depth,random = TRUE,n_features =  n_features, 
+                              criterion =  criterion,min_split = min_split)
+      return(temp_tree)
+    }
+    stopCluster(cl)
+    return(trees)
+  } else{
+    trees <- list()
+    for(x in 1:n_trees){
+      print(x)
+      set.seed(x)
+      temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data),replace = TRUE),]
+      temp_tree <- dom_tree(data = temp_train_data, depth = 0, max_depth = max_depth, treatment_list = treatment_list, 
+                              target = response, control = control, test_list = test_list,
+                              random = TRUE,n_features = n_features,criterion = criterion,min_split = min_split)
+      trees[[x]] <- temp_tree
+    }
+    return(trees)
   }
-  stopCluster(cl)
-  return(trees)
+ 
 }
 
 #Pruning ----

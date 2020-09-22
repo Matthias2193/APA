@@ -19,7 +19,7 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
     cl <- makePSOCKcluster(numCores-remain_cores)
     registerDoParallel(cl)
     trees <- foreach(x=1:ntree) %dopar% {
-      source('ModelImplementations/ContextualTreatmentSelection.R')
+      source('src/Algorithm Implementations/ContextualTreatmentSelection.R')
       set.seed(x)
       # In CTS we sample according to the treatment distribution in the train set instead of completely random.
       for(t in c(treatments,control)){

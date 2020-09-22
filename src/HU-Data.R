@@ -1,12 +1,7 @@
 # HU-Data Evaluation
 # This script runs with data which is not public. Please see Hillstrom Evaluation Spend.R for an example.
 
-library(ggplot2)
 library(caret)
-library(plyr)
-library(dplyr)
-library(reshape2)
-library(gbm)
 
 
 source('src/Algorithm Implementations/DOM.R')
@@ -21,7 +16,7 @@ source('src/Helper Functions/Evaluation Methods.R')
 
 set.seed(1234)
 n_predictions <- 25
-remain_cores <- 1
+remain_cores <- 2
 
 #Preprocessing---- 
 if(!file.exists("Data/hu-data.csv")){

@@ -7,12 +7,7 @@
 # For each iteration a bootstrap sample is taken as the new data and then the models are build. After the models
 # have been built and the predictions have been made, the predictions are evaluated and the results ploted.
 
-library(ggplot2)
 library(caret)
-library(plyr)
-library(dplyr)
-library(reshape2)
-
 
 source('src/Algorithm Implementations/DOM.R')
 source('src/Algorithm Implementations/RzepakowskiTree.R')
@@ -27,7 +22,7 @@ source('src/Helper Functions/Evaluation Methods.R')
 
 set.seed(1234)
 n_predictions <- 25
-remain_cores <- 1
+remain_cores <- 2
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -96,7 +91,7 @@ for(f in 1:n_predictions){
   }
 
   #Causal Forest
-  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 1000,
+  causal_forest_pred <- causalForestPredicitons(train, test, treatment_list, response, control,ntree = 500,
                                                 s_rule = "TOT", s_true = T)
   write.csv(causal_forest_pred, paste(folder,"causal_forest",as.character(f),".csv",sep = ""),
             row.names = FALSE)
@@ -133,8 +128,8 @@ start_time <- Sys.time()
 outcomes <- c()
 decile_treated <- c()
 result_qini <- c()
-for(model in c("random_forest","sma rf","causal_forest","rzp","new_cts")){
-  if(sum(model == c("random_forest")) > 0){
+for(model in c("random_forest","sma rf","causal_forest","rzp","cts")){
+  if(model == "random_forest"){
     for(c in c("frac","max")){
       for(f in 1:n_predictions){
         pred <- read.csv(paste(folder,model,"_",c,as.character(f),".csv",sep = ""))
@@ -203,17 +198,17 @@ decile_treated_df$Model <- as.character(decile_treated_df$Model)
 decile_treated_df$PercTreated <- decile_treated_df$PercTreated * 100
 decile_treated_df$Decile <- decile_treated_df$Decile * 10
 result_qini$percentile <- result_qini$percentile*100
-outcome_df[outcome_df$Model == "new_cts","Model"] <- "CTS"
+outcome_df[outcome_df$Model == "cts","Model"] <- "CTS"
 outcome_df[outcome_df$Model == "causal_forest","Model"] <- "Causal Forest"
 outcome_df[outcome_df$Model == "random_forest_frac","Model"] <- "DOM"
 outcome_df[outcome_df$Model == "sma rf","Model"] <- "SMA"
 outcome_df[outcome_df$Model == "rzp_EucDistance","Model"] <- "Rzp-ED"
-result_qini[result_qini$model == "new_cts","model"] <- "CTS"
+result_qini[result_qini$model == "cts","model"] <- "CTS"
 result_qini[result_qini$model == "causal_forest","model"] <- "Causal Forest"
 result_qini[result_qini$model == "random_forest_frac","model"] <- "DOM"
 result_qini[result_qini$model == "sma rf","model"] <- "SMA"
 result_qini[result_qini$model == "rzp_EucDistance","model"] <- "Rzp-ED"
-decile_treated_df[decile_treated_df$Model == "new_cts","Model"] <- "CTS"
+decile_treated_df[decile_treated_df$Model == "cts","Model"] <- "CTS"
 decile_treated_df[decile_treated_df$Model == "causal_forest","Model"] <- "Causal Forest"
 decile_treated_df[decile_treated_df$Model == "random_forest_frac","Model"] <- "DOM"
 decile_treated_df[decile_treated_df$Model == "sma rf","Model"] <- "SMA"

@@ -7,11 +7,7 @@
 # For each iteration a bootstrap sample is taken as the new data and then the models are build. After the models
 # have been built and the predictions have been made, the predictions are evaluated and the results ploted.
 
-library(ggplot2)
 library(caret)
-library(plyr)
-library(dplyr)
-library(reshape2)
 
 source('src/Algorithm Implementations/DOM.R')
 source('src/Algorithm Implementations/RzepakowskiTree.R')
@@ -25,7 +21,7 @@ source('src/Helper Functions/Evaluation Methods.R')
 
 set.seed(1234)
 n_predictions <- 25
-remain_cores <- 1
+remain_cores <- 2
 #Data import and preprocessing
 email <- read.csv('Data/Email.csv')
 
@@ -70,7 +66,7 @@ if(!file.exists("test.csv")){
 }
 folder <- "Predictions/Hillstrom/"
 # The training and prediction part
-for(f in order(1:25,decreasing = T)){
+for(f in 1:25){
   
   # If n_predictions is > 1 as bootstrap sample is created
   if(n_predictions > 1){
