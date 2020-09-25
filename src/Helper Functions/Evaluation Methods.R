@@ -21,7 +21,7 @@ expected_outcome <- function(pred, response, control, treatment_list) {
 
 
 # Modified Uplift Curve by Zhao
-new_expected_quantile_response <- function(response, control, treatment_list, predictions) {
+expected_outcome_curve <- function(response, control, treatment_list, predictions, model_name = "None") {
   predictions$max_uplift <- apply(predictions[, grep("^uplift", colnames(predictions))], 1, max)
   sorted_predictions <- predictions[order(-predictions$max_uplift), ]
   sorted_predictions$Treatment <- as.character(sorted_predictions$Treatment)
@@ -37,7 +37,10 @@ new_expected_quantile_response <- function(response, control, treatment_list, pr
   }
   sorted_predictions$Treatment <- sorted_predictions$temp_pred
   deciles <- c(deciles, expected_outcome(sorted_predictions, response, control, treatment_list))
-  return(deciles)
+  result <- data.frame(t(deciles))
+  colnames(result) <- seq(0,100,10)
+  result$Model <- model_name
+  return(result)
 }
 
 
@@ -52,10 +55,10 @@ perc_treated <- function(pred, treatment_list, n_pred = NULL) {
       perc <- c(perc, sum(pred$Treatment == t) / n_pred)
     }
   }
-  return(perc)
+  return(perc * 100)
 }
 
-decile_perc_treated <- function(pred, treatment_list) {
+decile_perc_treated <- function(pred, treatment_list, model_name = "None") {
   pred$max_uplift <- apply(pred[, grep("^uplift", colnames(pred))], 1, max)
   sorted_predictions <- pred[order(-pred$max_uplift), ]
   perc <- c()
@@ -63,13 +66,18 @@ decile_perc_treated <- function(pred, treatment_list) {
   for (x in 1:9) {
     perc <- rbind(perc, cbind(
       perc_treated(sorted_predictions[1:(x * n_tenth), ], treatment_list, nrow(pred)),
-      treatment_list, rep(x, length(treatment_list))
+      treatment_list, rep(x*10, length(treatment_list))
     ))
   }
   perc <- rbind(perc, cbind(
     perc_treated(sorted_predictions, treatment_list), treatment_list,
-    rep(10, length(treatment_list))
+    rep(100, length(treatment_list))
   ))
+  perc <- data.frame(perc)
+  colnames(perc) <- c("PercTreated", "Treatment", "Decile")
+  perc$Model <- model_name
+  perc$PercTreated <- as.numeric(as.character(perc$PercTreated))
+  perc$Decile <- as.numeric(as.character(perc$Decile))
   return(perc)
 }
 
@@ -132,7 +140,7 @@ uplift_curve <- function(predictions, control_level, treatments) {
 
 
 # incremental Qini - Curve
-qini_curve <- function(predictions, control_level, treatments) {
+qini_curve <- function(predictions, control_level, treatments, model_name = "None") {
   # score for each T individually
   predictions$max_uplift <- apply(predictions[, grep("^uplift", colnames(predictions))], 1, max)
   c_group <- predictions[predictions$Assignment == control_level, ]
@@ -140,7 +148,7 @@ qini_curve <- function(predictions, control_level, treatments) {
 
 
 
-  ret <- data.frame(Percentile = seq(0, 1, 0.1))
+  ret <- data.frame(Percentile = seq(0, 100, 10))
   tmp <- predictions[predictions$Assignment != control_level, ]
 
   # score by uplift column of T
@@ -161,6 +169,7 @@ qini_curve <- function(predictions, control_level, treatments) {
   ret$Values <- outcomes
   result <- ret
   result[is.na(result)] <- 0
+  result$Model <- model_name
   return(result)
 }
 

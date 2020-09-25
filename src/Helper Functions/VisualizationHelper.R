@@ -137,9 +137,9 @@ visualize_qini_uplift <- function(temp_data, type, ylabel, multiple_predictions 
   model <- c()
   temp_df <- temp_data
   if (multiple_predictions) {
-    tgc <- summarySE(data = temp_df, measurevar = "values", groupvars = c("percentile", "Model"))
+    tgc <- summarySE(data = temp_df, measurevar = "Values", groupvars = c("Percentile", "Model"))
     if (errorbars) {
-      print(ggplot(tgc, aes(x = percentile, y = mean, color = Model)) +
+      print(ggplot(tgc, aes(x = Percentile, y = mean, color = Model)) +
         geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci)) +
         geom_line() +
         geom_point() +
@@ -156,7 +156,7 @@ visualize_qini_uplift <- function(temp_data, type, ylabel, multiple_predictions 
         })
       # ggtitle(paste("Mean and Confidence Interval for",type,"score",sep=" ")))
     } else {
-      print(ggplot(tgc, aes(x = percentile, y = mean, color = Model)) +
+      print(ggplot(tgc, aes(x = Percentile, y = mean, color = Model)) +
         geom_line() +
         geom_point() +
         scale_x_continuous(
@@ -179,7 +179,7 @@ visualize_qini_uplift <- function(temp_data, type, ylabel, multiple_predictions 
       # ggtitle(paste("Mean",type,"score",sep=" ")))
     }
   } else {
-    print(ggplot(temp_df, aes(x = percentile, y = values, color = model)) +
+    print(ggplot(temp_df, aes(x = Percentile, y = Values, color = Model)) +
       geom_line() +
       geom_point() +
       scale_x_continuous(
@@ -192,12 +192,11 @@ visualize_qini_uplift <- function(temp_data, type, ylabel, multiple_predictions 
       ) +
       ylab(paste("Cummulated", type, sep = " ")) +
       {
-        if (multiplot) facet_wrap(~model)
+        if (multiplot) facet_wrap(~Model)
       } +
       {
         if (multiplot) theme(legend.position = "none")
       })
-    # ggtitle(paste("Mean",type,"score",sep=" ")))
   }
 }
 
