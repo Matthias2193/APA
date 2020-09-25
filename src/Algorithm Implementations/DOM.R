@@ -314,8 +314,9 @@ max_gain <- function(test_case, treatment, control, target, data, test_type, tes
 # test_list: a list of possible splits created by the 'set_up_tests' function
 # random and n_features are used for building the random forest.
 # criterion sepcifies which criterion to use to calculate the gain ("simple", "max", "frac")
-dom_tree <- function(data, depth, max_depth, treatment_list, target, control, test_list, random = FALSE,
-                     n_features = 0, criterion = "simple", min_split = 0, parent_predictions = NULL) {
+dom_train_tree <- function(data, depth, max_depth, treatment_list, target, control, random = FALSE,
+                     n_features = 0, criterion = "simple", min_split = 0, parent_predictions = NULL,
+                     test_list = NULL) {
   # Return leaf if current depth is max depth
   if (depth == max_depth) {
     return(final_node(data, treatment_list, target, control))
@@ -327,6 +328,10 @@ dom_tree <- function(data, depth, max_depth, treatment_list, target, control, te
     temp_cols <- sample(sample_cols, n_features, replace = F)
     chosen_cols <- c(temp_cols, retain_cols)
     test_list <- set_up_tests(data[, temp_cols], TRUE)
+  } else{
+    if(is.null(test_list)){
+      test_list <- set_up_tests(data[, setdiff(colnames(data), c(treatment_list, control, target))], TRUE)
+    }
   }
   treatment_names <- c(treatment_list, control)
   effects <- c()
@@ -368,26 +373,26 @@ dom_tree <- function(data, depth, max_depth, treatment_list, target, control, te
   node[["split"]] <- temp_split
   # Split the data and create two new subtrees, each using one subset of the data
   if (names(temp_split) %in% names(test_list$categorical)) {
-    node[["left"]] <- dom_tree(data[data[names(temp_split)] == temp_split[[1]], ],
+    node[["left"]] <- dom_train_tree(data[data[names(temp_split)] == temp_split[[1]], ],
       depth = depth + 1,
       max_depth = max_depth, treatment_list = treatment_list, target = target,
       control = control, test_list = test_list, random = random, n_features = n_features,
       criterion = criterion, min_split = min_split, parent_predictions = node[["results"]]
     )
-    node[["right"]] <- dom_tree(data[data[names(temp_split)] != temp_split[[1]], ],
+    node[["right"]] <- dom_train_tree(data[data[names(temp_split)] != temp_split[[1]], ],
       depth = depth + 1,
       max_depth = max_depth, treatment_list = treatment_list, target = target,
       control = control, test_list = test_list, random = random, n_features = n_features,
       criterion = criterion, min_split = min_split, parent_predictions = node[["results"]]
     )
   } else {
-    node[["left"]] <- dom_tree(
+    node[["left"]] <- dom_train_tree(
       data = data[data[names(temp_split)] < temp_split[[1]], ], depth = depth + 1,
       max_depth = max_depth, treatment_list = treatment_list, target = target,
       control = control, test_list = test_list, random = random, n_features = n_features,
       criterion = criterion, min_split = min_split, parent_predictions = node[["results"]]
     )
-    node[["right"]] <- dom_tree(data[data[names(temp_split)] >= temp_split[[1]], ],
+    node[["right"]] <- dom_train_tree(data[data[names(temp_split)] >= temp_split[[1]], ],
       depth = depth + 1,
       max_depth = max_depth, treatment_list = treatment_list, target = target,
       control = control, test_list = test_list, random = random, n_features = n_features,
@@ -427,9 +432,18 @@ final_node <- function(data, treatment_list, target, control) {
 # n_trees: the number of trees in the forest
 # n_features: the number of randomly selected covariates to use for each split
 # remain_cores specifies how many cores should NOT be used for the process.
-dom_forest <- function(train_data, treatment_list, response, control, n_trees, n_features,
+dom_train <- function(train_data, treatment_list, response, control, n_trees, n_features,
                        max_depth = 100, remain_cores = 1, criterion = "simple", min_split = 0,
                        parallel = T) {
+  if(n_trees == 1){
+    temp_tree <- dom_train_tree(
+      data = train_data, 0, treatment_list = treatment_list,
+      target = response, control = control,
+      max_depth = max_depth, random = FALSE, n_features = n_features,
+      criterion = criterion, min_split = min_split
+    )
+    return(temp_tree)
+  }
   if (parallel) {
     numCores <- detectCores()
     cl <- makePSOCKcluster(numCores - remain_cores)
@@ -438,9 +452,9 @@ dom_forest <- function(train_data, treatment_list, response, control, n_trees, n
       source("src/Algorithm Implementations/DOM.R")
       set.seed(x)
       temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data), replace = TRUE), ]
-      temp_tree <- dom_tree(
+      temp_tree <- dom_train_tree(
         data = temp_train_data, 0, treatment_list = treatment_list,
-        test_list = test_list, target = response, control = control,
+        target = response, control = control,
         max_depth = max_depth, random = TRUE, n_features = n_features,
         criterion = criterion, min_split = min_split
       )
@@ -454,9 +468,9 @@ dom_forest <- function(train_data, treatment_list, response, control, n_trees, n
       print(x)
       set.seed(x)
       temp_train_data <- train_data[sample(nrow(train_data), nrow(train_data), replace = TRUE), ]
-      temp_tree <- dom_tree(
+      temp_tree <- dom_train_tree(
         data = temp_train_data, depth = 0, max_depth = max_depth, treatment_list = treatment_list,
-        target = response, control = control, test_list = test_list,
+        target = response, control = control,
         random = TRUE, n_features = n_features, criterion = criterion, min_split = min_split
       )
       trees[[x]] <- temp_tree

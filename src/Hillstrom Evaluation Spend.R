@@ -77,16 +77,11 @@ for (f in 1:25) {
 
   test <- email[idx, ]
 
-  test_list <- set_up_tests(train[, c(
-    "recency", "history_segment", "history", "mens", "womens", "zip_code",
-    "newbie", "channel"
-  )], TRUE, max_cases = 10)
-
   start_time <- Sys.time()
   for (c in c("frac", "max")) {
     print(c)
     # Random Forest
-    forest <- dom_forest(train, treatment_list, response, control,
+    forest <- dom_train(train, treatment_list, response, control,
       n_trees = 500, n_features = 3,
       criterion = c, remain_cores = remain_cores
     )
@@ -110,7 +105,7 @@ for (f in 1:25) {
   )
 
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train,
+  cts_forest <- cts_train(response, control, treatment_list, train,
     ntree = 500, nrow(train), m_try = 4,
     n_reg = 4, min_split = 10, parallel = TRUE, remain_cores = remain_cores
   )

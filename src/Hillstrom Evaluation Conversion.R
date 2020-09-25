@@ -77,16 +77,11 @@ for (f in 1:n_predictions) {
 
   test <- email[idx, ]
 
-  test_list <- set_up_tests(train[, c(
-    "recency", "history_segment", "history", "mens", "womens", "zip_code",
-    "newbie", "channel"
-  )], TRUE, max_cases = 10)
-
   start_time <- Sys.time()
   for (c in c("frac", "max")) {
     print(c)
     # Random Forest
-    forest <- dom_forest(train, treatment_list, response, control,
+    forest <- dom_train(train, treatment_list, response, control,
       n_trees = 10, n_features = 3,
       criterion = c, remain_cores = remain_cores
     )
@@ -110,7 +105,7 @@ for (f in 1:n_predictions) {
   )
 
   # CTS
-  cts_forest <- build_cts(response, control, treatment_list, train,
+  cts_forest <- cts_train(response, control, treatment_list, train,
     ntree = 10, nrow(train), m_try = 4,
     n_reg = 4, min_split = 10, parallel = TRUE, remain_cores = remain_cores
   )
@@ -119,10 +114,10 @@ for (f in 1:n_predictions) {
 
   # Rzp
   for (div in c("binary_KL_divergence", "EucDistance")) {
-    rzp_forest <- parallel_build_random_rzp_forest(
+    rzp_forest <- rzp_train(
       train_data = train, treatment_list = treatment_list,
       response = response, control = control, n_trees = 10, n_features = 5,
-      normalize = F, max_depth = 100, test_list = test_list, remain_cores = remain_cores,
+      normalize = F, max_depth = 100, remain_cores = remain_cores,
       divergence = div
     )
     pred <- predict_forest_df(rzp_forest, test, treatment_list, control, remain_cores = remain_cores)

@@ -11,7 +11,7 @@ source("src/Algorithm Implementations/DOM.R")
 # min_split: The minimum number of observations for each treatment.
 # If parallel = TRUE the process will be parallalized using the number of cores available - remain_cores.
 # For further information about the algorithm please read the paper.
-build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_reg, min_split, parallel = TRUE,
+cts_train <- function(response, control, treatments, data, ntree, B, m_try, n_reg, min_split, parallel = TRUE,
                       remain_cores = 1) {
   if (parallel) {
     # Set up the parallelization
@@ -34,7 +34,7 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
       }
       temp_train_data <- na.omit(temp_train_data)
       # Once the new training data is sampled the tree is build.
-      return(build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg,
+      return(cts_train_tree(response, control, treatments, temp_train_data, m_try, n_reg,
         min_split,
         parent_predictions = NA
       ))
@@ -55,7 +55,7 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
         }
       }
       temp_train_data <- na.omit(temp_train_data)
-      trees[[x]] <- build_cts_tree(response, control, treatments, temp_train_data, m_try, n_reg,
+      trees[[x]] <- cts_train_tree(response, control, treatments, temp_train_data, m_try, n_reg,
         min_split,
         parent_predictions = NA
       )
@@ -66,7 +66,7 @@ build_cts <- function(response, control, treatments, data, ntree, B, m_try, n_re
 
 
 # The main method to build a single tree for CTS
-build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, min_split,
+cts_train_tree <- function(response, control, treatments, data, m_try, n_reg, min_split,
                            min_gain = 0, parent_predictions = NA, depth = 0) {
   # We sample mtry covariates to use for the next split
   retain_cols <- c(treatments, control, response)
@@ -151,20 +151,20 @@ build_cts_tree <- function(response, control, treatments, data, m_try, n_reg, mi
   node[["split"]] <- temp_split
   # The data is split according to the selected split and two new trees are grown.
   if (names(temp_split) %in% names(test_list$categorical)) {
-    node[["left"]] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)] == temp_split[[1]], ],
+    node[["left"]] <- cts_train_tree(response, control, treatments, data[data[names(temp_split)] == temp_split[[1]], ],
       m_try, n_reg, min_split, min_gain, node[["results"]],
       depth = depth + 1
     )
-    node[["right"]] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)] != temp_split[[1]], ],
+    node[["right"]] <- cts_train_tree(response, control, treatments, data[data[names(temp_split)] != temp_split[[1]], ],
       m_try, n_reg, min_split, min_gain, node[["results"]],
       depth = depth + 1
     )
   } else {
-    node[["left"]] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)] < temp_split[[1]], ],
+    node[["left"]] <- cts_train_tree(response, control, treatments, data[data[names(temp_split)] < temp_split[[1]], ],
       m_try, n_reg, min_split, min_gain, node[["results"]],
       depth = depth + 1
     )
-    node[["right"]] <- build_cts_tree(response, control, treatments, data[data[names(temp_split)] >= temp_split[[1]], ],
+    node[["right"]] <- cts_train_tree(response, control, treatments, data[data[names(temp_split)] >= temp_split[[1]], ],
       m_try, n_reg, min_split, min_gain, node[["results"]],
       depth = depth + 1
     )
