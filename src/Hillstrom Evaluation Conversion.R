@@ -198,8 +198,8 @@ new_qini <- new_qini[order(new_qini$Model), ]
 new_outcome <- outcomes[!(outcomes$Model %in% c("DOM max", "RZP binary_KL_divergence")), ]
 new_outcome <- new_outcome[order(new_outcome$Model), ]
 
-visualize_qini_uplift(new_qini, type = "qini", errorbars = F, multiplot = F, ylabel = "Cumulative Gained Conversion")
-visualize(new_outcome, ylabel = "Expected Conversion Probability per Person", n_treated = decile_treated[!(decile_treated$Model %in% c("DOM max", "RZP binary_KL_divergence")), ], multiplot = T)
-visualize(new_outcome, ylabel = "Expected Conversion Probability per Person", multiplot = F, errorbars = F)
+visualize_qini(new_qini, type = "qini", ylabel = "Cumulative Gained Conversion")
+visualize_outcome(new_outcome, ylabel = "Expected Conversion Probability per Person", n_treated = decile_treated[!(decile_treated$Model %in% c("DOM max", "RZP binary_KL_divergence")), ], multiplot = T)
+visualize_outcome(new_outcome, ylabel = "Expected Conversion Probability per Person")
 
 outcome_boxplot(new_outcome[, 2:12], "Expected Conversion Probability per Customer")

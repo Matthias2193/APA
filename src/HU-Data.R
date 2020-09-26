@@ -224,7 +224,7 @@ new_outcome <- new_outcome[order(new_outcome$Model), ]
 
 
 # Visualize the results
-visualize_qini_uplift(new_qini, type = "qini", errorbars = F, multiplot = F, ylabel = "Cumulative Gained  Checkout Amount")
-visualize(new_outcome, ylabel = "Expected Checkout Amount per Person", n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random_forest_max")), ], multiplot = T)
-visualize(new_outcome, ylabel = "Expected Checkout Amount per Person", multiplot = F, errorbars = F)
+visualize_qini(new_qini, type = "qini", ylabel = "Cumulative Gained  Checkout Amount")
+visualize_outcome(new_outcome, ylabel = "Expected Checkout Amount per Person", n_treated = decile_treated_df[!(decile_treated_df$Model %in% c("random_forest_max")), ], multiplot = T)
+visualize_outcome(new_outcome, ylabel = "Expected Checkout Amount per Person")
 outcome_boxplot(new_outcome[, 2:12], "Expected Checkout Amount per Customer")

@@ -170,7 +170,7 @@ new_outcome <- outcomes[!(outcomes$Model %in% c("DOM max")), ]
 new_outcome <- new_outcome[order(new_outcome$Model), ]
 
 # Visualize the results
-visualize_qini_uplift(new_qini, type = "qini", errorbars = F, multiplot = F, ylabel = "Cumulative Gained Spend")
-visualize(new_outcome, ylabel = "Expected Amount Spend per Person", n_treated = decile_treated[!(decile_treated$Model %in% c("DOM max")), ], multiplot = T)
-visualize(new_outcome, ylabel = "Expected Amount Spend per Person", multiplot = F, errorbars = F)
+visualize_qini(new_qini, type = "qini", ylabel = "Cumulative Gained Spend")
+visualize_outcome(new_outcome, ylabel = "Expected Amount Spend per Person", n_treated = decile_treated[!(decile_treated$Model %in% c("DOM max")), ], multiplot = T)
+visualize_outcome(new_outcome, ylabel = "Expected Amount Spend per Person")
 outcome_boxplot(new_outcome[, 2:12], "Expected Amount Spend per Customer")

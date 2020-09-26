@@ -4,6 +4,7 @@
 library(foreach)
 library(doParallel)
 
+source("src/Algorithm Implementations/PredictionFunctions.R")
 
 # Set up tests ----
 # Creates a list of possible splits.

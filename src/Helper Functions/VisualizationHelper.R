@@ -4,7 +4,7 @@ library("plyr")
 # This method visualizes the incremental expected outcome for one or more models.
 # If there are multiple predictions for each model, the function aggregates those predictions and can create
 # errorbars to show the confidence interval of the predictions.
-visualize <- function(temp_data, ylabel, n_treated = NULL, errorbars = TRUE, multiplot = FALSE) {
+visualize_outcome <- function(temp_data, ylabel = "Y", n_treated = NULL, errorbars = F, multiplot = FALSE) {
   values <- c()
   percentile <- c()
   model <- c()
@@ -131,7 +131,7 @@ outcome_boxplot <- function(temp_data, ylabel) {
   print(p1)
 }
 
-visualize_qini_uplift <- function(temp_data, type, ylabel, multiple_predictions = TRUE, errorbars = TRUE, multiplot = TRUE) {
+visualize_qini <- function(temp_data, ylabel = "y", multiple_predictions = F, errorbars = F, multiplot = F) {
   values <- c()
   percentile <- c()
   model <- c()
@@ -176,7 +176,6 @@ visualize_qini_uplift <- function(temp_data, type, ylabel, multiple_predictions 
         {
           if (multiplot) theme(legend.position = "none")
         })
-      # ggtitle(paste("Mean",type,"score",sep=" ")))
     }
   } else {
     print(ggplot(temp_df, aes(x = Percentile, y = Values, color = Model)) +
@@ -190,7 +189,7 @@ visualize_qini_uplift <- function(temp_data, type, ylabel, multiple_predictions 
         axis.text = element_text(size = 14),
         axis.title = element_text(size = 16)
       ) +
-      ylab(paste("Cummulated", type, sep = " ")) +
+      ylab(ylabel) +
       {
         if (multiplot) facet_wrap(~Model)
       } +

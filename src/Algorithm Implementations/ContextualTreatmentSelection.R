@@ -1,7 +1,7 @@
 library(dplyr)
 library(foreach)
 library(doParallel)
-source("src/Algorithm Implementations/DOM.R")
+source("src/Algorithm Implementations/PredictionFunctions.R")
 
 # The main method to build a cts forest.
 # There are 5 parameters which can be tuned to impact the mdoel performance:
@@ -273,3 +273,55 @@ cts_gain <- function(test_case, treatments, control, response, data, test_type, 
   # Return the calculated gain.
   return(p_left * max_left + p_right * max_right - max_root)
 }
+
+
+
+
+
+
+# Set up tests ----
+# Creates a list of possible splits.
+# Parameters:
+# reduce_cases(Boolean): Allows to limit the number of possible splits for continuous covariates
+# max_cases(Integer): The maximum number of possible splits to be examined for each covariate. These splits will
+# be evenly distributed over the range of the covariate
+set_up_tests <- function(x, reduce_cases, max_cases = 10) {
+  type_list <- sapply(x, class)
+  categorical_splits <- list()
+  numerical_splits <- list()
+  for (n in colnames(x)) {
+    if (type_list[[n]] == "factor") {
+      categorical_splits[[n]] <- levels(x[, n])
+    }
+    else {
+      temp_list <- sort(unique(x[, n]))
+      r <- 1
+      s <- 2
+      final_list <- c()
+      while (r < length(temp_list)) {
+        final_list <- c(final_list, round((temp_list[r] + temp_list[s]) / 2, 1))
+        r <- r + 1
+        s <- s + 1
+      }
+      final_list <- unique(final_list)
+      if ((length(final_list) > max_cases) && reduce_cases) {
+        final_list <- round(final_list)
+        final_list <- unique(final_list)
+      }
+      if ((length(final_list) > max_cases) && reduce_cases) {
+        final_list <- quantile(x[, n], seq(0, 1, 1 / max_cases))
+        final_list <- round(final_list, 2)
+      }
+      numerical_splits[[n]] <- final_list
+    }
+  }
+  output <- list()
+  output[["categorical"]] <- categorical_splits
+  output[["numerical"]] <- numerical_splits
+  return(output)
+}
+
+
+
+
+
