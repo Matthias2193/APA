@@ -1,6 +1,9 @@
 # Multiple Treatments for Uplift Modeling
 # Disclaimer: 
-This Repository is still work in progress and not yet thoroughly tested. If you find any mistakes or have any questions, feel free to write me at becherma@hu-berlin.de
+This repository was first created by Matthias Becher and Jan Krol as part of the Applied Predictive Analytics Seminar at Humboldt-University of Berlin. <br>
+Afterwards I continued to work on it for my master's thesis.
+
+I currently do not actively work on this repository. However, if you find any mistakes or have any questions, feel free to write me at matthias.becher@charite.de
 <br>
 # Abstract
 The evaluation and selection of so-called treatments (e.g. marketing actions, advertisements) is one of the key challenges for marketing practitioners today. Uplift modeling is a machine learning tool for causal modeling and commonly used for this task. This thesis looks at uplift modeling in cases where multiple treatments are evaluated at the same time.<br>
@@ -30,5 +33,3 @@ An example of the code applied to the Hillstrom data set (https://blog.minethatd
 <br>
 <br>
 
-This repository was first created by Matthias Becher and Jan Krol as part of the Applied Predictive Analytics Seminar at Humboldt-University of Berlin. <br>
-Currently it is being maintained and improved by Matthias Becher as part of his Master Thesis.
